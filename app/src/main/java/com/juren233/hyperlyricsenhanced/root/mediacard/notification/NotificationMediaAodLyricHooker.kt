@@ -1411,8 +1411,24 @@ object NotificationMediaAodLyricHooker {
                 overlay.player.layoutParams = params
             }
         }
+        // 背景卡片必须与 player 同步加高，否则内容会上下溢出视觉卡片边界
+        val background = overlay.backgroundSize.view
+        val backgroundBase = overlay.backgroundSize.baseHeight.takeIf { it > 0 }
+            ?: background.layoutParams?.height?.takeIf { it > 0 }
+            ?: -1
+        if (backgroundBase > 0) {
+            background.layoutParams?.let { params ->
+                params.height = backgroundBase + zone
+                background.layoutParams = params
+            }
+            overlay.compactAppliedBgBase = backgroundBase
+        }
         overlay.compactAppliedDelta = zone
-        HookLogger.i(TAG, "紧凑模式固定歌词区已布局: zone=$zone, row=${row?.javaClass?.name}")
+        HookLogger.i(
+            TAG,
+            "紧凑模式固定歌词区已布局: zone=$zone, row=${row?.javaClass?.name}, " +
+                "playerBase=$playerBaseHeight, bgBase=$backgroundBase"
+        )
     }
 
     /** 还原紧凑模式布局（进度条行与卡片高度），供息屏 AOD/隐藏路径调用。 */
@@ -1435,7 +1451,16 @@ object NotificationMediaAodLyricHooker {
                 overlay.player.layoutParams = params
             }
         }
+        val backgroundBase = overlay.compactAppliedBgBase
+        if (backgroundBase > 0) {
+            val background = overlay.backgroundSize.view
+            background.layoutParams?.let { params ->
+                params.height = backgroundBase
+                background.layoutParams = params
+            }
+        }
         overlay.compactAppliedDelta = 0
+        overlay.compactAppliedBgBase = -1
         overlay.rowBaseTopMargin = Int.MIN_VALUE
         HookLogger.i(TAG, "紧凑模式固定歌词区已还原: delta=$delta")
     }
@@ -3873,6 +3898,7 @@ object NotificationMediaAodLyricHooker {
         var seekBarRow: View? = null,
         var rowBaseTopMargin: Int = Int.MIN_VALUE,
         var compactAppliedDelta: Int = 0,
+        var compactAppliedBgBase: Int = -1,
     )
 
     private class MediaHeaderHeightController private constructor(
