@@ -612,6 +612,8 @@ object NotificationMediaAodLyricHooker {
     // 进度条整体下移该值、卡片一次性等量加高，保证互不重叠且不随歌词更新抖动。
     private const val COMPACT_LYRIC_ZONE_DP = 54f
     private const val COMPACT_LYRIC_TOP_GAP_DP = 6f
+    // 卡片上下边缘与内容（歌曲信息/进度条）的呼吸间距
+    private const val COMPACT_LYRIC_EDGE_PAD_DP = 12f
     private const val SEEK_BAR_CLASS_HINT = "HyperProgressSeekBar"
     private const val LOCK_SCREEN_AOD_SIDE_MARGIN_EXTRA_DP = 1f
     private const val LOCK_SCREEN_AOD_HEIGHT_ANIMATION_MS = 160L
@@ -1387,12 +1389,24 @@ object NotificationMediaAodLyricHooker {
         if (overlay.compactAppliedDelta != 0) return
         val density = overlay.root.resources.displayMetrics.density
         val zone = (COMPACT_LYRIC_ZONE_DP * density).toInt()
+        val edgePad = (COMPACT_LYRIC_EDGE_PAD_DP * density).toInt()
+        val delta = zone + edgePad * 2
         // 歌词区高度固定，与开辟的空间一致
         overlay.root.layoutParams?.let { lp ->
             if (lp.height != zone) {
                 lp.height = zone
                 overlay.root.layoutParams = lp
             }
+        }
+        // 顶部内边距把歌曲信息从卡片顶缘推开，形成呼吸间距
+        if (overlay.compactAppliedPaddingTop == -1) {
+            overlay.compactAppliedPaddingTop = overlay.player.paddingTop
+            overlay.player.setPadding(
+                overlay.player.paddingLeft,
+                overlay.player.paddingTop + edgePad,
+                overlay.player.paddingRight,
+                overlay.player.paddingBottom,
+            )
         }
         val row = overlay.seekBarRow ?: findSeekBarRow(overlay.player)?.also {
             overlay.seekBarRow = it
@@ -1407,7 +1421,7 @@ object NotificationMediaAodLyricHooker {
         val playerBaseHeight = overlay.playerSize.baseHeight
         if (playerBaseHeight > 0) {
             overlay.player.layoutParams?.let { params ->
-                params.height = playerBaseHeight + zone
+                params.height = playerBaseHeight + delta
                 overlay.player.layoutParams = params
             }
         }
@@ -1418,7 +1432,7 @@ object NotificationMediaAodLyricHooker {
             ?: -1
         if (backgroundBase > 0) {
             background.layoutParams?.let { params ->
-                params.height = backgroundBase + zone
+                params.height = backgroundBase + delta
                 background.layoutParams = params
             }
             overlay.compactAppliedBgBase = backgroundBase
@@ -1462,6 +1476,15 @@ object NotificationMediaAodLyricHooker {
         overlay.compactAppliedDelta = 0
         overlay.compactAppliedBgBase = -1
         overlay.rowBaseTopMargin = Int.MIN_VALUE
+        if (overlay.compactAppliedPaddingTop >= 0) {
+            overlay.player.setPadding(
+                overlay.player.paddingLeft,
+                overlay.compactAppliedPaddingTop,
+                overlay.player.paddingRight,
+                overlay.player.paddingBottom,
+            )
+            overlay.compactAppliedPaddingTop = -1
+        }
         HookLogger.i(TAG, "紧凑模式固定歌词区已还原: delta=$delta")
     }
 
@@ -3899,6 +3922,7 @@ object NotificationMediaAodLyricHooker {
         var rowBaseTopMargin: Int = Int.MIN_VALUE,
         var compactAppliedDelta: Int = 0,
         var compactAppliedBgBase: Int = -1,
+        var compactAppliedPaddingTop: Int = -1,
     )
 
     private class MediaHeaderHeightController private constructor(
