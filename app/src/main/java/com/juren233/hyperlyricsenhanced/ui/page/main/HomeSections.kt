@@ -19,6 +19,8 @@ fun LazyListScope.homePageSections(
     availableUpdateVersion: String?,
     enableSuperIsland: Boolean,
     onSuperIslandToggle: (Boolean) -> Unit,
+    enableIslandExpandedLyrics: Boolean,
+    onIslandExpandedLyricsToggle: (Boolean) -> Unit,
     enableDynamicIsland: Boolean,
     onDynamicIslandToggle: (Boolean) -> Unit,
     enableAodLyrics: Boolean,
@@ -80,6 +82,12 @@ fun LazyListScope.homePageSections(
                         ArrowPreference(
                             title = stringResource(R.string.title_media_cards),
                             onClick = onMediaCardConfigClick,
+                        )
+                        SwitchPreference(
+                            title = stringResource(R.string.title_island_expanded_lyrics),
+                            summary = stringResource(R.string.summary_island_expanded_lyrics),
+                            checked = enableIslandExpandedLyrics,
+                            onCheckedChange = onIslandExpandedLyricsToggle,
                         )
                     }
                 }

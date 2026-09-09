@@ -23,6 +23,7 @@ import com.juren233.hyperlyricsenhanced.root.mediacard.notification.Notification
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.AodEnvironmentDiagnostics
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaAodLyricHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaCoverStyleHooker
+import com.juren233.hyperlyricsenhanced.root.mediacard.island.IslandExpandedLyricHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.island.IslandExpandedMediaAmbientFlowHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.background.MediaBackgroundRendererPool
 import com.juren233.hyperlyricsenhanced.root.island.renderer.BaseIslandRenderer
@@ -191,6 +192,7 @@ class HookEntry : XposedModule() {
         NotificationMediaCoverStyleHooker.releaseAll()
         NotificationMediaAmbientFlowHooker.releaseAll()
         NotificationMediaAodLyricHooker.releaseAll()
+        IslandExpandedLyricHooker.releaseAll()
         IslandProgressGlowController.clearAll()
         MediaBackgroundRendererPool.releaseAll()
         BaseIslandRenderer.clearAllViews()
@@ -260,6 +262,7 @@ class HookEntry : XposedModule() {
         
         if (packageName == "com.android.systemui") {
             NotificationMediaAodLyricHooker.hook(this, param.defaultClassLoader)
+            IslandExpandedLyricHooker.hook(this, param.defaultClassLoader)
             if (!lyricsOnlyAfterHotReload) {
                 IslandExpandedMediaAmbientFlowHooker.hook(this, param.defaultClassLoader)
                 NotificationMediaAmbientFlowHooker.hook(this, param.defaultClassLoader)
@@ -495,6 +498,7 @@ class HookEntry : XposedModule() {
                     RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS,
                     RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED,
+                    RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_APPLE_MUSIC_NATIVE_ONLINE_TRANSLATION -> {
                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                             ClassicAodFocusNotificationRecovery.ensureListenerCanRecover(app, prefs)
