@@ -499,6 +499,7 @@ class HookEntry : XposedModule() {
                             updateFeatureRuntime()
                         }
                     }
+                    RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
                     RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE,
                     RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,

@@ -41,6 +41,9 @@
     <string name="title_aod_lyrics">Xiaomi AOD Lyrics</string>
     <string name="summary_aod_lyrics">Show lyrics on the always-on display during playback</string>
     <string name="title_lock_screen_aod">Lock Screen AOD</string>
+    <string name="title_lock_screen_lyrics_section">Lock Screen Lyrics</string>
+    <string name="title_lock_screen_lyrics">Show lyrics while screen is awake on lock screen</string>
+    <string name="summary_lock_screen_lyrics">Also show lyrics below the lock screen media card while the screen is awake and the device is locked (same position as the AOD lyrics)</string>
     <string name="title_classic_aod">Classic AOD</string>
     <string name="title_dynamic_island_config">Notification Dynamic Island Lyrics Custom Configuration</string>
     <string name="title_special_features">Special Features</string>

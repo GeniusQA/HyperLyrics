@@ -421,6 +421,92 @@ class AodMediaLyricPolicyTest {
     }
 
     @Test
+    fun `activates lock screen lyrics only while awake locked and shown`() {
+        assertTrue(
+            AodMediaLyricPolicy.isLockScreenLyricsActive(
+                interactive = true,
+                keyguardLocked = true,
+                playerShown = true,
+                featureEnabled = true,
+            )
+        )
+        assertFalse(
+            AodMediaLyricPolicy.isLockScreenLyricsActive(
+                interactive = false,
+                keyguardLocked = true,
+                playerShown = true,
+                featureEnabled = true,
+            )
+        )
+        assertFalse(
+            AodMediaLyricPolicy.isLockScreenLyricsActive(
+                interactive = true,
+                keyguardLocked = false,
+                playerShown = true,
+                featureEnabled = true,
+            )
+        )
+        assertFalse(
+            AodMediaLyricPolicy.isLockScreenLyricsActive(
+                interactive = true,
+                keyguardLocked = true,
+                playerShown = false,
+                featureEnabled = true,
+            )
+        )
+        assertFalse(
+            AodMediaLyricPolicy.isLockScreenLyricsActive(
+                interactive = true,
+                keyguardLocked = true,
+                playerShown = true,
+                featureEnabled = false,
+            )
+        )
+    }
+
+    @Test
+    fun `shows lyrics during awake lock screen when lock screen lyrics enabled`() {
+        val base = mapOf(
+            "enabled" to true,
+            "fullAod" to false,
+            "playing" to true,
+            "hasLyric" to true,
+            "packageMatches" to true,
+        )
+        fun show(lockScreenLyrics: Boolean) = AodMediaLyricPolicy.shouldShow(
+            enabled = base["enabled"] as Boolean,
+            fullAod = base["fullAod"] as Boolean,
+            playing = base["playing"] as Boolean,
+            hasLyric = base["hasLyric"] as Boolean,
+            packageMatches = base["packageMatches"] as Boolean,
+            lockScreenLyrics = lockScreenLyrics,
+        )
+        assertTrue(show(lockScreenLyrics = true))
+        assertFalse(show(lockScreenLyrics = false))
+        assertFalse(
+            AodMediaLyricPolicy.shouldShow(
+                enabled = true,
+                fullAod = false,
+                playing = false,
+                hasLyric = true,
+                packageMatches = true,
+                lockScreenLyrics = true,
+            )
+        )
+        assertTrue(
+            AodMediaLyricPolicy.shouldShow(
+                enabled = true,
+                fullAod = false,
+                playing = false,
+                hasLyric = true,
+                packageMatches = true,
+                pauseStyle = RootConstants.AOD_PAUSE_STYLE_KEEP_LYRICS,
+                lockScreenLyrics = true,
+            )
+        )
+    }
+
+    @Test
     fun `keeps main translation backing vocal and its translation in display order`() {
         val content = AodMediaLyricPolicy.assembleContent(
             main = "Main lyric",
