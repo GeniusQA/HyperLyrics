@@ -608,8 +608,11 @@ object NotificationMediaAodLyricHooker {
     // 歌词底部到卡片底的预留高度：需完整容纳贴底显示的进度条区（时间+滑条约40dp）及上下间距，
     // 防止歌词翻译行与进度条重叠。
     private const val LOCK_SCREEN_AOD_BOTTOM_RESERVE_DP = 56f
-    // 紧凑模式（亮屏锁屏/通知中心）歌词区域与按钮行的间距
+    // 紧凑模式（亮屏锁屏/通知中心）：按钮与进度条之间固定的歌词区高度，
+    // 进度条整体下移该值、卡片一次性等量加高，保证互不重叠且不随歌词更新抖动。
+    private const val COMPACT_LYRIC_ZONE_DP = 54f
     private const val COMPACT_LYRIC_TOP_GAP_DP = 6f
+    private const val SEEK_BAR_CLASS_HINT = "HyperProgressSeekBar"
     private const val LOCK_SCREEN_AOD_SIDE_MARGIN_EXTRA_DP = 1f
     private const val LOCK_SCREEN_AOD_HEIGHT_ANIMATION_MS = 160L
     // Hidden PowerManager level that permits frame submission while the display is dozing.
@@ -1200,6 +1203,7 @@ object NotificationMediaAodLyricHooker {
             restoreActions(state)
             state.overlay?.let { overlay ->
                 overlay.root.visibility = View.GONE
+                restoreCompactLayout(overlay)
                 restorePlayerHeight(overlay, state.fullAod)
             }
             return
@@ -1337,9 +1341,9 @@ object NotificationMediaAodLyricHooker {
                 dedupeKey = diagnosticKey,
             )
             if (compactMode) {
-                // 紧凑模式不撑高卡片：还原既有高度增量，并把歌词区域
-                // 折叠定位到按钮行下方、进度条上方的空白区域。
-                restorePlayerHeight(overlay, false)
+                // 紧凑模式：一次性把进度条行下移、卡片等量加高，
+                // 歌词区固定在按钮与进度条之间，后续歌词更新不再触碰布局。
+                applyCompactLayout(overlay)
                 val actionsBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0
                 if (actionsBottom > 0) {
                     val params = overlay.root.layoutParams as? ViewGroup.MarginLayoutParams
@@ -1352,6 +1356,7 @@ object NotificationMediaAodLyricHooker {
                     }
                 }
             } else {
+                restoreCompactLayout(overlay)
                 updateLockScreenCardHeight(
                     overlay,
                     forceRemeasure = contentChanged || styleChanged,
@@ -1372,6 +1377,86 @@ object NotificationMediaAodLyricHooker {
             (overlay.root.parent as? View)?.invalidate()
             requestAodFrameRefresh(controller.javaClass.classLoader)
         }
+    }
+
+    /**
+     * 紧凑模式一次性布局：在按钮与进度条之间开辟固定高度歌词区——
+     * 进度条行 topMargin 下移 zone 高度、卡片等量加高。幂等，不随歌词更新触发。
+     */
+    private fun applyCompactLayout(overlay: LyricOverlay) {
+        if (overlay.compactAppliedDelta != 0) return
+        val density = overlay.root.resources.displayMetrics.density
+        val zone = (COMPACT_LYRIC_ZONE_DP * density).toInt()
+        // 歌词区高度固定，与开辟的空间一致
+        overlay.root.layoutParams?.let { lp ->
+            if (lp.height != zone) {
+                lp.height = zone
+                overlay.root.layoutParams = lp
+            }
+        }
+        val row = overlay.seekBarRow ?: findSeekBarRow(overlay.player)?.also {
+            overlay.seekBarRow = it
+        }
+        row?.layoutParams?.let { rowParams ->
+            if (rowParams is ViewGroup.MarginLayoutParams && overlay.rowBaseTopMargin == Int.MIN_VALUE) {
+                overlay.rowBaseTopMargin = rowParams.topMargin
+                rowParams.topMargin = overlay.rowBaseTopMargin + zone
+                row.layoutParams = rowParams
+            }
+        }
+        val playerBaseHeight = overlay.playerSize.baseHeight
+        if (playerBaseHeight > 0) {
+            overlay.player.layoutParams?.let { params ->
+                params.height = playerBaseHeight + zone
+                overlay.player.layoutParams = params
+            }
+        }
+        overlay.compactAppliedDelta = zone
+        HookLogger.i(TAG, "紧凑模式固定歌词区已布局: zone=$zone, row=${row?.javaClass?.name}")
+    }
+
+    /** 还原紧凑模式布局（进度条行与卡片高度），供息屏 AOD/隐藏路径调用。 */
+    private fun restoreCompactLayout(overlay: LyricOverlay) {
+        if (overlay.compactAppliedDelta == 0) return
+        val delta = overlay.compactAppliedDelta
+        val row = overlay.seekBarRow
+        row?.layoutParams?.let { rowParams ->
+            if (rowParams is ViewGroup.MarginLayoutParams &&
+                overlay.rowBaseTopMargin != Int.MIN_VALUE
+            ) {
+                rowParams.topMargin = overlay.rowBaseTopMargin
+                row.layoutParams = rowParams
+            }
+        }
+        val playerBaseHeight = overlay.playerSize.baseHeight
+        if (playerBaseHeight > 0) {
+            overlay.player.layoutParams?.let { params ->
+                params.height = playerBaseHeight
+                overlay.player.layoutParams = params
+            }
+        }
+        overlay.compactAppliedDelta = 0
+        overlay.rowBaseTopMargin = Int.MIN_VALUE
+        HookLogger.i(TAG, "紧凑模式固定歌词区已还原: delta=$delta")
+    }
+
+    /** 在 player 视图树中定位进度条（HyperProgressSeekBar），返回其布局行容器。 */
+    private fun findSeekBarRow(root: ViewGroup): View? {
+        val queue = ArrayDeque<View>()
+        queue.add(root)
+        var steps = 0
+        while (queue.isNotEmpty() && steps < 64) {
+            steps++
+            val view = queue.removeFirst()
+            if (view !== root && view.javaClass.simpleName.contains(SEEK_BAR_CLASS_HINT)) {
+                val parent = view.parent as? ViewGroup ?: return view
+                return if (parent === root) view else parent
+            }
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) queue.add(view.getChildAt(index))
+            }
+        }
+        return null
     }
 
     /**
@@ -2390,6 +2475,7 @@ object NotificationMediaAodLyricHooker {
                 restoreActions(state)
                 state.overlay?.let { overlay ->
                     overlay.root.visibility = View.GONE
+                    restoreCompactLayout(overlay)
                     restorePlayerHeight(overlay, state.fullAod)
                 }
                 HookLogger.e(TAG, "应用息屏歌词失败", it)
@@ -3784,6 +3870,9 @@ object NotificationMediaAodLyricHooker {
         var fullAodActive: Boolean = false,
         var heightAnimator: ValueAnimator? = null,
         var compactMode: Boolean = false,
+        var seekBarRow: View? = null,
+        var rowBaseTopMargin: Int = Int.MIN_VALUE,
+        var compactAppliedDelta: Int = 0,
     )
 
     private class MediaHeaderHeightController private constructor(
