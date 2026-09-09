@@ -38,12 +38,12 @@
     <string name="title_super_island_config">Xiaomi HyperIsland Lyrics Custom Configuration</string>
     <string name="title_dynamic_island_lyrics">Notification Dynamic Island Lyrics</string>
     <string name="summary_dynamic_island_lyrics">Uses notifications for Dynamic Island lyric effects, suitable for non-rooted devices</string>
-    <string name="title_aod_lyrics">Xiaomi AOD Lyrics</string>
-    <string name="summary_aod_lyrics">Show lyrics on the always-on display during playback</string>
+    <string name="title_aod_lyrics">AOD Lyrics</string>
+    <string name="summary_aod_lyrics">Show lyrics below the AOD media card while playing on the always-on display</string>
     <string name="title_lock_screen_aod">Lock Screen AOD</string>
     <string name="title_lock_screen_lyrics">Lock Screen Lyrics</string>
     <string name="summary_lock_screen_lyrics">Also show lyrics below the lock screen media card while the screen is awake and the device is locked</string>
-    <string name="title_lock_screen_lyrics_config">Lock Screen Lyrics Settings</string>
+    <string name="title_lock_screen_lyrics_config">Lock Screen Lyrics</string>
     <string name="title_classic_aod">Classic AOD</string>
     <string name="title_dynamic_island_config">Notification Dynamic Island Lyrics Custom Configuration</string>
     <string name="title_special_features">Special Features</string>
