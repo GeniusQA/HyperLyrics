@@ -31,9 +31,9 @@
     <string name="title_basic_features">Basic Features</string>
     <string name="title_lyric_settings">Lyric Settings</string>
     <string name="title_super_island_lyrics">HyperIsland Lyrics</string>
-    <string name="title_super_island_lyrics_config">HyperIsland Lyrics Configuration</string>
+    <string name="title_super_island_lyrics_config">Super Island · Mini Lyrics</string>
     <string name="summary_super_island_lyrics">Only supports HyperOS 3 devices with LSPosed v2.0 installed</string>
-    <string name="title_miui_systemui_enhancement">Super Island Lyrics</string>
+    <string name="title_miui_systemui_enhancement">Super Island · Mini Lyrics</string>
     <string name="summary_miui_systemui_enhancement">Show lyrics on Super Island during playback</string>
     <string name="title_super_island_config">Xiaomi HyperIsland Lyrics Custom Configuration</string>
     <string name="title_dynamic_island_lyrics">Notification Dynamic Island Lyrics</string>
@@ -46,7 +46,7 @@
     <string name="title_lock_screen_lyrics_config">Lock Screen Lyrics</string>
     <string name="title_notification_center_lyrics">Notification Center Lyrics</string>
     <string name="summary_notification_center_lyrics">Show lyrics below the media card when the notification center is pulled down while unlocked</string>
-    <string name="title_island_expanded_lyrics">Expanded Island Lyrics</string>
+    <string name="title_island_expanded_lyrics">Super Island · Expanded Lyrics</string>
     <string name="summary_island_expanded_lyrics">Show lyrics and translation below the seek bar inside the expanded Super Island media card</string>
     <string name="title_classic_aod">Classic AOD</string>
     <string name="title_dynamic_island_config">Notification Dynamic Island Lyrics Custom Configuration</string>

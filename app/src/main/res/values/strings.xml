@@ -32,9 +32,9 @@
     <string name="title_basic_features">基础功能</string>
     <string name="title_lyric_settings">歌词设置</string>
     <string name="title_super_island_lyrics">超级岛歌词</string>
-    <string name="title_super_island_lyrics_config">超级岛歌词配置</string>
+    <string name="title_super_island_lyrics_config">超级岛·摘要态歌词</string>
     <string name="summary_super_island_lyrics">仅支持已安装LSPosed v2.0的HyperOS 3设备</string>
-    <string name="title_miui_systemui_enhancement">超级岛歌词</string>
+    <string name="title_miui_systemui_enhancement">超级岛·摘要态歌词</string>
     <string name="summary_miui_systemui_enhancement">播放时在超级岛显示歌词</string>
     <string name="title_super_island_config">小米超级岛歌词自定义配置</string>
     <string name="title_dynamic_island_lyrics">通知型灵动岛歌词</string>
@@ -47,7 +47,7 @@
     <string name="title_lock_screen_lyrics_config">锁屏歌词</string>
     <string name="title_notification_center_lyrics">通知中心歌词</string>
     <string name="summary_notification_center_lyrics">解锁后下拉通知中心时，在媒体通知卡片下方显示歌词</string>
-    <string name="title_island_expanded_lyrics">大岛歌词</string>
+    <string name="title_island_expanded_lyrics">超级岛·展开态歌词</string>
     <string name="summary_island_expanded_lyrics">展开超级岛媒体大岛时，在卡片内进度条下方显示歌词与翻译</string>
     <string name="title_classic_aod">经典AOD</string>
     <string name="title_dynamic_island_config">通知型灵动岛歌词自定义配置</string>
