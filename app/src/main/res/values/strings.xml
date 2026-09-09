@@ -31,7 +31,7 @@
     <string name="toast_one_tap_refresh_no_root">无root权限无法一键刷新</string>
     <string name="title_basic_features">基础功能</string>
     <string name="title_lyric_settings">歌词设置</string>
-    <string name="title_super_island_lyrics">超级岛歌词</string>
+    <string name="title_super_island_lyrics">超级岛·摘要态歌词</string>
     <string name="title_super_island_lyrics_config">超级岛·摘要态歌词</string>
     <string name="summary_super_island_lyrics">仅支持已安装LSPosed v2.0的HyperOS 3设备</string>
     <string name="title_miui_systemui_enhancement">超级岛·摘要态歌词</string>

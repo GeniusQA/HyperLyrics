@@ -30,7 +30,7 @@
     <string name="toast_one_tap_refresh_no_root">One-tap refresh requires root access</string>
     <string name="title_basic_features">Basic Features</string>
     <string name="title_lyric_settings">Lyric Settings</string>
-    <string name="title_super_island_lyrics">HyperIsland Lyrics</string>
+    <string name="title_super_island_lyrics">Super Island · Mini Lyrics</string>
     <string name="title_super_island_lyrics_config">Super Island · Mini Lyrics</string>
     <string name="summary_super_island_lyrics">Only supports HyperOS 3 devices with LSPosed v2.0 installed</string>
     <string name="title_miui_systemui_enhancement">Super Island · Mini Lyrics</string>
