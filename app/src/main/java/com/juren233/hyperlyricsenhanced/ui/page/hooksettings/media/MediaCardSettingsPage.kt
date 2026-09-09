@@ -242,6 +242,22 @@ fun MediaCardSettingsPage() {
             )
         )
     }
+    var notificationCenterLyricsEnabled by remember {
+        mutableStateOf(
+            prefs.getBoolean(
+                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED,
+                RootConstants.DEFAULT_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED
+            )
+        )
+    }
+    var islandExpandedLyricsEnabled by remember {
+        mutableStateOf(
+            prefs.getBoolean(
+                RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED,
+                RootConstants.DEFAULT_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED
+            )
+        )
+    }
 
     val backdrop = rememberBlurBackdrop()
     val blurActive = backdrop != null
@@ -337,6 +353,20 @@ fun MediaCardSettingsPage() {
                         PrefsBridge.putBoolean(
                             RootConstants.KEY_HOOK_NOTIFICATION_MEDIA_HIDE_DEVICE_SWITCH,
                             hidden
+                        )
+                    },
+                    lyricsEnabled = notificationCenterLyricsEnabled,
+                    onLyricsEnabledChange = { enabled ->
+                        notificationCenterLyricsEnabled = enabled
+                        prefs.edit {
+                            putBoolean(
+                                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED,
+                                enabled
+                            )
+                        }
+                        PrefsBridge.putBoolean(
+                            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED,
+                            enabled
                         )
                     },
                     backgroundStyle = notificationBackgroundStyle,
@@ -487,6 +517,20 @@ fun MediaCardSettingsPage() {
                         PrefsBridge.putBoolean(
                             RootConstants.KEY_HOOK_ISLAND_EXPANDED_MEDIA_HIDE_DEVICE_SWITCH,
                             hidden
+                        )
+                    },
+                    lyricsEnabled = islandExpandedLyricsEnabled,
+                    onLyricsEnabledChange = { enabled ->
+                        islandExpandedLyricsEnabled = enabled
+                        prefs.edit {
+                            putBoolean(
+                                RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED,
+                                enabled
+                            )
+                        }
+                        PrefsBridge.putBoolean(
+                            RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED,
+                            enabled
                         )
                     },
                     backgroundStyle = islandExpandedBackgroundStyle,
