@@ -31,7 +31,7 @@ internal object SystemUiScreenStateMonitor {
                         )
                         HookLogger.d(TAG, "收到亮屏事件，刷新超级岛状态")
                         BaseIslandRenderer.onScreenInteractive()
-                        NotificationMediaAodLyricHooker.hideLockScreenOverlays()
+                        NotificationMediaAodLyricHooker.onScreenInteractive()
                     }
 
                     Intent.ACTION_SCREEN_OFF -> {
@@ -42,6 +42,17 @@ internal object SystemUiScreenStateMonitor {
                         )
                         HookLogger.d(TAG, "收到息屏事件，取消超级岛亮屏恢复任务")
                         BaseIslandRenderer.onScreenNonInteractive()
+                        NotificationMediaAodLyricHooker.onScreenNonInteractive()
+                    }
+
+                    Intent.ACTION_USER_PRESENT -> {
+                        MediaCardDiagnosticLogger.log(
+                            stage = "screen",
+                            event = "user_present",
+                            details = "action=${intent.action},source=${MediaCardDiagnosticLogger.identity(context)}",
+                        )
+                        HookLogger.d(TAG, "收到解锁事件，隐藏锁屏歌词覆盖层")
+                        NotificationMediaAodLyricHooker.hideLockScreenOverlays()
                     }
                 }
             }
@@ -49,6 +60,7 @@ internal object SystemUiScreenStateMonitor {
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
         }
         app.registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         registeredApp = app
