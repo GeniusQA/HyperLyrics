@@ -235,8 +235,15 @@ internal object AodMediaLyricPolicy {
         topGap: Int
     ): Int = anchorBottom.coerceAtLeast(0) + topGap.coerceAtLeast(0)
 
-    fun contentAnchorBottom(albumBottom: Int, artistBottom: Int): Int =
-        maxOf(albumBottom.coerceAtLeast(0), artistBottom.coerceAtLeast(0))
+    fun contentAnchorBottom(
+        albumBottom: Int,
+        artistBottom: Int,
+        actionBottom: Int = 0,
+    ): Int = maxOf(
+        albumBottom.coerceAtLeast(0),
+        artistBottom.coerceAtLeast(0),
+        actionBottom.coerceAtLeast(0),
+    )
 
     fun lockScreenHorizontalMargins(
         playerWidth: Int,
@@ -2206,6 +2213,7 @@ object NotificationMediaAodLyricHooker {
             next = next,
             artist = artist,
             album = album,
+            actions = actions,
             player = player,
             playerSize = playerSize,
             backgroundSize = backgroundSize,
@@ -2321,7 +2329,8 @@ object NotificationMediaAodLyricHooker {
         if (overlay.root.measuredHeight <= 0) return
         val anchorBottom = AodMediaLyricPolicy.contentAnchorBottom(
             albumBottom = overlay.album.bottom,
-            artistBottom = overlay.artist.bottom
+            artistBottom = overlay.artist.bottom,
+            actionBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0,
         )
         if (anchorBottom <= 0) return
         if (overlay.playerSize.baseHeight <= 0) {
@@ -3643,6 +3652,7 @@ object NotificationMediaAodLyricHooker {
         val next: TextView,
         val artist: View,
         val album: View,
+        val actions: List<View>,
         val player: ViewGroup,
         val playerSize: ViewSizeSnapshot,
         val backgroundSize: ViewSizeSnapshot,

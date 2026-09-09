@@ -291,6 +291,34 @@ class AodMediaLyricPolicyTest {
     }
 
     @Test
+    fun `anchors lock screen lyrics below the playback actions`() {
+        assertEquals(
+            150,
+            AodMediaLyricPolicy.contentAnchorBottom(
+                albumBottom = 65,
+                artistBottom = 45,
+                actionBottom = 150,
+            )
+        )
+        assertEquals(
+            65,
+            AodMediaLyricPolicy.contentAnchorBottom(
+                albumBottom = 65,
+                artistBottom = 45,
+                actionBottom = 0,
+            )
+        )
+        assertEquals(
+            65,
+            AodMediaLyricPolicy.contentAnchorBottom(
+                albumBottom = 65,
+                artistBottom = 45,
+                actionBottom = -3,
+            )
+        )
+    }
+
+    @Test
     fun `uses the cover inset as both lock screen lyric side margins`() {
         assertEquals(
             AodHorizontalMargins(left = 24, right = 24),
