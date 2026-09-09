@@ -40,6 +40,8 @@ fun HomePage(
     onAodLyricsToggle: (Boolean) -> Unit,
     enableLockScreenLyrics: Boolean,
     onLockScreenLyricsToggle: (Boolean) -> Unit,
+    enableNotificationCenterLyrics: Boolean,
+    onNotificationCenterLyricsToggle: (Boolean) -> Unit,
     onSuperIslandConfigClick: () -> Unit,
     onMediaCardConfigClick: () -> Unit,
     onDynamicIslandConfigClick: () -> Unit,
@@ -65,7 +67,7 @@ fun HomePage(
             BlurredBar(backdrop, blurActive) {
                 TopAppBar(
                     color = barColor,
-                    title = "HyperLyrics Enhanced",
+                    title = "HyperLyrics",
                     scrollBehavior = topAppBarScrollBehavior,
                     actions = {
                         IconButton(onClick = onRefreshClick) {
@@ -108,6 +110,8 @@ fun HomePage(
                     onAodLyricsToggle = onAodLyricsToggle,
                     enableLockScreenLyrics = enableLockScreenLyrics,
                     onLockScreenLyricsToggle = onLockScreenLyricsToggle,
+                    enableNotificationCenterLyrics = enableNotificationCenterLyrics,
+                    onNotificationCenterLyricsToggle = onNotificationCenterLyricsToggle,
                     onSuperIslandConfigClick = onSuperIslandConfigClick,
                     onMediaCardConfigClick = onMediaCardConfigClick,
                     onDynamicIslandConfigClick = onDynamicIslandConfigClick,

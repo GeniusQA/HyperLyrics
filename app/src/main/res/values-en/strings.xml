@@ -44,6 +44,8 @@
     <string name="title_lock_screen_lyrics">Lock Screen Lyrics</string>
     <string name="summary_lock_screen_lyrics">Also show lyrics below the lock screen media card while the screen is awake and the device is locked</string>
     <string name="title_lock_screen_lyrics_config">Lock Screen Lyrics</string>
+    <string name="title_notification_center_lyrics">Notification Center Lyrics</string>
+    <string name="summary_notification_center_lyrics">Show lyrics below the media card when the notification center is pulled down while unlocked</string>
     <string name="title_classic_aod">Classic AOD</string>
     <string name="title_dynamic_island_config">Notification Dynamic Island Lyrics Custom Configuration</string>
     <string name="title_special_features">Special Features</string>

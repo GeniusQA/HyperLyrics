@@ -291,6 +291,58 @@ class AodMediaLyricPolicyTest {
     }
 
     @Test
+    fun `activates notification center lyrics only while awake unlocked and shown`() {
+        assertTrue(
+            AodMediaLyricPolicy.isNotificationCenterLyricsActive(
+                interactive = true,
+                keyguardLocked = false,
+                playerShown = true,
+                featureEnabled = true,
+            )
+        )
+        assertFalse(
+            AodMediaLyricPolicy.isNotificationCenterLyricsActive(
+                interactive = true,
+                keyguardLocked = true,
+                playerShown = true,
+                featureEnabled = true,
+            )
+        )
+        assertFalse(
+            AodMediaLyricPolicy.isNotificationCenterLyricsActive(
+                interactive = true,
+                keyguardLocked = false,
+                playerShown = true,
+                featureEnabled = false,
+            )
+        )
+    }
+
+    @Test
+    fun `shows lyrics in notification center independently of aod switch`() {
+        assertTrue(
+            AodMediaLyricPolicy.shouldShow(
+                enabled = false,
+                fullAod = false,
+                playing = true,
+                hasLyric = true,
+                packageMatches = true,
+                notificationCenter = true,
+            )
+        )
+        assertFalse(
+            AodMediaLyricPolicy.shouldShow(
+                enabled = false,
+                fullAod = false,
+                playing = true,
+                hasLyric = true,
+                packageMatches = true,
+                notificationCenter = false,
+            )
+        )
+    }
+
+    @Test
     fun `anchors lock screen lyrics below the playback actions`() {
         assertEquals(
             150,
