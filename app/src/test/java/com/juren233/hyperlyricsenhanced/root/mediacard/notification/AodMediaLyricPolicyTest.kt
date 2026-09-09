@@ -483,6 +483,27 @@ class AodMediaLyricPolicyTest {
         )
         assertTrue(show(lockScreenLyrics = true))
         assertFalse(show(lockScreenLyrics = false))
+        // 锁屏歌词开启时独立于息屏歌词总开关生效
+        assertTrue(
+            AodMediaLyricPolicy.shouldShow(
+                enabled = false,
+                fullAod = false,
+                playing = true,
+                hasLyric = true,
+                packageMatches = true,
+                lockScreenLyrics = true,
+            )
+        )
+        assertFalse(
+            AodMediaLyricPolicy.shouldShow(
+                enabled = false,
+                fullAod = false,
+                playing = true,
+                hasLyric = true,
+                packageMatches = true,
+                lockScreenLyrics = false,
+            )
+        )
         assertFalse(
             AodMediaLyricPolicy.shouldShow(
                 enabled = true,

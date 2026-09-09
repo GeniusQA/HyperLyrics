@@ -42,9 +42,9 @@
     <string name="title_aod_lyrics">米系息屏歌词</string>
     <string name="summary_aod_lyrics">播放时在息屏界面显示歌词</string>
     <string name="title_lock_screen_aod">锁屏AOD</string>
-    <string name="title_lock_screen_lyrics_section">锁屏歌词</string>
-    <string name="title_lock_screen_lyrics">亮屏锁屏时显示歌词</string>
-    <string name="summary_lock_screen_lyrics">亮屏且停留在锁屏界面时，同样在锁屏媒体卡片下方显示歌词（歌词位置与息屏AOD一致）</string>
+    <string name="title_lock_screen_lyrics">锁屏歌词</string>
+    <string name="summary_lock_screen_lyrics">亮屏且停留在锁屏界面时，同样在锁屏媒体卡片下方显示歌词</string>
+    <string name="title_lock_screen_lyrics_config">锁屏歌词配置</string>
     <string name="title_classic_aod">经典AOD</string>
     <string name="title_dynamic_island_config">通知型灵动岛歌词自定义配置</string>
     <string name="title_special_features">特殊功能</string>
