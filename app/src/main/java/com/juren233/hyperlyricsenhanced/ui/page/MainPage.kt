@@ -168,6 +168,9 @@ fun MainPage() {
     var enableAodLyrics by remember {
         mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, RootConstants.DEFAULT_HOOK_ENABLE_AOD_LYRICS))
     }
+    var enableLockScreenLyrics by remember {
+        mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, RootConstants.DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED))
+    }
     var removeFocusWhitelist by remember {
         mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_REMOVE_FOCUS_WHITELIST, RootConstants.DEFAULT_HOOK_REMOVE_FOCUS_WHITELIST))
     }
@@ -211,6 +214,8 @@ fun MainPage() {
                     enableDynamicIsland = p.getBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND)
                 RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS ->
                     enableAodLyrics = p.getBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, RootConstants.DEFAULT_HOOK_ENABLE_AOD_LYRICS)
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED ->
+                    enableLockScreenLyrics = p.getBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, RootConstants.DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED)
             }
         }
     }
@@ -299,6 +304,28 @@ fun MainPage() {
             enableAodLyrics = false
             prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, false) }
             PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, false)
+        }
+    } }
+
+    val toggleLockScreenLyrics: (Boolean) -> Unit = remember { { checked ->
+        if (checked) {
+            if (RootApplication.xposedService != null) {
+                enableLockScreenLyrics = true
+                prefs.edit { putBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, true) }
+                PrefsBridge.putBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, true)
+                LiveLyricService.ensureListenerBound(context)
+            } else {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = msgXposedNotActive,
+                        duration = SnackbarDuration.Custom(2000L)
+                    )
+                }
+            }
+        } else {
+            enableLockScreenLyrics = false
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, false) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, false)
         }
     } }
 
@@ -660,10 +687,13 @@ fun MainPage() {
                         onDynamicIslandToggle = toggleDynamicIsland,
                         enableAodLyrics = enableAodLyrics,
                         onAodLyricsToggle = toggleAodLyrics,
+                        enableLockScreenLyrics = enableLockScreenLyrics,
+                        onLockScreenLyricsToggle = toggleLockScreenLyrics,
                         onSuperIslandConfigClick = { navigator.navigate(Route.HookSettings) },
                         onMediaCardConfigClick = { navigator.navigate(Route.MediaCardSettings) },
                         onDynamicIslandConfigClick = { navigator.navigate(Route.DynamicIslandNotification) },
                         onLockScreenAodConfigClick = { navigator.navigate(Route.LockScreenAodSettings) },
+                        onLockScreenLyricsConfigClick = { navigator.navigate(Route.LockScreenLyricsSettings) },
                         onClassicAodConfigClick = { navigator.navigate(Route.ClassicAodSettings) },
                         onLyricSettingsClick = { navigator.navigate(Route.LyricSettings) },
                         onRefreshClick = {

@@ -131,8 +131,11 @@ internal object AodMediaLyricPolicy {
         packageMatches: Boolean,
         pauseStyle: Int = RootConstants.DEFAULT_HOOK_AOD_PAUSE_STYLE,
         lockScreenLyrics: Boolean = false,
-    ): Boolean = enabled &&
-        (fullAod || lockScreenLyrics) &&
+    ): Boolean =
+        (
+            (enabled && fullAod) ||
+                lockScreenLyrics
+            ) &&
         (playing || pauseStyle == RootConstants.AOD_PAUSE_STYLE_KEEP_LYRICS) &&
         hasLyric &&
         packageMatches
@@ -1106,7 +1109,7 @@ object NotificationMediaAodLyricHooker {
             "policy_passed"
         } else {
             when {
-                !enabled -> "feature_disabled"
+                !enabled && !lockScreenLyricsActive -> "feature_disabled"
                 !state.fullAod && !interactive -> "waiting_full_aod"
                 interactive && !keyguardLocked && !state.fullAod -> "keyguard_open"
                 !state.aodActive && interactive -> "screen_interactive"
@@ -2616,8 +2619,8 @@ object NotificationMediaAodLyricHooker {
     }
 
     private fun shouldPollPosition(state: ControllerState): Boolean {
-        return isEnabled() && state.aodActive && state.playing &&
-            LyriconDataBridge.currentSong != null
+        return (isEnabled() || state.lockScreenLyricsActive) && state.aodActive &&
+            state.playing && LyriconDataBridge.currentSong != null
     }
 
     private fun hasActiveAodPluginState(): Boolean {

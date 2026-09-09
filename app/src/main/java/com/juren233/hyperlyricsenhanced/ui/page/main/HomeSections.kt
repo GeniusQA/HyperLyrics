@@ -23,10 +23,13 @@ fun LazyListScope.homePageSections(
     onDynamicIslandToggle: (Boolean) -> Unit,
     enableAodLyrics: Boolean,
     onAodLyricsToggle: (Boolean) -> Unit,
+    enableLockScreenLyrics: Boolean,
+    onLockScreenLyricsToggle: (Boolean) -> Unit,
     onSuperIslandConfigClick: () -> Unit,
     onMediaCardConfigClick: () -> Unit,
     onDynamicIslandConfigClick: () -> Unit,
     onLockScreenAodConfigClick: () -> Unit,
+    onLockScreenLyricsConfigClick: () -> Unit,
     onClassicAodConfigClick: () -> Unit,
     onLyricSettingsClick: () -> Unit,
     removeFocusWhitelist: Boolean,
@@ -102,6 +105,18 @@ fun LazyListScope.homePageSections(
                             onClick = onClassicAodConfigClick,
                         )
                     }
+                }
+                SwitchPreference(
+                    title = stringResource(R.string.title_lock_screen_lyrics),
+                    summary = stringResource(R.string.summary_lock_screen_lyrics),
+                    checked = enableLockScreenLyrics,
+                    onCheckedChange = onLockScreenLyricsToggle,
+                )
+                AnimatedVisibility(visible = enableLockScreenLyrics) {
+                    ArrowPreference(
+                        title = stringResource(R.string.title_lock_screen_lyrics_config),
+                        onClick = onLockScreenLyricsConfigClick,
+                    )
                 }
             }
         }
