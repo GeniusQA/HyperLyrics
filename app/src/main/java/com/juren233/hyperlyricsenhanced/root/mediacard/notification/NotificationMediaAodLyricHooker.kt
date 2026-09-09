@@ -594,7 +594,9 @@ object NotificationMediaAodLyricHooker {
     private const val LOCK_SCREEN_AOD_LINE_GAP_DP = 4f
     private const val LOCK_SCREEN_AOD_GROUP_GAP_DP = 8f
     private const val LOCK_SCREEN_AOD_TOP_GAP_DP = 17f
-    private const val LOCK_SCREEN_AOD_BOTTOM_GAP_DP = 21f
+    // 歌词底部到卡片底的预留高度：需完整容纳贴底显示的进度条区（时间+滑条约40dp）及上下间距，
+    // 防止歌词翻译行与进度条重叠。
+    private const val LOCK_SCREEN_AOD_BOTTOM_RESERVE_DP = 56f
     private const val LOCK_SCREEN_AOD_SIDE_MARGIN_EXTRA_DP = 1f
     private const val LOCK_SCREEN_AOD_HEIGHT_ANIMATION_MS = 160L
     // Hidden PowerManager level that permits frame submission while the display is dozing.
@@ -2346,8 +2348,9 @@ object NotificationMediaAodLyricHooker {
 
         val density = overlay.root.resources.displayMetrics.density
         val topGap = (LOCK_SCREEN_AOD_TOP_GAP_DP * density).toInt()
-        val bottomGap = (LOCK_SCREEN_AOD_BOTTOM_GAP_DP * density).toInt()
-        val nativeCardHeight = AodMediaLyricPolicy.lockScreenNativeCardHeight(            fullAod = overlay.fullAodActive,
+        val bottomReserveMin = (LOCK_SCREEN_AOD_BOTTOM_RESERVE_DP * density).toInt()
+        val nativeCardHeight = AodMediaLyricPolicy.lockScreenNativeCardHeight(
+            fullAod = overlay.fullAodActive,
             fullAodBaseHeight = overlay.backgroundSize.baseHeight,
             playerBaseHeight = overlay.playerSize.baseHeight,
         )
@@ -2367,10 +2370,10 @@ object NotificationMediaAodLyricHooker {
             overlay.root.layoutParams = params
         }
         val lyricBottom = lyricTop + overlay.root.measuredHeight
-        // 原生卡片中 metadata 底部到卡片底部的距离（进度条+操作按钮+边距）。
-        // 卡片按此距离在歌词下方预留操作区，保证恢复显示的按钮/进度条始终位于歌词下方。
+        // 歌词底部到卡片底部的预留：至少容纳贴底进度条区（含时间与滑条），
+        // 并取原生卡片中锚点到卡片底距离的较大值，保证按钮/进度条始终位于歌词下方且互不重叠。
         val bottomReserve = maxOf(
-            bottomGap,
+            bottomReserveMin,
             nativeCardHeight - anchorBottom,
         )
         val targetHeight = AodMediaLyricPolicy.lockScreenTargetCardHeight(
