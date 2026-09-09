@@ -33,6 +33,8 @@ fun LazyListScope.islandExpandedMediaCardSection(
     onHideCoverSourceChange: (Boolean) -> Unit,
     hideDeviceSwitch: Boolean,
     onHideDeviceSwitchChange: (Boolean) -> Unit,
+    lyricsEnabled: Boolean,
+    onLyricsEnabledChange: (Boolean) -> Unit,
     backgroundStyle: Int,
     onBackgroundStyleChange: (Int) -> Unit,
     backgroundColorAnimation: Boolean,
@@ -54,6 +56,12 @@ fun LazyListScope.islandExpandedMediaCardSection(
                 .padding(bottom = 12.dp)
                 .fillMaxWidth()
         ) {
+            SwitchPreference(
+                title = stringResource(R.string.title_island_expanded_lyrics),
+                summary = stringResource(R.string.summary_island_expanded_lyrics),
+                checked = lyricsEnabled,
+                onCheckedChange = onLyricsEnabledChange,
+            )
             val coverStyleValues = listOf(
                 RootConstants.ISLAND_EXPANDED_MEDIA_COVER_STYLE_DEFAULT,
                 RootConstants.ISLAND_EXPANDED_MEDIA_COVER_STYLE_CIRCLE,

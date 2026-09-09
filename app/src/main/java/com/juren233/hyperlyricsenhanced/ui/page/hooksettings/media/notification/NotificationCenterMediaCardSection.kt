@@ -33,6 +33,8 @@ fun LazyListScope.notificationCenterMediaCardSection(
     onHideCoverSourceChange: (Boolean) -> Unit,
     hideDeviceSwitch: Boolean,
     onHideDeviceSwitchChange: (Boolean) -> Unit,
+    lyricsEnabled: Boolean,
+    onLyricsEnabledChange: (Boolean) -> Unit,
     backgroundStyle: Int,
     onBackgroundStyleChange: (Int) -> Unit,
     backgroundColorAnimation: Boolean,
@@ -56,6 +58,12 @@ fun LazyListScope.notificationCenterMediaCardSection(
                 .padding(bottom = 12.dp)
                 .fillMaxWidth()
         ) {
+            SwitchPreference(
+                title = stringResource(R.string.title_notification_center_lyrics),
+                summary = stringResource(R.string.summary_notification_center_lyrics),
+                checked = lyricsEnabled,
+                onCheckedChange = onLyricsEnabledChange,
+            )
             val coverStyleValues = listOf(
                 RootConstants.NOTIFICATION_MEDIA_COVER_STYLE_DEFAULT,
                 RootConstants.NOTIFICATION_MEDIA_COVER_STYLE_CIRCLE,
