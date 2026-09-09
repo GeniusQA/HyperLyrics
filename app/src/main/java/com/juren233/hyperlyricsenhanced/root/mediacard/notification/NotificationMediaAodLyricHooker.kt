@@ -241,10 +241,12 @@ internal object AodMediaLyricPolicy {
         albumBottom: Int,
         artistBottom: Int,
         actionBottom: Int = 0,
+        seekBarBottom: Int = 0,
     ): Int = maxOf(
         albumBottom.coerceAtLeast(0),
         artistBottom.coerceAtLeast(0),
         actionBottom.coerceAtLeast(0),
+        seekBarBottom.coerceAtLeast(0),
     )
 
     fun lockScreenHorizontalMargins(
@@ -2242,6 +2244,7 @@ object NotificationMediaAodLyricHooker {
             next = next,
             artist = artist,
             album = album,
+            seekBar = api.getSeekBar(holder),
             actions = actions,
             player = player,
             playerSize = playerSize,
@@ -2360,6 +2363,7 @@ object NotificationMediaAodLyricHooker {
             albumBottom = overlay.album.bottom,
             artistBottom = overlay.artist.bottom,
             actionBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0,
+            seekBarBottom = overlay.seekBar?.bottom ?: 0,
         )
         if (anchorBottom <= 0) return
         if (overlay.playerSize.baseHeight <= 0) {
@@ -3696,6 +3700,7 @@ object NotificationMediaAodLyricHooker {
         val next: TextView,
         val artist: View,
         val album: View,
+        val seekBar: View?,
         val actions: List<View>,
         val player: ViewGroup,
         val playerSize: ViewSizeSnapshot,
@@ -3906,6 +3911,7 @@ object NotificationMediaAodLyricHooker {
         private val titleTextField: Field,
         private val artistTextField: Field,
         private val actionFields: List<Field>,
+        private val seekBarField: Field?,
         private val mediaControllerField: Field,
         private val mediaDataIsPlayingField: Field,
         private val mediaDataPackageNameField: Field
@@ -3913,6 +3919,8 @@ object NotificationMediaAodLyricHooker {
         fun getHolder(controller: Any): Any? = holderField.get(controller)
         fun getMediaData(controller: Any): Any? = mediaDataField.get(controller)
         fun getPlayer(holder: Any): ViewGroup = playerField.get(holder) as ViewGroup
+        fun getSeekBar(holder: Any): View? =
+            runCatching { seekBarField?.get(holder) as? View }.getOrNull()
         fun getMediaBackground(holder: Any): View? =
             runCatching { mediaBackgroundField?.get(holder) as? View }.getOrNull()
         fun getAlbumView(holder: Any): View? =
@@ -3972,6 +3980,9 @@ object NotificationMediaAodLyricHooker {
                     actionFields = (0..4).map { index ->
                         holderClass.getDeclaredField("action$index").accessible()
                     },
+                    seekBarField = holderClass.declaredFields
+                        .firstOrNull { it.name == "seekBar" }
+                        ?.accessible(),
                     mediaControllerField = controllerClass.getDeclaredField(
                         "mediaController"
                     ).accessible(),

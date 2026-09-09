@@ -104,6 +104,7 @@ object IslandExpandedLyricHooker {
                         else -> return@runCatching
                     }
                     BASE_CONTENT_VIEW_CLASS -> ExpandedHeightHook()
+                    EXPANDED_VIEW_CLASS -> ExpandedVisibilityHook()
                     else -> return@runCatching
                 }
                 xposedModule.hook(method).intercept(hooker)
@@ -174,6 +175,28 @@ object IslandExpandedLyricHooker {
         }
     }
 
+    /**
+     * 大岛展开/收起监听：bind 回调发生时大岛往往尚未展开（isShown=false），
+     * 必须在展开可见时重新应用歌词；收起时隐藏并还原高度。
+     */
+    private class ExpandedVisibilityHook : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            val result = chain.proceed()
+            val visibility = (chain.args.getOrNull(1) as? Number)?.toInt()
+            if (visibility == View.VISIBLE) {
+                INITIAL_REFRESH_DELAYS_MS.forEach { delay ->
+                    mainHandler.postDelayed({ refresh() }, delay)
+                }
+            } else {
+                runOnMain {
+                    synchronized(binderStates) { binderStates.values.toList() }
+                        .forEach(::hideOverlay)
+                }
+            }
+            return result
+        }
+    }
+
     private class IslandApi private constructor(
         val hookMethods: List<Method>,
         private val holderField: Field,
@@ -213,11 +236,17 @@ object IslandExpandedLyricHooker {
                 val holderClass = classLoader.loadClass(HOLDER_CLASS)
                 val mediaDataClass = classLoader.loadClass(MEDIA_DATA_CLASS)
                 val contentViewClass = classLoader.loadClass(BASE_CONTENT_VIEW_CLASS)
-                val heightMethod = contentViewClass.methods.single {
+                // 高度方法与展开可见性方法在部分版本可能缺失，容错降级为不撑高/不监听展开。
+                val heightMethod = contentViewClass.methods.firstOrNull {
                     it.name == "getExpandedViewHeight" && it.parameterTypes.isEmpty()
-                }
+                }?.apply { isAccessible = true }
+                val visibilityMethod = runCatching {
+                    classLoader.loadClass(EXPANDED_VIEW_CLASS).declaredMethods.firstOrNull {
+                        it.name == "onVisibilityChanged" && it.parameterCount == 2
+                    }?.apply { isAccessible = true }
+                }.getOrNull()
                 return IslandApi(
-                    hookMethods = listOf(
+                    hookMethods = listOfNotNull(
                         binderClass.declaredMethods.single {
                             it.name == "attach" && it.parameterCount == 2
                         }.apply { isAccessible = true },
@@ -228,6 +257,7 @@ object IslandExpandedLyricHooker {
                             it.name == "detach" && it.parameterCount == 0
                         }.apply { isAccessible = true },
                         heightMethod,
+                        visibilityMethod,
                     ),
                     holderField = binderClass.getDeclaredField("holder").apply {
                         isAccessible = true
