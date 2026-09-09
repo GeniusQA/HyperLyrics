@@ -1166,12 +1166,8 @@ object NotificationMediaAodLyricHooker {
         }
 
         val actions = api.getActions(holder)
-        if (state.actionVisibilities.isEmpty()) {
-            actions.forEach { state.actionVisibilities[it] = it.visibility }
-        }
-        actions.forEach { action ->
-            if (action.visibility == View.VISIBLE) action.visibility = View.INVISIBLE
-        }
+        // 歌词样式优化：保留原生卡片的暂停/上下一首操作与进度条，
+        // 不再将按钮置为 INVISIBLE；卡片会自动撑高把歌词排在操作区下方。
 
         val overlay = state.overlay ?: createOverlay(api, holder, actions).also {
             state.overlay = it
@@ -2342,8 +2338,7 @@ object NotificationMediaAodLyricHooker {
         val density = overlay.root.resources.displayMetrics.density
         val topGap = (LOCK_SCREEN_AOD_TOP_GAP_DP * density).toInt()
         val bottomGap = (LOCK_SCREEN_AOD_BOTTOM_GAP_DP * density).toInt()
-        val nativeCardHeight = AodMediaLyricPolicy.lockScreenNativeCardHeight(
-            fullAod = overlay.fullAodActive,
+        val nativeCardHeight = AodMediaLyricPolicy.lockScreenNativeCardHeight(            fullAod = overlay.fullAodActive,
             fullAodBaseHeight = overlay.backgroundSize.baseHeight,
             playerBaseHeight = overlay.playerSize.baseHeight,
         )
@@ -2363,10 +2358,16 @@ object NotificationMediaAodLyricHooker {
             overlay.root.layoutParams = params
         }
         val lyricBottom = lyricTop + overlay.root.measuredHeight
+        // 原生卡片中 metadata 底部到卡片底部的距离（进度条+操作按钮+边距）。
+        // 卡片按此距离在歌词下方预留操作区，保证恢复显示的按钮/进度条始终位于歌词下方。
+        val bottomReserve = maxOf(
+            bottomGap,
+            nativeCardHeight - anchorBottom,
+        )
         val targetHeight = AodMediaLyricPolicy.lockScreenTargetCardHeight(
             nativeCardHeight = nativeCardHeight,
             lyricBottom = lyricBottom,
-            bottomPadding = bottomGap,
+            bottomPadding = bottomReserve,
         )
         val backgroundTargetHeight = AodMediaLyricPolicy.lockScreenBackgroundTargetHeight(
             targetCardHeight = targetHeight,
@@ -2384,7 +2385,7 @@ object NotificationMediaAodLyricHooker {
                 "锁屏 AOD 媒体卡片高度动画开始: " +
                     "lyricTop=$lyricTop, lyricBottom=$lyricBottom, " +
                     "albumBottom=${overlay.album.bottom}, artistBottom=${overlay.artist.bottom}, " +
-                    "topGap=$topGap, bottomGap=$bottomGap, " +
+                    "topGap=$topGap, bottomReserve=$bottomReserve, " +
                     "nativeBackgroundHeight=$nativeCardHeight, " +
                     "targetHeight=$targetHeight, " +
                     "backgroundTargetHeight=$backgroundTargetHeight"
