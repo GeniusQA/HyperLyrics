@@ -1425,12 +1425,16 @@ object NotificationMediaAodLyricHooker {
                 overlay.player.layoutParams = params
             }
         }
-        // 背景卡片必须与 player 同步加高，否则内容会上下溢出视觉卡片边界
+        // 背景卡片必须与 player 同步加高，否则内容会上下溢出视觉卡片边界。
+        // MATCH_PARENT 等无具体值的布局高度回退用实测高度兜底，并记录原值供还原。
         val background = overlay.backgroundSize.view
         val backgroundBase = overlay.backgroundSize.baseHeight.takeIf { it > 0 }
             ?: background.layoutParams?.height?.takeIf { it > 0 }
+            ?: background.height.takeIf { it > 0 }
+            ?: background.measuredHeight.takeIf { it > 0 }
             ?: -1
         if (backgroundBase > 0) {
+            overlay.compactAppliedBgLpHeight = background.layoutParams?.height ?: -1
             background.layoutParams?.let { params ->
                 params.height = backgroundBase + delta
                 background.layoutParams = params
@@ -1438,10 +1442,22 @@ object NotificationMediaAodLyricHooker {
             overlay.compactAppliedBgBase = backgroundBase
         }
         overlay.compactAppliedDelta = zone
+        // 布局完成后校准 player 与背景的顶部对齐：若 player 顶部超出背景（底部对齐扩展），
+        // 将 player 整体下移差值，保证内容不溢出背景边界。
+        overlay.root.post {
+            if (overlay.compactAppliedDelta == 0) return@post
+            val shift = (background.top - overlay.player.top).toFloat()
+            if (shift > 0f) {
+                overlay.player.translationY += shift
+                overlay.compactAppliedTranslationY = shift
+                HookLogger.i(TAG, "紧凑模式 player 顶部对齐修正: shift=$shift")
+            }
+        }
         HookLogger.i(
             TAG,
             "紧凑模式固定歌词区已布局: zone=$zone, row=${row?.javaClass?.name}, " +
-                "playerBase=$playerBaseHeight, bgBase=$backgroundBase"
+                "playerBase=$playerBaseHeight, bgBase=$backgroundBase, " +
+                "bgLpHeight=${overlay.compactAppliedBgLpHeight}"
         )
     }
 
@@ -1469,12 +1485,21 @@ object NotificationMediaAodLyricHooker {
         if (backgroundBase > 0) {
             val background = overlay.backgroundSize.view
             background.layoutParams?.let { params ->
-                params.height = backgroundBase
+                if (overlay.compactAppliedBgLpHeight != -1) {
+                    params.height = overlay.compactAppliedBgLpHeight
+                } else {
+                    params.height = backgroundBase
+                }
                 background.layoutParams = params
             }
         }
+        if (overlay.compactAppliedTranslationY != 0f) {
+            overlay.player.translationY -= overlay.compactAppliedTranslationY
+            overlay.compactAppliedTranslationY = 0f
+        }
         overlay.compactAppliedDelta = 0
         overlay.compactAppliedBgBase = -1
+        overlay.compactAppliedBgLpHeight = -1
         overlay.rowBaseTopMargin = Int.MIN_VALUE
         if (overlay.compactAppliedPaddingTop >= 0) {
             overlay.player.setPadding(
@@ -3922,7 +3947,9 @@ object NotificationMediaAodLyricHooker {
         var rowBaseTopMargin: Int = Int.MIN_VALUE,
         var compactAppliedDelta: Int = 0,
         var compactAppliedBgBase: Int = -1,
+        var compactAppliedBgLpHeight: Int = -1,
         var compactAppliedPaddingTop: Int = -1,
+        var compactAppliedTranslationY: Float = 0f,
     )
 
     private class MediaHeaderHeightController private constructor(
@@ -4235,7 +4262,7 @@ object NotificationMediaAodLyricHooker {
         companion object {
             fun create(classLoader: ClassLoader): DozeRefreshApi {
                 val hostClass = classLoader.loadClass(DOZE_SERVICE_HOST_CLASS)
-                val tickRunnableClass = classLoader.loadClass(DOZE_TICK_RUNNABLE_CLASS)
+                val tickRunnableClass = loadTickRunnableClass(classLoader)
                 return DozeRefreshApi(
                     hostConstructors = hostClass.declaredConstructors
                         .onEach { it.isAccessible = true }
@@ -4245,6 +4272,24 @@ object NotificationMediaAodLyricHooker {
                         hostClass,
                     )
                 )
+            }
+
+            /**
+             * 原始 DEX 锁定 DozeUi$$ExternalSyntheticLambda0；部分移植包/新版本会把
+             * 脱糖 lambda 的编号重排（Lambda1..Lambda9），按 Runnable 接口自动识别。
+             */
+            private fun loadTickRunnableClass(classLoader: ClassLoader): Class<*> {
+                runCatching { return classLoader.loadClass(DOZE_TICK_RUNNABLE_CLASS) }
+                for (index in 1..9) {
+                    val candidate = runCatching {
+                        classLoader.loadClass(
+                            "com.android.systemui.doze.DozeUi\$\$ExternalSyntheticLambda$index",
+                        )
+                    }.getOrNull() ?: continue
+                    if (Runnable::class.java.isAssignableFrom(candidate)) return candidate
+                }
+                // 都不存在时按原名加载，保持原始报错便于定位。
+                return classLoader.loadClass(DOZE_TICK_RUNNABLE_CLASS)
             }
         }
     }
