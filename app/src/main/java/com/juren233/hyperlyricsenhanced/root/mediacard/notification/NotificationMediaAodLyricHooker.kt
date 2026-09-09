@@ -608,6 +608,8 @@ object NotificationMediaAodLyricHooker {
     // 歌词底部到卡片底的预留高度：需完整容纳贴底显示的进度条区（时间+滑条约40dp）及上下间距，
     // 防止歌词翻译行与进度条重叠。
     private const val LOCK_SCREEN_AOD_BOTTOM_RESERVE_DP = 56f
+    // 紧凑模式（亮屏锁屏/通知中心）歌词区域与按钮行的间距
+    private const val COMPACT_LYRIC_TOP_GAP_DP = 6f
     private const val LOCK_SCREEN_AOD_SIDE_MARGIN_EXTRA_DP = 1f
     private const val LOCK_SCREEN_AOD_HEIGHT_ANIMATION_MS = 160L
     // Hidden PowerManager level that permits frame submission while the display is dozing.
@@ -1298,6 +1300,10 @@ object NotificationMediaAodLyricHooker {
             }
         )
         overlay.fullAodActive = state.fullAod
+        // 亮屏场景（锁屏歌词/通知中心）使用紧凑模式：不撑高卡片，
+        // 在按钮与进度条之间的空白区域以单行滚动展示歌词与翻译。
+        val compactMode = interactive && !state.fullAod
+        applyCompactMode(overlay, compactMode)
         if (overlay.root.visibility == View.GONE) {
             overlay.root.visibility = View.INVISIBLE
         }
@@ -1329,10 +1335,27 @@ object NotificationMediaAodLyricHooker {
                 ),
                 dedupeKey = diagnosticKey,
             )
-            updateLockScreenCardHeight(
-                overlay,
-                forceRemeasure = contentChanged || styleChanged,
-            )
+            if (compactMode) {
+                // 紧凑模式不撑高卡片：还原既有高度增量，并把歌词区域
+                // 折叠定位到按钮行下方、进度条上方的空白区域。
+                restorePlayerHeight(overlay, false)
+                val actionsBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0
+                if (actionsBottom > 0) {
+                    val params = overlay.root.layoutParams as? ViewGroup.MarginLayoutParams
+                    val targetTopMargin = actionsBottom - overlay.album.bottom +
+                        (COMPACT_LYRIC_TOP_GAP_DP * overlay.root.resources.displayMetrics.density)
+                            .toInt()
+                    if (params != null && params.topMargin != targetTopMargin) {
+                        params.topMargin = targetTopMargin
+                        overlay.root.layoutParams = params
+                    }
+                }
+            } else {
+                updateLockScreenCardHeight(
+                    overlay,
+                    forceRemeasure = contentChanged || styleChanged,
+                )
+            }
             DisplayDiagnosticLogger.log(
                 channel = "AOD_LOCK",
                 result = "shown",
@@ -1347,6 +1370,43 @@ object NotificationMediaAodLyricHooker {
             overlay.root.invalidate()
             (overlay.root.parent as? View)?.invalidate()
             requestAodFrameRefresh(controller.javaClass.classLoader)
+        }
+    }
+
+    /**
+     * 紧凑模式切换：亮屏锁屏/通知中心场景下，
+     * 折叠为「歌词 + 翻译」两行、单行超宽时走 marquee 滚动；其余行隐藏。
+     * 息屏 AOD 场景保持多行样式。
+     */
+    private fun applyCompactMode(overlay: LyricOverlay, compact: Boolean) {
+        fun config(view: TextView, marquee: Boolean) {
+            if (marquee) {
+                view.maxLines = 1
+                view.ellipsize = TextUtils.TruncateAt.MARQUEE
+                view.marqueeRepeatLimit = -1
+                view.isSelected = true
+            } else {
+                view.maxLines = Int.MAX_VALUE
+                view.ellipsize = null
+                view.isSelected = false
+            }
+        }
+        config(overlay.main, compact)
+        config(overlay.translation, compact)
+        listOf(
+            overlay.backing,
+            overlay.backingTranslation,
+            overlay.overlappingMain,
+            overlay.overlappingTranslation,
+            overlay.overlappingBacking,
+            overlay.overlappingBackingTranslation,
+            overlay.next,
+        ).forEach { view ->
+            if (compact) {
+                view.visibility = View.GONE
+            } else if (view.visibility == View.GONE && view.text.isNotBlank()) {
+                view.visibility = View.VISIBLE
+            }
         }
     }
 
