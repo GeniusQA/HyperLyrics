@@ -1303,6 +1303,7 @@ object NotificationMediaAodLyricHooker {
         // 亮屏场景（锁屏歌词/通知中心）使用紧凑模式：不撑高卡片，
         // 在按钮与进度条之间的空白区域以单行滚动展示歌词与翻译。
         val compactMode = interactive && !state.fullAod
+        overlay.compactMode = compactMode
         applyCompactMode(overlay, compactMode)
         if (overlay.root.visibility == View.GONE) {
             overlay.root.visibility = View.INVISIBLE
@@ -1381,12 +1382,13 @@ object NotificationMediaAodLyricHooker {
     private fun applyCompactMode(overlay: LyricOverlay, compact: Boolean) {
         fun config(view: TextView, marquee: Boolean) {
             if (marquee) {
-                view.maxLines = 1
+                // setSingleLine 是触发 marquee 的可靠前提（仅 maxLines 在部分版本不生效）
+                view.setSingleLine(true)
                 view.ellipsize = TextUtils.TruncateAt.MARQUEE
                 view.marqueeRepeatLimit = -1
                 view.isSelected = true
             } else {
-                view.maxLines = Int.MAX_VALUE
+                view.setSingleLine(false)
                 view.ellipsize = null
                 view.isSelected = false
             }
@@ -2398,6 +2400,9 @@ object NotificationMediaAodLyricHooker {
         overlay: LyricOverlay,
         forceRemeasure: Boolean = false
     ) {
+        // 紧凑模式（亮屏锁屏/通知中心）不撑高卡片：
+        // 布局监听器也会进入这里，必须直接返回，避免与紧凑模式还原逻辑互相拉扯导致卡片闪烁。
+        if (overlay.compactMode) return
         if (!overlay.root.isShown) return
         if (updateLockScreenHorizontalMargins(overlay)) {
             overlay.root.post {
@@ -3778,6 +3783,7 @@ object NotificationMediaAodLyricHooker {
         var lastHeightDriftKey: String? = null,
         var fullAodActive: Boolean = false,
         var heightAnimator: ValueAnimator? = null,
+        var compactMode: Boolean = false,
     )
 
     private class MediaHeaderHeightController private constructor(
