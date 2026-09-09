@@ -25,6 +25,8 @@ fun LazyListScope.homePageSections(
     onAodLyricsToggle: (Boolean) -> Unit,
     enableLockScreenLyrics: Boolean,
     onLockScreenLyricsToggle: (Boolean) -> Unit,
+    enableNotificationCenterLyrics: Boolean,
+    onNotificationCenterLyricsToggle: (Boolean) -> Unit,
     onSuperIslandConfigClick: () -> Unit,
     onMediaCardConfigClick: () -> Unit,
     onDynamicIslandConfigClick: () -> Unit,
@@ -118,6 +120,12 @@ fun LazyListScope.homePageSections(
                         onClick = onLockScreenLyricsConfigClick,
                     )
                 }
+                SwitchPreference(
+                    title = stringResource(R.string.title_notification_center_lyrics),
+                    summary = stringResource(R.string.summary_notification_center_lyrics),
+                    checked = enableNotificationCenterLyrics,
+                    onCheckedChange = onNotificationCenterLyricsToggle,
+                )
             }
         }
     }

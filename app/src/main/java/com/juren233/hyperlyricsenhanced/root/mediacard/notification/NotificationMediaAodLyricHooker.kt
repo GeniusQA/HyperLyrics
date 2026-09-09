@@ -131,10 +131,12 @@ internal object AodMediaLyricPolicy {
         packageMatches: Boolean,
         pauseStyle: Int = RootConstants.DEFAULT_HOOK_AOD_PAUSE_STYLE,
         lockScreenLyrics: Boolean = false,
+        notificationCenter: Boolean = false,
     ): Boolean =
         (
             (enabled && fullAod) ||
-                lockScreenLyrics
+                lockScreenLyrics ||
+                notificationCenter
             ) &&
         (playing || pauseStyle == RootConstants.AOD_PAUSE_STYLE_KEEP_LYRICS) &&
         hasLyric &&
@@ -282,6 +284,13 @@ internal object AodMediaLyricPolicy {
         playerShown: Boolean,
         featureEnabled: Boolean,
     ): Boolean = featureEnabled && interactive && keyguardLocked && playerShown
+
+    fun isNotificationCenterLyricsActive(
+        interactive: Boolean,
+        keyguardLocked: Boolean,
+        playerShown: Boolean,
+        featureEnabled: Boolean,
+    ): Boolean = featureEnabled && interactive && !keyguardLocked && playerShown
 
     fun readTranslationPronunciationMode(
         prefs: SharedPreferences?,
@@ -640,7 +649,9 @@ object NotificationMediaAodLyricHooker {
                     val refreshNoLyricPreview = shouldRefreshNoLyricPreview(position)
                     if (lyricChanged || refreshNoLyricPreview) {
                         controllerEntries.forEach { (controller, state) ->
-                            if (state.fullAod || state.lockScreenLyricsActive) {
+                            if (state.fullAod || state.lockScreenLyricsActive ||
+                                state.notificationCenterLyricsActive
+                            ) {
                                 safeApply(controller, state)
                             }
                         }
@@ -984,9 +995,15 @@ object NotificationMediaAodLyricHooker {
                                 }"
                         )
                     }
-                    val lockScreenLyricsKept = becomesVisible &&
-                        isLockScreenLyricsContextActive(overlay.root.context)
-                    if (lockScreenLyricsKept) return@forEach
+                    val lyricsKept = becomesVisible &&
+                        isMediaCardLyricsKept(overlay.root.context)
+                    if (lyricsKept) {
+                        // 媒体头恢复可见（如下拉通知中心）：延迟多次刷新等待布局稳定后显示歌词。
+                        LOCK_SCREEN_LYRICS_INITIAL_REFRESH_DELAYS_MS.forEach { delay ->
+                            mainHandler.postDelayed({ refresh() }, delay)
+                        }
+                        return@forEach
+                    }
                     if (becomesVisible && overlay.root.isShown) {
                             overlay.root.visibility = View.GONE
                         hiddenCount++
@@ -1086,12 +1103,19 @@ object NotificationMediaAodLyricHooker {
             playerShown = player.isShown,
             featureEnabled = isLockScreenLyricsEnabled(),
         )
+        val notificationCenterActive = AodMediaLyricPolicy.isNotificationCenterLyricsActive(
+            interactive = interactive,
+            keyguardLocked = keyguardLocked,
+            playerShown = player.isShown,
+            featureEnabled = isNotificationCenterLyricsEnabled(),
+        )
         state.aodActive = AodMediaLyricPolicy.isLockScreenAodActive(
             fullAod = state.fullAod,
             interactive = interactive,
             playerShown = player.isShown
-        ) || lockScreenLyricsActive
+        ) || lockScreenLyricsActive || notificationCenterActive
         state.lockScreenLyricsActive = lockScreenLyricsActive
+        state.notificationCenterLyricsActive = notificationCenterActive
         val textStyle = lockScreenAodTextStyle()
         val lyricPackage = LyriconDataBridge.currentLyricPackageName
         val mediaPackage = api.packageName(state.mediaData ?: api.getMediaData(controller))
@@ -1113,14 +1137,17 @@ object NotificationMediaAodLyricHooker {
             packageMatches = packageMatches,
             pauseStyle = textStyle.pauseStyle,
             lockScreenLyrics = lockScreenLyricsActive,
+            notificationCenter = notificationCenterActive,
         )
         val decisionReason = if (show) {
             "policy_passed"
         } else {
             when {
-                !enabled && !lockScreenLyricsActive -> "feature_disabled"
+                !enabled && !lockScreenLyricsActive && !notificationCenterActive ->
+                    "feature_disabled"
                 !state.fullAod && !interactive -> "waiting_full_aod"
-                interactive && !keyguardLocked && !state.fullAod -> "keyguard_open"
+                interactive && !keyguardLocked && !state.fullAod && !notificationCenterActive ->
+                    "keyguard_open"
                 !state.aodActive && interactive -> "screen_interactive"
                 !state.aodActive -> "player_hidden"
                 !state.playing &&
@@ -2632,7 +2659,8 @@ object NotificationMediaAodLyricHooker {
     }
 
     private fun shouldPollPosition(state: ControllerState): Boolean {
-        return (isEnabled() || state.lockScreenLyricsActive) && state.aodActive &&
+        return (isEnabled() || state.lockScreenLyricsActive ||
+            state.notificationCenterLyricsActive) && state.aodActive &&
             state.playing && LyriconDataBridge.currentSong != null
     }
 
@@ -3281,10 +3309,23 @@ object NotificationMediaAodLyricHooker {
         RootConstants.DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED
     ) ?: RootConstants.DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED
 
-    internal fun isLockScreenLyricsContextActive(context: Context): Boolean {
-        if (!isLockScreenLyricsEnabled()) return false
+    private fun isNotificationCenterLyricsEnabled(): Boolean = prefs?.getBoolean(
+        RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED,
+        RootConstants.DEFAULT_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED
+    ) ?: RootConstants.DEFAULT_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED
+
+    /**
+     * 媒体头恢复可见时是否应保留歌词覆盖层：
+     * 锁屏态看「锁屏歌词」开关，解锁态看「通知中心歌词」开关。
+     */
+    internal fun isMediaCardLyricsKept(context: Context): Boolean {
         val keyguard = context.getSystemService(KeyguardManager::class.java)
-        return keyguard?.isKeyguardLocked == true
+        val keyguardLocked = keyguard?.isKeyguardLocked == true
+        return if (keyguardLocked) {
+            isLockScreenLyricsEnabled()
+        } else {
+            isNotificationCenterLyricsEnabled()
+        }
     }
 
     private fun resolveApi(classLoader: ClassLoader?): NativeApi? {
@@ -3796,6 +3837,7 @@ object NotificationMediaAodLyricHooker {
         var fullAod: Boolean = false,
         var aodActive: Boolean = false,
         var lockScreenLyricsActive: Boolean = false,
+        var notificationCenterLyricsActive: Boolean = false,
         var playing: Boolean = false,
         var overlay: LyricOverlay? = null,
         val actionVisibilities: MutableMap<View, Int> = LinkedHashMap()

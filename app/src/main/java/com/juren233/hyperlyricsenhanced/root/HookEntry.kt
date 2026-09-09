@@ -494,6 +494,7 @@ class HookEntry : XposedModule() {
                     RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND,
                     RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS,
                     RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED,
+                    RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_APPLE_MUSIC_NATIVE_ONLINE_TRANSLATION -> {
                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                             ClassicAodFocusNotificationRecovery.ensureListenerCanRecover(app, prefs)
