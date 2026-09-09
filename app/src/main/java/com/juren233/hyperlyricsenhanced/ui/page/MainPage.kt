@@ -174,6 +174,9 @@ fun MainPage() {
     var enableNotificationCenterLyrics by remember {
         mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED, RootConstants.DEFAULT_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED))
     }
+    var enableIslandExpandedLyrics by remember {
+        mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED, RootConstants.DEFAULT_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED))
+    }
     var removeFocusWhitelist by remember {
         mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_REMOVE_FOCUS_WHITELIST, RootConstants.DEFAULT_HOOK_REMOVE_FOCUS_WHITELIST))
     }
@@ -221,6 +224,8 @@ fun MainPage() {
                     enableLockScreenLyrics = p.getBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, RootConstants.DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED)
                 RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED ->
                     enableNotificationCenterLyrics = p.getBoolean(RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED, RootConstants.DEFAULT_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED)
+                RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED ->
+                    enableIslandExpandedLyrics = p.getBoolean(RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED, RootConstants.DEFAULT_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED)
             }
         }
     }
@@ -353,6 +358,28 @@ fun MainPage() {
             enableNotificationCenterLyrics = false
             prefs.edit { putBoolean(RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED, false) }
             PrefsBridge.putBoolean(RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED, false)
+        }
+    } }
+
+    val toggleIslandExpandedLyrics: (Boolean) -> Unit = remember { { checked ->
+        if (checked) {
+            if (RootApplication.xposedService != null) {
+                enableIslandExpandedLyrics = true
+                prefs.edit { putBoolean(RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED, true) }
+                PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED, true)
+                LiveLyricService.ensureListenerBound(context)
+            } else {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = msgXposedNotActive,
+                        duration = SnackbarDuration.Custom(2000L)
+                    )
+                }
+            }
+        } else {
+            enableIslandExpandedLyrics = false
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED, false) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED, false)
         }
     } }
 
@@ -710,6 +737,8 @@ fun MainPage() {
                         availableUpdateVersion = availableUpdate?.displayVersion,
                         enableSuperIsland = enableSuperIsland,
                         onSuperIslandToggle = toggleSuperIsland,
+                        enableIslandExpandedLyrics = enableIslandExpandedLyrics,
+                        onIslandExpandedLyricsToggle = toggleIslandExpandedLyrics,
                         enableDynamicIsland = enableDynamicIsland,
                         onDynamicIslandToggle = toggleDynamicIsland,
                         enableAodLyrics = enableAodLyrics,
