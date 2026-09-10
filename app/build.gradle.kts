@@ -36,12 +36,14 @@ val ciVersionName = providers.gradleProperty("ciVersionName").orNull
 android {
     namespace = "com.juren233.hyperlyricsenhanced"
     compileSdk = 37
+    // 使用本机已完整安装的 Build-Tools 37；36.0.0 曾因下载损坏只剩空壳，已清理。
+    buildToolsVersion = "37.0.0"
     defaultConfig {
         applicationId = "com.juren233.hyperlyricsenhanced"
         minSdk = 33
         targetSdk = 37
-        versionCode = 151021
-        versionName = ciVersionName ?: "7.5.1"
+        versionCode = 1
+        versionName = ciVersionName ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -98,7 +100,7 @@ android {
         base {
             val vName = android.defaultConfig.versionName ?: "0"
             val vCode = android.defaultConfig.versionCode ?: 0
-            archivesName.set("HyperLyrics Enhanced-v${vName}-${vCode}")
+            archivesName.set("HyperLyrics-v${vName}-${vCode}")
         }
     }
 
