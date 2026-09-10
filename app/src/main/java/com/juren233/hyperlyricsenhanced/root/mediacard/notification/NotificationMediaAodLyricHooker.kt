@@ -15,7 +15,11 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextUtils
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -608,12 +612,8 @@ object NotificationMediaAodLyricHooker {
     // 歌词底部到卡片底的预留高度：需完整容纳贴底显示的进度条区（时间+滑条约40dp）及上下间距，
     // 防止歌词翻译行与进度条重叠。
     private const val LOCK_SCREEN_AOD_BOTTOM_RESERVE_DP = 56f
-    // 紧凑模式（亮屏锁屏/通知中心）：按钮与进度条之间固定的歌词区高度，
-    // 进度条整体下移该值、卡片一次性等量加高，保证互不重叠且不随歌词更新抖动。
-    private const val COMPACT_LYRIC_ZONE_DP = 54f
-    private const val COMPACT_LYRIC_TOP_GAP_DP = 6f
-    // 卡片上下边缘与内容（歌曲信息/进度条）的呼吸间距
-    private const val COMPACT_LYRIC_EDGE_PAD_DP = 12f
+    // 紧凑模式（亮屏锁屏/通知中心）：歌词区与按钮行/进度条行的最小间距
+    private const val COMPACT_LYRIC_TOP_GAP_DP = 4f
     private const val SEEK_BAR_CLASS_HINT = "HyperProgressSeekBar"
     private const val LOCK_SCREEN_AOD_SIDE_MARGIN_EXTRA_DP = 1f
     private const val LOCK_SCREEN_AOD_HEIGHT_ANIMATION_MS = 160L
@@ -1205,7 +1205,6 @@ object NotificationMediaAodLyricHooker {
             restoreActions(state)
             state.overlay?.let { overlay ->
                 overlay.root.visibility = View.GONE
-                restoreCompactLayout(overlay)
                 restorePlayerHeight(overlay, state.fullAod)
             }
             return
@@ -1343,22 +1342,11 @@ object NotificationMediaAodLyricHooker {
                 dedupeKey = diagnosticKey,
             )
             if (compactMode) {
-                // 紧凑模式：一次性把进度条行下移、卡片等量加高，
-                // 歌词区固定在按钮与进度条之间，后续歌词更新不再触碰布局。
-                applyCompactLayout(overlay)
-                val actionsBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0
-                if (actionsBottom > 0) {
-                    val params = overlay.root.layoutParams as? ViewGroup.MarginLayoutParams
-                    val targetTopMargin = actionsBottom - overlay.album.bottom +
-                        (COMPACT_LYRIC_TOP_GAP_DP * overlay.root.resources.displayMetrics.density)
-                            .toInt()
-                    if (params != null && params.topMargin != targetTopMargin) {
-                        params.topMargin = targetTopMargin
-                        overlay.root.layoutParams = params
-                    }
-                }
+                // 紧凑模式：完全不改卡片几何（不加高/不下移/不 padding），
+                // 歌词区覆盖显示在按钮与进度条之间的原生空隙内，自适应两行或单行合并。
+                runCatching { restorePlayerHeight(overlay, false) }
+                applyCompactOverlayLayout(overlay)
             } else {
-                restoreCompactLayout(overlay)
                 updateLockScreenCardHeight(
                     overlay,
                     forceRemeasure = contentChanged || styleChanged,
@@ -1382,139 +1370,79 @@ object NotificationMediaAodLyricHooker {
     }
 
     /**
-     * 紧凑模式一次性布局：在按钮与进度条之间开辟固定高度歌词区——
-     * 进度条行 topMargin 下移 zone 高度、卡片等量加高。幂等，不随歌词更新触发。
+     * 紧凑模式布局：完全不改卡片几何（不加高/不下移进度条/不加 padding），
+     * 歌词区覆盖显示在按钮行与进度条行之间的原生空隙内：
+     * - 空隙足够两行：显示主歌词 + 翻译
+     * - 空隙不足：合并为单行「歌词 翻译」（不同字号颜色，超宽 marquee）
      */
-    private fun applyCompactLayout(overlay: LyricOverlay) {
-        if (overlay.compactAppliedDelta != 0) return
+    private fun applyCompactOverlayLayout(overlay: LyricOverlay) {
+        val actionsBottom = overlay.actions.maxOfOrNull { it.bottom } ?: return
+        if (actionsBottom <= 0) return
         val density = overlay.root.resources.displayMetrics.density
-        val zone = (COMPACT_LYRIC_ZONE_DP * density).toInt()
-        val edgePad = (COMPACT_LYRIC_EDGE_PAD_DP * density).toInt()
-        val delta = zone + edgePad * 2
-        // 歌词区高度固定，与开辟的空间一致
-        overlay.root.layoutParams?.let { lp ->
-            if (lp.height != zone) {
-                lp.height = zone
-                overlay.root.layoutParams = lp
-            }
-        }
-        // 顶部内边距把歌曲信息从卡片顶缘推开，形成呼吸间距
-        if (overlay.compactAppliedPaddingTop == -1) {
-            overlay.compactAppliedPaddingTop = overlay.player.paddingTop
-            overlay.player.setPadding(
-                overlay.player.paddingLeft,
-                overlay.player.paddingTop + edgePad,
-                overlay.player.paddingRight,
-                overlay.player.paddingBottom,
-            )
-        }
-        val row = overlay.seekBarRow ?: findSeekBarRow(overlay.player)?.also {
-            overlay.seekBarRow = it
-        }
-        row?.layoutParams?.let { rowParams ->
-            if (rowParams is ViewGroup.MarginLayoutParams && overlay.rowBaseTopMargin == Int.MIN_VALUE) {
-                overlay.rowBaseTopMargin = rowParams.topMargin
-                rowParams.topMargin = overlay.rowBaseTopMargin + zone
-                row.layoutParams = rowParams
-            }
-        }
-        val playerBaseHeight = overlay.playerSize.baseHeight
-        if (playerBaseHeight > 0) {
-            overlay.player.layoutParams?.let { params ->
-                params.height = playerBaseHeight + delta
-                overlay.player.layoutParams = params
-            }
-        }
-        // 背景卡片必须与 player 同步加高，否则内容会上下溢出视觉卡片边界。
-        // MATCH_PARENT 等无具体值的布局高度回退用实测高度兜底，并记录原值供还原。
-        val background = overlay.backgroundSize.view
-        val backgroundBase = overlay.backgroundSize.baseHeight.takeIf { it > 0 }
-            ?: background.layoutParams?.height?.takeIf { it > 0 }
-            ?: background.height.takeIf { it > 0 }
-            ?: background.measuredHeight.takeIf { it > 0 }
-            ?: -1
-        if (backgroundBase > 0) {
-            overlay.compactAppliedBgLpHeight = background.layoutParams?.height ?: -1
-            background.layoutParams?.let { params ->
-                params.height = backgroundBase + delta
-                background.layoutParams = params
-            }
-            overlay.compactAppliedBgBase = backgroundBase
-        }
-        overlay.compactAppliedDelta = zone
-        // 布局完成后校准 player 与背景的顶部对齐：若 player 顶部超出背景（底部对齐扩展），
-        // 将 player 整体下移差值，保证内容不溢出背景边界。
-        overlay.root.post {
-            if (overlay.compactAppliedDelta == 0) return@post
-            val shift = (background.top - overlay.player.top).toFloat()
-            if (shift > 0f) {
-                overlay.player.translationY += shift
-                overlay.compactAppliedTranslationY = shift
-                HookLogger.i(TAG, "紧凑模式 player 顶部对齐修正: shift=$shift")
-            }
-        }
-        HookLogger.i(
-            TAG,
-            "紧凑模式固定歌词区已布局: zone=$zone, row=${row?.javaClass?.name}, " +
-                "playerBase=$playerBaseHeight, bgBase=$backgroundBase, " +
-                "bgLpHeight=${overlay.compactAppliedBgLpHeight}"
+        val minGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt()
+        val seekBarTop = overlay.seekBar
+            ?.takeIf { it.parent === overlay.player }
+            ?.top
+            ?: overlay.player.height
+        val gap = seekBarTop - actionsBottom
+        if (gap <= minGap * 2) return
+
+        val widthSpec = View.MeasureSpec.makeMeasureSpec(
+            overlay.player.width.coerceAtLeast(1),
+            View.MeasureSpec.EXACTLY
         )
-    }
-
-    /** 还原紧凑模式布局（进度条行与卡片高度），供息屏 AOD/隐藏路径调用。 */
-    private fun restoreCompactLayout(overlay: LyricOverlay) {
-        if (overlay.compactAppliedDelta == 0) return
-        val delta = overlay.compactAppliedDelta
-        val row = overlay.seekBarRow
-        row?.layoutParams?.let { rowParams ->
-            if (rowParams is ViewGroup.MarginLayoutParams &&
-                overlay.rowBaseTopMargin != Int.MIN_VALUE
-            ) {
-                rowParams.topMargin = overlay.rowBaseTopMargin
-                row.layoutParams = rowParams
-            }
-        }
-        val playerBaseHeight = overlay.playerSize.baseHeight
-        if (playerBaseHeight > 0) {
-            overlay.player.layoutParams?.let { params ->
-                params.height = playerBaseHeight
-                overlay.player.layoutParams = params
-            }
-        }
-        val backgroundBase = overlay.compactAppliedBgBase
-        if (backgroundBase > 0) {
-            val background = overlay.backgroundSize.view
-            background.layoutParams?.let { params ->
-                if (overlay.compactAppliedBgLpHeight != -1) {
-                    params.height = overlay.compactAppliedBgLpHeight
-                } else {
-                    params.height = backgroundBase
-                }
-                background.layoutParams = params
-            }
-        }
-        if (overlay.compactAppliedTranslationY != 0f) {
-            overlay.player.translationY -= overlay.compactAppliedTranslationY
-            overlay.compactAppliedTranslationY = 0f
-        }
-        overlay.compactAppliedDelta = 0
-        overlay.compactAppliedBgBase = -1
-        overlay.compactAppliedBgLpHeight = -1
-        overlay.rowBaseTopMargin = Int.MIN_VALUE
-        if (overlay.compactAppliedPaddingTop >= 0) {
-            overlay.player.setPadding(
-                overlay.player.paddingLeft,
-                overlay.compactAppliedPaddingTop,
-                overlay.player.paddingRight,
-                overlay.player.paddingBottom,
+        overlay.root.measure(
+            widthSpec,
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val mainText = overlay.main.text.toString()
+        val translationText = overlay.translation.text.toString()
+        val singleLine = overlay.root.measuredHeight > gap - minGap * 2 &&
+            translationText.isNotBlank()
+        if (singleLine) {
+            val merged = SpannableStringBuilder(mainText).append("   ")
+            val start = merged.length
+            merged.append(translationText)
+            merged.setSpan(
+                ForegroundColorSpan(overlay.translation.currentTextColor),
+                start,
+                merged.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
             )
-            overlay.compactAppliedPaddingTop = -1
+            merged.setSpan(
+                RelativeSizeSpan(0.78f),
+                start,
+                merged.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            overlay.main.text = merged
+            overlay.translation.visibility = View.GONE
+            overlay.root.measure(
+                widthSpec,
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+        } else {
+            if (overlay.main.text.toString() != mainText) overlay.main.text = mainText
+            overlay.translation.visibility =
+                if (translationText.isBlank()) View.GONE else View.VISIBLE
         }
-        HookLogger.i(TAG, "紧凑模式固定歌词区已还原: delta=$delta")
+        val contentHeight = overlay.root.measuredHeight
+        if (contentHeight <= 0) return
+        val topMargin = actionsBottom + ((gap - contentHeight) / 2).coerceAtLeast(minGap) -
+            overlay.album.bottom
+        (overlay.root.layoutParams as? ViewGroup.MarginLayoutParams)?.let { params ->
+            if (params.topMargin != topMargin ||
+                params.height != ViewGroup.LayoutParams.WRAP_CONTENT
+            ) {
+                params.topMargin = topMargin
+                params.height = ViewGroup.LayoutParams.WRAP_CONTENT
+                overlay.root.layoutParams = params
+            }
+        }
     }
 
-    /** 在 player 视图树中定位进度条（HyperProgressSeekBar），返回其布局行容器。 */
-    private fun findSeekBarRow(root: ViewGroup): View? {
+    /** 在 player 视图树中定位进度条（HyperProgressSeekBar）。 */
+    private fun findSeekBarInTree(root: ViewGroup): View? {
         val queue = ArrayDeque<View>()
         queue.add(root)
         var steps = 0
@@ -1522,8 +1450,7 @@ object NotificationMediaAodLyricHooker {
             steps++
             val view = queue.removeFirst()
             if (view !== root && view.javaClass.simpleName.contains(SEEK_BAR_CLASS_HINT)) {
-                val parent = view.parent as? ViewGroup ?: return view
-                return if (parent === root) view else parent
+                return view
             }
             if (view is ViewGroup) {
                 for (index in 0 until view.childCount) queue.add(view.getChildAt(index))
@@ -2464,7 +2391,8 @@ object NotificationMediaAodLyricHooker {
             next = next,
             artist = artist,
             album = album,
-            seekBar = api.getSeekBar(holder),
+            seekBar = api.getSeekBar(holder)
+                ?: player.let { findSeekBarInTree(it) },
             actions = actions,
             player = player,
             playerSize = playerSize,
@@ -2548,7 +2476,6 @@ object NotificationMediaAodLyricHooker {
                 restoreActions(state)
                 state.overlay?.let { overlay ->
                     overlay.root.visibility = View.GONE
-                    restoreCompactLayout(overlay)
                     restorePlayerHeight(overlay, state.fullAod)
                 }
                 HookLogger.e(TAG, "应用息屏歌词失败", it)
@@ -3943,13 +3870,6 @@ object NotificationMediaAodLyricHooker {
         var fullAodActive: Boolean = false,
         var heightAnimator: ValueAnimator? = null,
         var compactMode: Boolean = false,
-        var seekBarRow: View? = null,
-        var rowBaseTopMargin: Int = Int.MIN_VALUE,
-        var compactAppliedDelta: Int = 0,
-        var compactAppliedBgBase: Int = -1,
-        var compactAppliedBgLpHeight: Int = -1,
-        var compactAppliedPaddingTop: Int = -1,
-        var compactAppliedTranslationY: Float = 0f,
     )
 
     private class MediaHeaderHeightController private constructor(
