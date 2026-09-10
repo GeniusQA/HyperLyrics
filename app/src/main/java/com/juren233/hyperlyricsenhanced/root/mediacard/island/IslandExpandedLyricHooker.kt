@@ -49,7 +49,11 @@ object IslandExpandedLyricHooker {
     private const val OVERLAY_TAG = "hyperlyrics_island_expanded_lyrics"
     private const val LYRIC_TOP_GAP_DP = 6f
     private const val LYRIC_BOTTOM_GAP_DP = 10f
-    private val INITIAL_REFRESH_DELAYS_MS = longArrayOf(0L, 120L, 300L, 600L, 1_200L)
+    // 移植包新架构的展开态信号：媒体背景视图播放启动（无 miui.systemui.dynamicisland 体系时）
+    private const val MUSIC_BG_VIEW_CLASS = "com.mi.widget.view.MusicBgView"
+    // 移植包岛窗口可见性切换较慢（实测 attach 后约 1.5~3s 才 VISIBLE），刷新窗口需覆盖到 6s
+    private val INITIAL_REFRESH_DELAYS_MS =
+        longArrayOf(0L, 150L, 400L, 800L, 1_500L, 2_500L, 4_000L, 6_000L)
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val hookedClassLoaders = Collections.synchronizedSet(
@@ -58,6 +62,8 @@ object IslandExpandedLyricHooker {
     private val binderStates = Collections.synchronizedMap(
         WeakHashMap<Any, BinderLyricState>()
     )
+    // 已注册展开监听的播放器视图
+    private val watchedPlayers = Collections.newSetFromMap(WeakHashMap<View, Boolean>())
     // expandedView -> 歌词附加高度（px），供 getExpandedViewHeight Hook 叠加
     private val heightDeltas = Collections.synchronizedMap(
         WeakHashMap<View, Int>()
@@ -105,6 +111,7 @@ object IslandExpandedLyricHooker {
                     }
                     BASE_CONTENT_VIEW_CLASS -> ExpandedHeightHook()
                     EXPANDED_VIEW_CLASS -> ExpandedVisibilityHook()
+                    MUSIC_BG_VIEW_CLASS -> MusicBgViewHook()
                     else -> return@runCatching
                 }
                 xposedModule.hook(method).intercept(hooker)
@@ -114,6 +121,40 @@ object IslandExpandedLyricHooker {
             }
         }
         HookLogger.i(TAG, "大岛歌词 Hook 已初始化: methods=$installed")
+    }
+
+    /**
+     * 展开信号监听：移植包的 DynamicIslandExpandedView 在插件 classLoader 里，
+     * 主加载器 hook 不到 onVisibilityChanged。改在播放器视图上注册 attach/布局监听——
+     * 大岛展开时播放器必然 attach 到窗口且尺寸从摘要态变为大岛态，以此触发刷新。
+     */
+    private fun watchPlayerExpansion(player: ViewGroup) {
+        if (!watchedPlayers.add(player)) return
+        player.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {
+                HookLogger.d(TAG, "大岛播放器 attach，调度展开刷新")
+                scheduleExpandRefresh()
+            }
+
+            override fun onViewDetachedFromWindow(v: View) {
+                // 收起/关闭时立即隐藏，避免残留
+                runOnMain {
+                    synchronized(binderStates) { binderStates.values.toList() }
+                        .forEach(::hideOverlay)
+                }
+            }
+        })
+        player.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, orr, ob ->
+            if (l != ol || t != ot || r != orr || b != ob) {
+                scheduleExpandRefresh()
+            }
+        }
+    }
+
+    private fun scheduleExpandRefresh() {
+        INITIAL_REFRESH_DELAYS_MS.forEach { delay ->
+            mainHandler.postDelayed({ refresh() }, delay)
+        }
     }
 
     fun refresh() = runOnMain {
@@ -197,6 +238,20 @@ object IslandExpandedLyricHooker {
         }
     }
 
+    /**
+     * 移植包新架构降级信号：媒体背景视图 start/resume 发生在展开态媒体卡片出现时。
+     * applyState 内部有 isShown 门控，摘要态误触发不会显示歌词。
+     */
+    private class MusicBgViewHook : Hooker {
+        override fun intercept(chain: Chain): Any? {
+            val result = chain.proceed()
+            INITIAL_REFRESH_DELAYS_MS.forEach { delay ->
+                mainHandler.postDelayed({ refresh() }, delay)
+            }
+            return result
+        }
+    }
+
     private class IslandApi private constructor(
         val hookMethods: List<Method>,
         private val holderField: Field,
@@ -235,16 +290,22 @@ object IslandExpandedLyricHooker {
                 val binderClass = classLoader.loadClass(BINDER_CLASS)
                 val holderClass = classLoader.loadClass(HOLDER_CLASS)
                 val mediaDataClass = classLoader.loadClass(MEDIA_DATA_CLASS)
-                val contentViewClass = classLoader.loadClass(BASE_CONTENT_VIEW_CLASS)
-                // 高度方法与展开可见性方法在部分版本可能缺失，容错降级为不撑高/不监听展开。
-                val heightMethod = contentViewClass.methods.firstOrNull {
-                    it.name == "getExpandedViewHeight" && it.parameterTypes.isEmpty()
-                }?.apply { isAccessible = true }
+                // 高度方法与展开可见性方法在部分版本/移植包可能缺失，容错降级为不撑高/不监听展开。
+                val heightMethod = runCatching {
+                    classLoader.loadClass(BASE_CONTENT_VIEW_CLASS).methods.firstOrNull {
+                        it.name == "getExpandedViewHeight" && it.parameterTypes.isEmpty()
+                    }
+                }.getOrNull()?.apply { isAccessible = true }
                 val visibilityMethod = runCatching {
                     classLoader.loadClass(EXPANDED_VIEW_CLASS).declaredMethods.firstOrNull {
                         it.name == "onVisibilityChanged" && it.parameterCount == 2
                     }?.apply { isAccessible = true }
                 }.getOrNull()
+                val musicBgMethods = runCatching {
+                    classLoader.loadClass(MUSIC_BG_VIEW_CLASS).declaredMethods.filter {
+                        (it.name == "start" || it.name == "resume") && it.parameterCount == 0
+                    }.map { it.apply { isAccessible = true } }
+                }.getOrDefault(emptyList())
                 return IslandApi(
                     hookMethods = listOfNotNull(
                         binderClass.declaredMethods.single {
@@ -258,7 +319,7 @@ object IslandExpandedLyricHooker {
                         }.apply { isAccessible = true },
                         heightMethod,
                         visibilityMethod,
-                    ),
+                    ) + musicBgMethods,
                     holderField = binderClass.getDeclaredField("holder").apply {
                         isAccessible = true
                     },
@@ -338,35 +399,51 @@ object IslandExpandedLyricHooker {
         val hasLyric = main.isNotBlank()
         val show = playing && hasLyric && packageMatches
 
-        api.getHolders(binder).forEach { holder ->
+        // binder 同时持有真 holder 与 dummyHolder，dummyHolder 的播放器不可见；
+        // 必须按「任一 holder 展开可见」统一决策，且只在可见的播放器上挂载，
+        // 否则 dummyHolder 的隐藏判定会与真 holder 的显示交替振荡（表现为歌词被置 GONE）。
+        val holderEntries = api.getHolders(binder).mapNotNull { holder ->
             val player = runCatching { api.getPlayer(holder) as? ViewGroup }
-                .getOrNull() ?: return@forEach
-            val expandedView = findExpandedView(player) ?: return@forEach
+                .getOrNull() ?: return@mapNotNull null
+            val expandedView = findExpandedView(player) ?: return@mapNotNull null
+            logStructureIfNeeded(player, expandedView)
+            watchPlayerExpansion(player)
             val title = runCatching { api.getTitleText(holder) }.getOrNull()
-                ?: return@forEach
-            val artist = runCatching { api.getArtistText(holder) }.getOrNull()
-            val state = synchronized(binderStates) { binderStates[binder] }
-            if (!show || !expandedView.isShown) {
-                state?.let { hideOverlay(it) }
-                return@forEach
-            }
-            val lyricState = state ?: createOverlay(api, binder, holder, player, expandedView, title, artist)
-            if (lyricState == null) return@forEach
-            lyricState.main.text = main
-            setOptionalText(lyricState.translation, translation)
-            setOptionalText(lyricState.backing, backing)
-            setOptionalText(lyricState.backingTranslation, backingTranslation)
-            lyricState.main.setTextColor(title.currentTextColor)
-            lyricState.backing.setTextColor(title.currentTextColor)
-            val translationColor = artist?.currentTextColor ?: title.currentTextColor
-            lyricState.translation.setTextColor(translationColor)
-            lyricState.backingTranslation.setTextColor(translationColor)
-            if (lyricState.overlay.visibility != View.VISIBLE) {
-                lyricState.overlay.visibility = View.VISIBLE
-            }
-            updateExpandedHeight(lyricState)
+                ?: return@mapNotNull null
+            HolderEntry(holder, player, expandedView, title)
         }
+        val visibleEntry = holderEntries.firstOrNull { it.expandedView.isShown }
+        val state = synchronized(binderStates) { binderStates[binder] }
+        if (!show || visibleEntry == null) {
+            state?.let(::hideOverlay)
+            return
+        }
+        val entry = visibleEntry
+        val artist = runCatching { api.getArtistText(entry.holder) }.getOrNull()
+        val lyricState = state
+            ?: createOverlay(api, binder, entry.holder, entry.player, entry.expandedView, entry.title, artist)
+        if (lyricState == null) return
+        lyricState.main.text = main
+        setOptionalText(lyricState.translation, translation)
+        setOptionalText(lyricState.backing, backing)
+        setOptionalText(lyricState.backingTranslation, backingTranslation)
+        lyricState.main.setTextColor(entry.title.currentTextColor)
+        lyricState.backing.setTextColor(entry.title.currentTextColor)
+        val translationColor = artist?.currentTextColor ?: entry.title.currentTextColor
+        lyricState.translation.setTextColor(translationColor)
+        lyricState.backingTranslation.setTextColor(translationColor)
+        if (lyricState.overlay.visibility != View.VISIBLE) {
+            lyricState.overlay.visibility = View.VISIBLE
+        }
+        updateExpandedHeight(lyricState)
     }
+
+    private class HolderEntry(
+        val holder: Any,
+        val player: ViewGroup,
+        val expandedView: View,
+        val title: TextView,
+    )
 
     private fun createOverlay(
         api: IslandApi,
@@ -551,13 +628,34 @@ object IslandExpandedLyricHooker {
         }
     }
 
+    @Volatile
+    private var structureLogged = false
+
+    /** 首次拿到播放器视图时打印结构，便于真机适配诊断（只打一次）。 */
+    private fun logStructureIfNeeded(player: ViewGroup, expandedView: View) {
+        if (structureLogged) return
+        structureLogged = true
+        val hierarchy = generateSequence<Class<*>>(player.javaClass) { it.superclass }
+            .take(4)
+            .joinToString(" -> ") { it.name.substringAfterLast('.') }
+        HookLogger.i(
+            TAG,
+            "大岛视图结构: player=$hierarchy, lp=${player.layoutParams?.javaClass?.name}, " +
+                "height=${player.layoutParams?.height}, measured=${player.measuredWidth}x${player.measuredHeight}, " +
+                "expanded=${expandedView.javaClass.name}, shown=${expandedView.isShown}"
+        )
+    }
+
     private fun findExpandedView(from: View): View? {
         var current: View? = from
-        repeat(16) {
-            current = current?.parent as? View ?: return null
-            if (current.javaClass.name == EXPANDED_VIEW_CLASS) return current
+        for (i in 0 until 16) {
+            val parent = current?.parent as? View ?: return from
+            if (parent.javaClass.name == EXPANDED_VIEW_CLASS) return parent
+            current = parent
         }
-        return null
+        // 移植包新架构没有 DynamicIslandExpandedView，用播放器自身做展开视图代理
+        // （展开时 isShown=true，摘要/收起时为 false，语义等价）。
+        return from
     }
 
     private fun findContentViewExpandedView(contentView: Any): View? {
