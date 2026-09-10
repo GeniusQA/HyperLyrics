@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 隐藏桌面图标时备用入口的透明占位图标：视觉隐藏但保持 LAUNCHER 组件可用 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@android:color/transparent" />
+    <size
+        android:width="1dp"
+        android:height="1dp" />
+</shape>

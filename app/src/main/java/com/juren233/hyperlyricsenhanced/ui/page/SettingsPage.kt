@@ -277,6 +277,55 @@ private fun LazyListScope.settingsSections(
                 SwitchPreference(title = stringResource(R.string.title_floating_nav), checked = floatingNavBarEnabled, onCheckedChange = { floatingNavBarEnabled = it; prefs.edit { putBoolean(UIConstants.KEY_FLOATING_NAV_BAR, it) } })
                 var excludeFromRecents by remember { mutableStateOf(prefs.getBoolean(UIConstants.KEY_EXCLUDE_FROM_RECENTS, UIConstants.DEFAULT_EXCLUDE_FROM_RECENTS)) }
                 SwitchPreference(title = stringResource(R.string.title_exclude_from_recents), checked = excludeFromRecents, onCheckedChange = { excludeFromRecents = it; prefs.edit { putBoolean(UIConstants.KEY_EXCLUDE_FROM_RECENTS, it) }; setExcludeFromRecents(context, it) })
+                var launcherIconHidden by remember {
+                    mutableStateOf(
+                        runCatching {
+                            context.packageManager.getComponentEnabledSetting(
+                                android.content.ComponentName(context, "${context.packageName}.ui.LauncherAlias")
+                            ) == android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                        }.getOrDefault(false)
+                    )
+                }
+                SwitchPreference(
+                    title = stringResource(R.string.title_hide_launcher_icon),
+                    summary = stringResource(R.string.summary_hide_launcher_icon),
+                    checked = launcherIconHidden,
+                    onCheckedChange = { hidden ->
+                        launcherIconHidden = hidden
+                        prefs.edit { putBoolean(UIConstants.KEY_HIDE_LAUNCHER_ICON, hidden) }
+                        // 双 alias 互斥：隐藏=禁用桌面 alias 启用透明图标备用 alias（LAUNCHER
+                        // 组件始终存在），保证 LSPosed 模块详情右下角的打开按钮始终有效
+                        runCatching {
+                            val pm = context.packageManager
+                            fun component(name: String) =
+                                android.content.ComponentName(context, "${context.packageName}.$name")
+                            pm.setComponentEnabledSetting(
+                                component("ui.LauncherAlias"),
+                                if (hidden) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                                else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                                android.content.pm.PackageManager.DONT_KILL_APP
+                            )
+                            pm.setComponentEnabledSetting(
+                                component("ui.LauncherEntry"),
+                                if (hidden) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                                else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                                android.content.pm.PackageManager.DONT_KILL_APP
+                            )
+                        }
+                        if (hidden) {
+                            // 自动返回桌面，让用户立即看到图标已隐藏
+                            activity?.window?.decorView?.postDelayed({
+                                runCatching {
+                                    context.startActivity(
+                                        android.content.Intent(android.content.Intent.ACTION_MAIN)
+                                            .addCategory(android.content.Intent.CATEGORY_HOME)
+                                            .setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }
+                            }, 400L)
+                        }
+                    }
+                )
             }
         }
     }

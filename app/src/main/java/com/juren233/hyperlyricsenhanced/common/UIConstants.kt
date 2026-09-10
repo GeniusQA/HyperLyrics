@@ -12,6 +12,8 @@ object UIConstants {
     const val KEY_PREDICTIVE_BACK_GESTURE = "key_predictive_back_gesture"
     const val KEY_FLOATING_NAV_BAR = "key_floating_nav_bar"
     const val KEY_EXCLUDE_FROM_RECENTS = "key_exclude_from_recents"
+    const val KEY_HIDE_LAUNCHER_ICON = "key_hide_launcher_icon"
+    const val DEFAULT_HIDE_LAUNCHER_ICON = false
     const val KEY_LOG_LEVEL = "key_log_level"
     const val KEY_LOG_LEVEL_BUILD_KIND = "key_log_level_build_kind"
     const val KEY_LAST_SEEN_VERSION = "key_last_seen_version"
