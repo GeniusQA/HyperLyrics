@@ -9,6 +9,8 @@ import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.media.session.MediaController
 import android.media.session.PlaybackState
 import android.os.Handler
@@ -612,8 +614,11 @@ object NotificationMediaAodLyricHooker {
     // 歌词底部到卡片底的预留高度：需完整容纳贴底显示的进度条区（时间+滑条约40dp）及上下间距，
     // 防止歌词翻译行与进度条重叠。
     private const val LOCK_SCREEN_AOD_BOTTOM_RESERVE_DP = 56f
-    // 紧凑模式（亮屏锁屏/通知中心）：歌词区与按钮行/进度条行的最小间距
+    // 紧凑模式（亮屏锁屏/通知中心）：单行胶囊高度、与进度条行的间距
+    private const val COMPACT_LYRIC_BAR_HEIGHT_DP = 26f
     private const val COMPACT_LYRIC_TOP_GAP_DP = 4f
+    private const val COMPACT_LYRIC_BAR_CORNER_DP = 14f
+    private const val COMPACT_LYRIC_BAR_H_PADDING_DP = 12f
     private const val SEEK_BAR_CLASS_HINT = "HyperProgressSeekBar"
     private const val LOCK_SCREEN_AOD_SIDE_MARGIN_EXTRA_DP = 1f
     private const val LOCK_SCREEN_AOD_HEIGHT_ANIMATION_MS = 160L
@@ -1371,71 +1376,57 @@ object NotificationMediaAodLyricHooker {
 
     /**
      * 紧凑模式布局：完全不改卡片几何（不加高/不下移进度条/不加 padding），
-     * 歌词区覆盖显示在按钮行与进度条行之间的原生空隙内：
-     * - 空隙足够两行：显示主歌词 + 翻译
-     * - 空隙不足：合并为单行「歌词 翻译」（不同字号颜色，超宽 marquee）
+     * 以「单行胶囊」形态覆盖在进度条下方的原生底边距区：
+     * 歌词与翻译合并一行（翻译小字号次级色），超宽 marquee 滚动，
+     * 自带半透明圆角背景保证可读性，与按钮/进度条天然互不重叠。
      */
     private fun applyCompactOverlayLayout(overlay: LyricOverlay) {
-        val actionsBottom = overlay.actions.maxOfOrNull { it.bottom } ?: return
-        if (actionsBottom <= 0) return
         val density = overlay.root.resources.displayMetrics.density
-        val minGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt()
-        val seekBarTop = overlay.seekBar
+        val rowHeight = (COMPACT_LYRIC_BAR_HEIGHT_DP * density).toInt()
+        val topGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt()
+        // 锚点优先取进度条底部；找不到进度条时回退到按钮行底部
+        val anchorBottom = overlay.seekBar
             ?.takeIf { it.parent === overlay.player }
-            ?.top
-            ?: overlay.player.height
-        val gap = seekBarTop - actionsBottom
-        if (gap <= minGap * 2) return
-
-        val widthSpec = View.MeasureSpec.makeMeasureSpec(
-            overlay.player.width.coerceAtLeast(1),
-            View.MeasureSpec.EXACTLY
-        )
-        overlay.root.measure(
-            widthSpec,
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        )
+            ?.bottom
+            ?: overlay.actions.maxOfOrNull { it.bottom } ?: 0
+        if (anchorBottom <= 0) return
         val mainText = overlay.main.text.toString()
         val translationText = overlay.translation.text.toString()
-        val singleLine = overlay.root.measuredHeight > gap - minGap * 2 &&
-            translationText.isNotBlank()
-        if (singleLine) {
-            val merged = SpannableStringBuilder(mainText).append("   ")
-            val start = merged.length
-            merged.append(translationText)
-            merged.setSpan(
-                ForegroundColorSpan(overlay.translation.currentTextColor),
-                start,
-                merged.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            merged.setSpan(
-                RelativeSizeSpan(0.78f),
-                start,
-                merged.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            overlay.main.text = merged
-            overlay.translation.visibility = View.GONE
-            overlay.root.measure(
-                widthSpec,
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            )
+        val merged = if (translationText.isNotBlank()) {
+            SpannableStringBuilder(mainText).append("   ")
+                .append(translationText).let { builder ->
+                    val start = builder.length - translationText.length
+                    builder.setSpan(
+                        ForegroundColorSpan(overlay.translation.currentTextColor),
+                        start,
+                        builder.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    builder.setSpan(
+                        RelativeSizeSpan(0.78f),
+                        start,
+                        builder.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    builder
+                }
         } else {
-            if (overlay.main.text.toString() != mainText) overlay.main.text = mainText
-            overlay.translation.visibility =
-                if (translationText.isBlank()) View.GONE else View.VISIBLE
+            SpannableStringBuilder(mainText)
         }
-        val contentHeight = overlay.root.measuredHeight
-        if (contentHeight <= 0) return
-        val topMargin = actionsBottom + ((gap - contentHeight) / 2).coerceAtLeast(minGap) -
-            overlay.album.bottom
+        if (overlay.main.text.toString() != merged.toString()) {
+            overlay.main.text = merged
+        }
+        overlay.translation.visibility = View.GONE
+        overlay.root.layoutParams?.let { params ->
+            if (params.height != rowHeight) {
+                params.height = rowHeight
+                overlay.root.layoutParams = params
+            }
+        }
         (overlay.root.layoutParams as? ViewGroup.MarginLayoutParams)?.let { params ->
-            if (params.topMargin != topMargin ||
-                params.height != ViewGroup.LayoutParams.WRAP_CONTENT
-            ) {
+            val topMargin = anchorBottom + topGap - overlay.album.bottom
+            if (params.topMargin != topMargin) {
                 params.topMargin = topMargin
-                params.height = ViewGroup.LayoutParams.WRAP_CONTENT
                 overlay.root.layoutParams = params
             }
         }
@@ -1477,6 +1468,36 @@ object NotificationMediaAodLyricHooker {
                 view.ellipsize = null
                 view.isSelected = false
             }
+        }
+        val density = overlay.root.resources.displayMetrics.density
+        if (compact) {
+            // 胶囊内单行空间有限，压缩字号
+            overlay.main.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            overlay.translation.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            if (overlay.root.background == null) {
+                overlay.root.background = GradientDrawable().apply {
+                    setColor(Color.argb(77, 0, 0, 0))
+                    cornerRadius = COMPACT_LYRIC_BAR_CORNER_DP * density
+                }
+                overlay.root.setPadding(
+                    (COMPACT_LYRIC_BAR_H_PADDING_DP * density).toInt(),
+                    0,
+                    (COMPACT_LYRIC_BAR_H_PADDING_DP * density).toInt(),
+                    0
+                )
+                overlay.root.gravity = Gravity.CENTER_VERTICAL
+            }
+        } else {
+            overlay.main.setTextSize(
+                TypedValue.COMPLEX_UNIT_SP,
+                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE.toFloat()
+            )
+            overlay.translation.setTextSize(
+                TypedValue.COMPLEX_UNIT_SP,
+                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE.toFloat()
+            )
+            overlay.root.background = null
+            overlay.root.gravity = Gravity.CENTER
         }
         config(overlay.main, compact)
         config(overlay.translation, compact)
