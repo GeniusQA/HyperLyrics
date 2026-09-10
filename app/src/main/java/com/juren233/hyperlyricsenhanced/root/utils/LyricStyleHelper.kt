@@ -78,13 +78,32 @@ object LyricStyleHelper {
         res: Resources,
         mode: Int,
         albumBitmap: Bitmap? = null,
-        mediaColorKey: String? = CoverColorHelper.currentMediaKey()
+        mediaColorKey: String? = CoverColorHelper.currentMediaKey(),
+        fontColorKeys: RootConstants.FontColorKeys = RootConstants.FONT_COLOR_KEYS_SUMMARY,
     ): LyricViewStyle = buildStyleWithDiagnostics(
         prefs = prefs,
         res = res,
         mode = mode,
         albumBitmap = albumBitmap,
-        mediaColorKey = mediaColorKey
+        mediaColorKey = mediaColorKey,
+        fontColorKeys = fontColorKeys,
+    ).style
+
+    /** 按指定位置的字体颜色 key 组构建样式（非摘要态歌词渲染用）。 */
+    fun buildStyleWithFontColorKeys(
+        prefs: SharedPreferences,
+        res: Resources,
+        mode: Int,
+        keys: RootConstants.FontColorKeys,
+        albumBitmap: Bitmap? = null,
+        mediaColorKey: String? = CoverColorHelper.currentMediaKey(),
+    ): LyricViewStyle = buildStyleWithDiagnostics(
+        prefs = prefs,
+        res = res,
+        mode = mode,
+        albumBitmap = albumBitmap,
+        mediaColorKey = mediaColorKey,
+        fontColorKeys = keys,
     ).style
 
     internal fun buildStyleWithDiagnostics(
@@ -92,7 +111,8 @@ object LyricStyleHelper {
         res: Resources,
         mode: Int,
         albumBitmap: Bitmap? = null,
-        mediaColorKey: String? = CoverColorHelper.currentMediaKey()
+        mediaColorKey: String? = CoverColorHelper.currentMediaKey(),
+        fontColorKeys: RootConstants.FontColorKeys = RootConstants.FONT_COLOR_KEYS_SUMMARY,
     ): StyleBuildResult {
         val fontSize = prefs.getInt(RootConstants.KEY_HOOK_TEXT_SIZE, RootConstants.DEFAULT_HOOK_TEXT_SIZE)
         val baseTf = FontHelper.loadBaseTypeface(prefs)
@@ -139,29 +159,30 @@ object LyricStyleHelper {
         }
 
         // Determine text colors: use cover colors if enabled, otherwise white
+        // （颜色 key 按歌词位置分组：摘要态沿用旧 key，其他位置传各自的 FontColorKeys）
         val useCustomColor = IslandRuntimePreferenceReader.getBoolean(
             prefs,
-            RootConstants.KEY_HOOK_CUSTOM_TEXT_COLOR_ENABLED,
+            fontColorKeys.customEnabled,
             RootConstants.DEFAULT_HOOK_CUSTOM_TEXT_COLOR_ENABLED
         )
         val customTextColor = IslandRuntimePreferenceReader.getInt(
             prefs,
-            RootConstants.KEY_HOOK_CUSTOM_TEXT_COLOR,
+            fontColorKeys.customColor,
             RootConstants.DEFAULT_HOOK_CUSTOM_TEXT_COLOR
         )
         val useMonetColor = IslandRuntimePreferenceReader.getBoolean(
             prefs,
-            RootConstants.KEY_HOOK_MONET_TEXT_COLOR,
+            fontColorKeys.monet,
             RootConstants.DEFAULT_HOOK_MONET_TEXT_COLOR
         )
         val useCoverColor = IslandRuntimePreferenceReader.getBoolean(
             prefs,
-            RootConstants.KEY_HOOK_EXTRACT_COVER_TEXT_COLOR,
+            fontColorKeys.coverColor,
             RootConstants.DEFAULT_HOOK_EXTRACT_COVER_TEXT_COLOR
         )
         val useCoverGradient = IslandRuntimePreferenceReader.getBoolean(
             prefs,
-            RootConstants.KEY_HOOK_EXTRACT_COVER_TEXT_GRADIENT,
+            fontColorKeys.coverGradient,
             RootConstants.DEFAULT_HOOK_EXTRACT_COVER_TEXT_GRADIENT
         )
         val gradientCoverBackgroundActive =

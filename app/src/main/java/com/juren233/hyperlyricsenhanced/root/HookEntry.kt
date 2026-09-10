@@ -21,8 +21,8 @@ import com.juren233.hyperlyricsenhanced.root.island.IslandWidthHooker
 import com.juren233.hyperlyricsenhanced.root.island.RealIslandHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaAmbientFlowHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.AodEnvironmentDiagnostics
-import com.juren233.hyperlyricsenhanced.root.mediacard.notification.KeyguardFullScreenLyricHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaAodLyricHooker
+import com.juren233.hyperlyricsenhanced.root.mediacard.notification.KeyguardFullScreenLyricHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaCoverStyleHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.island.IslandExpandedLyricHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.island.IslandExpandedMediaAmbientFlowHooker
@@ -144,6 +144,41 @@ class HookEntry : XposedModule() {
             RootConstants.KEY_HOOK_WORD_MOTION_LATIN_LIFT,
             RootConstants.KEY_HOOK_WORD_MOTION_LATIN_WAVE,
             RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND
+        ) + listOf(
+            // 各歌词位置独立的样式参数（锁屏歌词/通知中心）
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_MAIN_TEXT_SIZE,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_BACKING_TEXT_SIZE,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_TEXT_SIZE,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_SHOW_NEXT_LYRIC,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_LYRIC_STYLE,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_DUET_LYRICS,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_CENTER_NON_DUET_SONG,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_CENTER_GROUP_VOCALS,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_PAUSE_STYLE,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_DISPLAY,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_FALLBACK,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_SWAP_TRANSLATION,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_SONG_PREVIEW,
+            RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_SONG_PREVIEW_POSITION,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_MAIN_TEXT_SIZE,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_BACKING_TEXT_SIZE,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_TEXT_SIZE,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_SHOW_NEXT_LYRIC,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_NEXT_LYRIC_STYLE,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_DUET_LYRICS,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_CENTER_NON_DUET_SONG,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_CENTER_GROUP_VOCALS,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_PAUSE_STYLE,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_DISPLAY,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_FALLBACK,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_SWAP_TRANSLATION,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_NEXT_SONG_PREVIEW,
+            RootConstants.KEY_HOOK_NOTIFICATION_CENTER_NEXT_SONG_PREVIEW_POSITION,
+            RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_MAIN_TEXT_SIZE,
+            RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_TRANSLATION_TEXT_SIZE,
+            RootConstants.KEY_HOOK_ISLAND_EXPANDED_MAIN_TEXT_SIZE,
+            RootConstants.KEY_HOOK_ISLAND_EXPANDED_BACKING_TEXT_SIZE,
+            RootConstants.KEY_HOOK_ISLAND_EXPANDED_TRANSLATION_TEXT_SIZE,
         )
     }
 
@@ -193,8 +228,8 @@ class HookEntry : XposedModule() {
         NotificationMediaCoverStyleHooker.releaseAll()
         NotificationMediaAmbientFlowHooker.releaseAll()
         NotificationMediaAodLyricHooker.releaseAll()
-        IslandExpandedLyricHooker.releaseAll()
         KeyguardFullScreenLyricHooker.releaseAll()
+        IslandExpandedLyricHooker.releaseAll()
         IslandProgressGlowController.clearAll()
         MediaBackgroundRendererPool.releaseAll()
         BaseIslandRenderer.clearAllViews()
@@ -264,8 +299,8 @@ class HookEntry : XposedModule() {
         
         if (packageName == "com.android.systemui") {
             NotificationMediaAodLyricHooker.hook(this, param.defaultClassLoader)
-            IslandExpandedLyricHooker.hook(this, param.defaultClassLoader)
             KeyguardFullScreenLyricHooker.hook(this, param.defaultClassLoader)
+            IslandExpandedLyricHooker.hook(this, param.defaultClassLoader)
             if (!lyricsOnlyAfterHotReload) {
                 IslandExpandedMediaAmbientFlowHooker.hook(this, param.defaultClassLoader)
                 NotificationMediaAmbientFlowHooker.hook(this, param.defaultClassLoader)
@@ -500,7 +535,6 @@ class HookEntry : XposedModule() {
                     RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND,
                     RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS,
                     RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED,
-                    RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_APPLE_MUSIC_NATIVE_ONLINE_TRANSLATION -> {
@@ -774,6 +808,24 @@ class HookEntry : XposedModule() {
                     BaseIslandRenderer.refreshDynamicWidth()
                 } else {
                     BaseIslandRenderer.refreshActiveIsland()
+                }
+                // 字体颜色（任一位置）变化同步刷新对应歌词渲染层
+                if (RootConstants.isFontColorKey(key)) {
+                    NotificationMediaAodLyricHooker.refresh()
+                    IslandExpandedLyricHooker.refresh()
+                    KeyguardFullScreenLyricHooker.refresh()
+                }
+                // 各位置独立样式参数（锁屏歌词/通知中心/全屏/大岛）变化时刷新渲染层
+                if (RootConstants.STYLE_KEY_PREFIXES.any { key.startsWith(it) } ||
+                    key == RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_MAIN_TEXT_SIZE ||
+                    key == RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_TRANSLATION_TEXT_SIZE ||
+                    key == RootConstants.KEY_HOOK_ISLAND_EXPANDED_MAIN_TEXT_SIZE ||
+                    key == RootConstants.KEY_HOOK_ISLAND_EXPANDED_BACKING_TEXT_SIZE ||
+                    key == RootConstants.KEY_HOOK_ISLAND_EXPANDED_TRANSLATION_TEXT_SIZE
+                ) {
+                    NotificationMediaAodLyricHooker.refresh()
+                    KeyguardFullScreenLyricHooker.refresh()
+                    IslandExpandedLyricHooker.refresh()
                 }
                 HookLogger.i(
                     "HookEntry",

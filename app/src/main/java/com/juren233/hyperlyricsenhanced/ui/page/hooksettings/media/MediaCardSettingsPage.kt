@@ -3,6 +3,8 @@ package com.juren233.hyperlyricsenhanced.ui.page.hooksettings.media
 import android.content.Context
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -16,12 +18,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import androidx.core.content.edit
 import com.juren233.hyperlyricsenhanced.R
 import com.juren233.hyperlyricsenhanced.common.PrefsBridge
 import com.juren233.hyperlyricsenhanced.common.RootConstants
 import com.juren233.hyperlyricsenhanced.common.UIConstants
+import com.juren233.hyperlyricsenhanced.ui.component.FontColorModeCard
 import com.juren233.hyperlyricsenhanced.ui.navigation.LocalNavigator
+import com.juren233.hyperlyricsenhanced.ui.navigation.Route
 import com.juren233.hyperlyricsenhanced.ui.page.hooksettings.media.island.islandExpandedMediaCardSection
 import com.juren233.hyperlyricsenhanced.ui.page.hooksettings.media.notification.notificationCenterMediaCardSection
 import com.juren233.hyperlyricsenhanced.ui.utils.BlurredBar
@@ -465,6 +471,22 @@ fun MediaCardSettingsPage() {
                         )
                     }
                 )
+                item(key = "notification_center_lyrics_style") {
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp)
+                            .fillMaxWidth()
+                    ) {
+                        ArrowPreference(
+                            title = stringResource(R.string.title_notification_center_lyrics_style),
+                            summary = stringResource(R.string.summary_notification_center_lyrics_style),
+                            onClick = {
+                                navigator.navigate(Route.NotificationCenterLyricsSettings)
+                            },
+                        )
+                    }
+                }
                 islandExpandedMediaCardSection(
                     cardTheme = islandExpandedCardTheme,
                     onCardThemeChange = { theme ->
@@ -618,6 +640,24 @@ fun MediaCardSettingsPage() {
                         )
                     }
                 )
+                item(key = "island_expanded_font_color") {
+                    FontColorModeCard(
+                        prefs = prefs,
+                        saveConfig = { key, value ->
+                            prefs.edit {
+                                when (value) {
+                                    is Boolean -> putBoolean(key, value)
+                                    is Int -> putInt(key, value)
+                                }
+                            }
+                            when (value) {
+                                is Boolean -> PrefsBridge.putBoolean(key, value)
+                                is Int -> PrefsBridge.putInt(key, value)
+                            }
+                        },
+                        keys = RootConstants.FONT_COLOR_KEYS_ISLAND_EXPANDED,
+                    )
+                }
             }
         }
     }

@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">HyperLyrics Enhanced</string>
-    <string name="enhanced_version_notice">遇到仅在 HyperLyrics Enhanced 中出现的问题，请在本仓库的 Issue 中反馈，本模块仓库可在“关于”-“项目地址”跳转。反馈至错误的仓库会引起非必要的打扰且降低解决问题的效率！</string>
+    <string name="app_name" translatable="false">HyperLyrics</string>
+    <string name="enhanced_version_notice">遇到仅在 HyperLyrics 中出现的问题，请在本仓库的 Issue 中反馈，本模块仓库可在“关于”-“项目地址”跳转。反馈至错误的仓库会引起非必要的打扰且降低解决问题的效率！</string>
     <string name="module_update_available_notice">当前模块有新版本，建议去GitHub仓库下载更新</string>
     <string name="debug_build_notice">当前为Debug包，如果你只是日常使用，建议重新下载安装Release包。</string>
     <string name="module_update_available_version">有新版本：%1$s</string>
     <string name="apple_music_provider_description">内置 Apple Music 逐字歌词提供器</string>
     <string name="app_description">在 HyperOS3 媒体超级岛与米系AOD上体验歌词，更有 Apple Music 专属体验优化</string>
     <string name="label_lyric_listener_service">获取媒体信息权限</string>
-    <string name="label_lyric_enable_service">HyperLyrics Enhanced 媒体信息监听</string>
+    <string name="label_lyric_enable_service">HyperLyrics 媒体信息监听</string>
     <string name="provider_release_home">https://github.com/juren233/HLE-Providers</string>
 
     <string name="add">添加</string>
@@ -45,13 +45,13 @@
     <string name="title_lock_screen_lyrics">锁屏歌词</string>
     <string name="summary_lock_screen_lyrics">亮屏且停留在锁屏界面时，同样在锁屏媒体卡片下方显示歌词</string>
     <string name="title_lock_screen_lyrics_config">锁屏歌词</string>
-    <string name="title_keyguard_full_screen_lyrics">全屏滚动歌词</string>
-    <string name="summary_keyguard_full_screen_lyrics">在锁屏界面时钟与媒体卡片之间全屏滚动显示歌词与翻译（ColorOS 风格，需先开启锁屏歌词）</string>
     <string name="title_notification_center_lyrics">通知中心歌词</string>
     <string name="summary_notification_center_lyrics">解锁后下拉通知中心时，在媒体通知卡片下方显示歌词</string>
+    <string name="title_notification_center_lyrics_style">通知中心歌词样式</string>
+    <string name="summary_notification_center_lyrics_style">字号、翻译、对唱、暂停样式与字体颜色（仅作用于通知中心歌词）</string>
     <string name="title_island_expanded_lyrics">超级岛·展开态歌词</string>
     <string name="summary_island_expanded_lyrics">展开超级岛媒体大岛时，在卡片内进度条下方显示歌词与翻译</string>
-    <string name="title_classic_aod">经典AOD</string>
+    <string name="title_classic_aod">自定义AOD</string>
     <string name="title_dynamic_island_config">通知型灵动岛歌词自定义配置</string>
     <string name="title_special_features">特殊功能</string>
     <string name="title_remove_focus_whitelist">移除焦点通知白名单</string>
@@ -74,7 +74,7 @@
     <string name="title_apple_music_native_online_translation">补全歌词翻译与发音</string>
     <string name="summary_apple_music_native_online_translation">优先使用Apple源，三方在线源兜底</string>
     <string name="title_apple_music_fill_missing_lyrics">为无歌词的歌曲补充歌词</string>
-    <string name="summary_apple_music_fill_missing_lyrics">来源请在三方在线源配置中设置</string>
+    <string name="summary_apple_music_fill_missing_lyrics">来源请在 MetaData 中设置</string>
     <string name="title_apple_music_hide_mandarin_pinyin">不显示国语歌拼音</string>
     <string name="title_apple_music_lunabeat_word_lyrics">使用开源仓库歌词源对部分逐行歌词转换为逐字歌词</string>
     <string name="summary_apple_music_lunabeat_word_lyrics">由 LunaBeat TTML 歌词站提供歌词，实验性功能</string>
@@ -125,7 +125,7 @@
     <string name="title_licenses">引用</string>
     <string name="title_acknowledgments">致谢</string>
     <string name="summary_acknowledgments">感谢@FrancOS 和@于逸风 的帮助，以及一些没列出的项目</string>
-    <string name="summary_contributors">感谢以下贡献者为 HyperLyrics Enhanced 的开发提供帮助</string>
+    <string name="summary_contributors">感谢以下贡献者为 HyperLyrics 的开发提供帮助</string>
 
     <!-- ———————————————————————— SettingsPage ———————————————————————— -->
     <string name="toast_backup_success">备份成功</string>
@@ -223,7 +223,10 @@
     <string name="title_lyric_anim">歌词切换动画</string>
     <string name="title_lyric_provider">Lyricon配置</string>
     <string name="title_builtin_provider">内置 Provider</string>
-    <string name="summary_builtin_apple_provider">HyperLyrics Enhanced默认内置且不可移除</string>
+    <string name="summary_builtin_apple_provider">HyperLyrics默认内置且不可移除</string>
+    <string name="summary_builtin_lrclib_provider">HyperLyrics内置兜底歌词源，所有播放器统一生效且不可移除</string>
+    <string name="detail_builtin_lrclib_provider">LRCLIB（lrclib.net）为开源歌词库，作为所有播放器统一的兜底歌词源：QQ音乐、网易云音乐、酷我音乐、酷狗音乐全部未命中时，由 LRCLIB 提供同步歌词（仅歌词、无翻译、无逐字）；命中后缺失的翻译会自动向四库补齐，仍无则岛上仅显示歌词。该能力始终启用，无需配置，不可移除。</string>
+    <string name="summary_builtin_youtube_music_provider">HyperLyrics内置提供器，歌词由在线歌词源补全</string>
     <string name="title_official_provider_plugins">已添加的插件</string>
     <string name="title_provider_downloads">未添加的插件</string>
     <string name="title_legacy_provider_modules">已安装的独立 Provider 模块</string>
@@ -268,7 +271,7 @@
     <string name="provider_error_catalog_data">插件目录数据异常，请等待项目仓库修复</string>
     <string name="provider_error_unavailable">插件文件暂不可用，请等待发布</string>
     <string name="provider_error_integrity">插件文件校验失败，请重新下载或等待项目仓库修复</string>
-    <string name="provider_error_incompatible">插件与当前版本不兼容，请更新 HyperLyrics Enhanced</string>
+    <string name="provider_error_incompatible">插件与当前版本不兼容，请更新 HyperLyrics</string>
     <string name="provider_error_storage">插件文件保存失败，请检查模块权限后重试</string>
     <string name="provider_error_generic">发生未知错误：%1$s</string>
     <string name="title_no_legacy_provider">未发现独立 Provider 模块</string>
@@ -309,7 +312,7 @@
     <string name="summary_focus_show_notification">关闭后仅显示超级岛，不在通知中心显示焦点通知</string>
     <string name="title_notification_click">点击通知</string>
     <string name="option_click_pause">暂停音乐（默认）</string>
-    <string name="option_click_open_app">打开 HyperLyrics Enhanced</string>
+    <string name="option_click_open_app">打开 HyperLyrics</string>
     <string name="option_click_open_media">打开正在播放的媒体应用</string>
     <string name="title_show_progress">显示进度条</string>
     <string name="summary_show_progress">其他系统切勿关闭！仅通过澎湃3设备测试</string>
@@ -476,12 +479,32 @@
     <string name="summary_default_font">默认</string>
     <string name="summary_not_configured">未配置</string>
     <string name="title_ai_translation">OpenAI 翻译</string>
-    <string name="title_online_translation_sources">三方在线源配置</string>
+    <string name="title_online_translation_sources">MetaData</string>
     <string name="title_online_translation_platform_sources">平台来源</string>
+    <string name="online_translation_no_current_track">暂无歌曲播放</string>
+    <string name="online_translation_notification_access_needed">未检测到播放歌曲：需开启通知使用权（点此前往授权）</string>
+    <string name="toast_song_info_copied">歌曲信息已复制，可用于手动搜索</string>
+    <string name="online_translation_diagnose_refresh">刷新匹配分</string>
+    <string name="online_translation_current_track_format">当前歌曲：%1$s - %2$s</string>
+    <string name="online_translation_matched_platform_format">匹配平台：%1$s（%2$d分 · %3$d行）</string>
+    <string name="online_translation_matched_platform_none">匹配平台：暂无达标来源</string>
+    <string name="online_translation_matched_platform_nearmiss">匹配平台：%1$s（%2$d分 · 近失兜底命中）</string>
+    <string name="online_translation_matched_platform_diagnosing">匹配平台：诊断中…</string>
+    <string name="lyric_origin_native">歌词来源：原生歌词+翻译（App 曲库直读）</string>
+    <string name="lyric_origin_spotify">歌词来源：原生歌词优先，缺失或缺翻译时在线补齐</string>
+    <string name="lyric_origin_ytm">歌词来源：在线歌词+翻译（YTM 无可读原生歌词）</string>
+    <string name="lyric_origin_salt">歌词来源：本地歌词优先，缺失时在线兜底</string>
+    <string name="lyric_origin_online">歌词来源：在线歌词+翻译</string>
     <string name="title_online_translation_enabled_apps">启用App</string>
-    <string name="summary_online_translation_app_translation">翻译</string>
+    <string name="summary_online_translation_app_translation">仅翻译</string>
     <string name="summary_online_translation_app_lyrics_translation">歌词、翻译</string>
     <string name="title_online_translation_no_enabled_apps">暂无可启用的App</string>
+    <string name="online_translation_help">查看在线源补全逻辑</string>
+    <string name="title_online_translation_help_dialog">在线源补全逻辑</string>
+    <string name="summary_online_translation_help_dialog">平台来源按优先级依次匹配 QQ音乐、网易云音乐、酷我音乐、酷狗音乐；开启“自动选择最优来源”时会比较所有已启用来源，自动采用匹配质量最优的结果。此外内置兜底歌词源 LRCLIB 固定殿后：四库全部未命中时由它提供歌词（开源歌词库，仅歌词、无翻译），命中后缺失的翻译会自动向四库补齐。</string>
+    <string name="title_online_translation_help_table_app">App</string>
+    <string name="title_online_translation_help_table_content">在线源补全内容</string>
+    <string name="summary_online_translation_help_note">“仅翻译”指只补齐原歌词缺少的中文翻译或罗马音/拼音；“歌词、翻译”指在无歌词或允许在线取词时，整首从在线源获取歌词并带上翻译。歌词来自内置兜底源 LRCLIB 时岛上仅显示歌词，翻译会自动向四库补齐或暂缺。</string>
     <string name="title_online_translation_salt_special_settings">特殊设置</string>
     <string name="title_online_translation_salt_prefer_online">椒盐音乐优先使用在线源</string>
     <string name="summary_online_translation_salt_prefer_online">开启时不再优先读取歌曲文件内置歌词与同目录中的歌词文件</string>
@@ -623,17 +646,17 @@
     <string name="title_help_config_steps">配置流程</string>
     <string name="title_help_warm_tips">温馨提示</string>
     <string name="summary_help_bug_notice">目前版本存在bug，如果不适配你的机型或系统版本，可用通知型灵动岛歌词代替，还请谅解</string>
-    <string name="summary_help_super_island_steps">Apple Music：在 LSPosed 中为 HyperLyrics Enhanced 勾选推荐作用域 App，打开主页的“小米超级岛歌词”开关后，重启系统界面和 Apple Music。\n\n其他音乐 App 只需安装对应的 LyricProvider；Lyricon Central 已由 HyperLyrics Enhanced 内置。完成配置后重启系统界面和音乐 App。</string>
+    <string name="summary_help_super_island_steps">Apple Music：在 LSPosed 中为 HyperLyrics 勾选推荐作用域 App，打开主页的“小米超级岛歌词”开关后，重启系统界面和 Apple Music。\n\n其他音乐 App 只需安装对应的 LyricProvider；Lyricon Central 已由 HyperLyrics 内置。完成配置后重启系统界面和音乐 App。</string>
     <string name="summary_help_dynamic_island_hint">利用实时通知和小米焦点通知来实现灵动岛歌词效果，适用于支持这两种通知的设备</string>
     <string name="summary_help_focus_whitelist_hint">小米的焦点通知有白名单验证，需要你自己想办法绕过</string>
-    <string name="summary_help_dynamic_island_steps">1、打开 HyperLyrics Enhanced 主页的通知型灵动岛歌词开关\n2、点击进入歌词白名单页添加音乐软件包名\n3、在音乐软件里打开蓝牙歌词功能，并连接蓝牙设备</string>
+    <string name="summary_help_dynamic_island_steps">1、打开 HyperLyrics 主页的通知型灵动岛歌词开关\n2、点击进入歌词白名单页添加音乐软件包名\n3、在音乐软件里打开蓝牙歌词功能，并连接蓝牙设备</string>
     <string name="summary_help_salt_player">已支持 Salt Player，更多应用等你发现...</string>
 
     <!-- Super Island Help -->
     <string name="summary_help_supported_devices">仅支持已安装 LSPosed v2.0+ 的 HyperOS 3 设备</string>
-    <string name="summary_help_prerequisites">① 在 LSPosed 中启用 HyperLyrics Enhanced，并勾选推荐作用域 App\n② 在主页“歌词设置”中选择合适的歌词源，并按需打开“小米系统界面增强”\n③ 根据歌词源需要，重启系统界面或重启手机</string>
+    <string name="summary_help_prerequisites">① 在 LSPosed 中启用 HyperLyrics，并勾选推荐作用域 App\n② 在主页“歌词设置”中选择合适的歌词源，并按需打开“小米系统界面增强”\n③ 根据歌词源需要，重启系统界面或重启手机</string>
     <string name="title_help_lyric_sources">歌词源</string>
-    <string name="summary_help_source_lyricon">Lyricon 可为 Apple Music 及其他受支持的音乐 App 提供歌词。Apple Music Provider 已内置，只需在 LSPosed 中勾选推荐作用域即可使用。\n\n其他音乐 App 可前往“Lyricon配置”添加对应的官方 Provider。HyperLyrics Enhanced 已在系统界面内提供 Lyricon Central 兼容服务，无需额外安装词幕服务。添加或更新 Provider 后，请按页面提示重启相关音乐 App 与系统界面。</string>
+    <string name="summary_help_source_lyricon">Lyricon 可为 Apple Music 及其他受支持的音乐 App 提供歌词。Apple Music Provider 已内置，只需在 LSPosed 中勾选推荐作用域即可使用。\n\n其他音乐 App 可前往“Lyricon配置”添加对应的官方 Provider。HyperLyrics 已在系统界面内提供 Lyricon Central 兼容服务，无需额外安装词幕服务。添加或更新 Provider 后，请按页面提示重启相关音乐 App 与系统界面。</string>
     <string name="summary_help_source_superlyric">重启手机</string>
     <string name="summary_help_source_lyricinfo">重启系统界面</string>
     <string name="tag_open_lyricon_configuration">打开 Lyricon配置</string>
@@ -683,9 +706,9 @@
     <string name="tag_logger">Logger</string>
     <string name="lsposed_not_found">未找到 LSPosed 日志目录，请确认 LSPosed 已正确安装</string>
     <string name="format_log_files_not_found">日志目录存在 (%1$s) 但未找到 .log 文件</string>
-    <string name="format_logs_scanned_no_match">已扫描 %1$d 个日志文件，未发现包含 HyperLyrics Enhanced 的记录。\n日志目录: %2$s</string>
+    <string name="format_logs_scanned_no_match">已扫描 %1$d 个日志文件，未发现包含 HyperLyrics 的记录。\n日志目录: %2$s</string>
     <string name="format_log_read_failed">读取 LSPosed 日志失败: %1$s</string>
-    <string name="export_header">========== HyperLyrics Enhanced 调试日志 ==========</string>
+    <string name="export_header">========== HyperLyrics 调试日志 ==========</string>
     <string name="format_export_time">导出时间: %1$s</string>
     <string name="export_environment_title">环境信息</string>
     <string name="format_export_device_model">手机型号: %1$s</string>
@@ -730,8 +753,8 @@
     <string name="setup_completion_dynamic_island">请授予通知监听和发送通知权限后即可使用</string>
 
     <string name="setup_select_lyric_source">选择歌词源</string>
-    <string name="setup_apple_music_ready">HyperLyrics Enhanced 独家插件</string>
-    <string name="setup_apple_music_ready_summary">现在 HyperLyrics Enhanced 已将 Lyricon 的词幕服务模块与主流音乐平台的 Provider 模块整合在一起，作为插件功能，实现无需额外模块，还能满足各取所需的需求。\n\n进入主页并正式开始使用之前，可提前在下方添加你所使用的音乐 App 插件。（添加完插件后需要在 lsp 管理器的作用域勾选上对应的音乐 App （汽水音乐除外），并重启你的系统界面与对应的音乐 App 进程，否则无法正常生效！）\n\n如果以下列表未包含你使用的音乐 App 插件，你依旧可以使用经典的独立 Provider 模块，而且无需额外的词幕服务模块，即可使用。</string>
+    <string name="setup_apple_music_ready">HyperLyrics 独家插件</string>
+    <string name="setup_apple_music_ready_summary">现在 HyperLyrics 已将 Lyricon 的词幕服务模块与主流音乐平台的 Provider 模块整合在一起，作为插件功能，实现无需额外模块，还能满足各取所需的需求。\n\n进入主页并正式开始使用之前，可提前在下方添加你所使用的音乐 App 插件。（添加完插件后需要在 lsp 管理器的作用域勾选上对应的音乐 App （汽水音乐除外），并重启你的系统界面与对应的音乐 App 进程，否则无法正常生效！）\n\n如果以下列表未包含你使用的音乐 App 插件，你依旧可以使用经典的独立 Provider 模块，而且无需额外的词幕服务模块，即可使用。</string>
     <string name="setup_available_provider_plugins">可添加的插件</string>
     <string name="setup_apple_music_plugin_summary">已预先内置，无需重复添加</string>
     <string name="setup_provider_added">已添加</string>

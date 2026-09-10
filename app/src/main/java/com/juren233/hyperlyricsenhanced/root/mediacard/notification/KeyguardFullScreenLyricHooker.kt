@@ -13,7 +13,10 @@ import com.juren233.hyperlyricsenhanced.lyric.view.SongPreprocessor
 import com.juren233.hyperlyricsenhanced.root.HookEntry
 import com.juren233.hyperlyricsenhanced.root.LyriconDataBridge
 import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.juren233.hyperlyricsenhanced.root.utils.CoverColorHelper
 import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
+import com.juren233.hyperlyricsenhanced.root.utils.LyricStyleHelper
+import com.juren233.hyperlyricsenhanced.root.utils.OverlayFontColorApplier
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedInterface.Hooker
@@ -189,6 +192,7 @@ object KeyguardFullScreenLyricHooker {
             }
             bindBounds(shadeWindow, lyricView)
             applyTextStyle(lyricView)
+            applyFontColor(lyricView)
             lyricView.setData(lyrics)
             lyricView.setCurrentIndex(resolveIndex(lyrics))
             if (lyricView.visibility != View.VISIBLE) {
@@ -253,20 +257,53 @@ object KeyguardFullScreenLyricHooker {
     private fun applyTextStyle(lyricView: KeyguardFullScreenLyricView) {
         val preferences = prefs ?: return
         val mainSize = preferences.getFloat(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
+            RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_MAIN_TEXT_SIZE,
             preferences.getInt(
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
-                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE
+                RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_MAIN_TEXT_SIZE,
+                preferences.getInt(
+                    RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
+                    RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE
+                ).coerceAtMost(40)
             ).toFloat()
         )
         val translationSize = preferences.getFloat(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
+            RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_TRANSLATION_TEXT_SIZE,
             preferences.getInt(
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
-                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE
+                RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_TRANSLATION_TEXT_SIZE,
+                preferences.getInt(
+                    RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
+                    RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE
+                )
             ).toFloat()
         )
         lyricView.setStyle(mainSize, translationSize)
+    }
+
+    /** 应用字体颜色设置（全屏歌词独立偏好组），默认模式保持白色。 */
+    private fun applyFontColor(lyricView: KeyguardFullScreenLyricView) {
+        val preferences = prefs ?: return
+        val keys = RootConstants.FONT_COLOR_KEYS_KEYGUARD_FULL_SCREEN
+        val mode = OverlayFontColorApplier.resolveMode(preferences, keys)
+        if (OverlayFontColorApplier.isDefaultMode(mode)) {
+            lyricView.setFontColor(
+                intArrayOf(android.graphics.Color.WHITE),
+                android.graphics.Color.argb(210, 255, 255, 255)
+            )
+            return
+        }
+        val style = runCatching {
+            LyricStyleHelper.buildStyleWithFontColorKeys(
+                prefs = preferences,
+                res = lyricView.resources,
+                mode = mode,
+                keys = keys,
+                albumBitmap = CoverColorHelper.currentArtwork(),
+                mediaColorKey = CoverColorHelper.currentMediaKey(),
+            )
+        }.getOrNull() ?: return
+        val primaryColors = style.primary.color.takeIf { it.isNotEmpty() } ?: return
+        val translationColor = OverlayFontColorApplier.applySecondaryAlpha(primaryColors.first())
+        lyricView.setFontColor(primaryColors, translationColor)
     }
 
     /** 按播放进度定位当前行索引。 */

@@ -99,6 +99,10 @@ internal object IslandSlotContentAssembler {
         val albumBitmap = mediaInfo.albumArt.takeUnless {
             artworkRejectedForTitleMismatch
         }
+        // 摘要态封面取色可靠，共享给无封面视图的歌词位置（经典AOD/大岛/全屏歌词等）
+        if (albumBitmap != null) {
+            CoverColorHelper.shareArtwork(albumBitmap)
+        }
         val artworkContentKey = albumBitmap?.let(CoverColorHelper::artworkContentKey) ?: 0
         val signature = buildStyleCacheSignature(
             styleSignature = config.styleSignature,

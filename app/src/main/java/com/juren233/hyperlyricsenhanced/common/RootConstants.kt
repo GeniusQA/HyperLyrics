@@ -32,10 +32,10 @@ object RootConstants {
     const val KEY_HOOK_ENABLE_DYNAMIC_ISLAND = "key_hook_enable_dynamic_island"
     const val KEY_HOOK_ENABLE_AOD_LYRICS = "key_hook_enable_aod_lyrics"
     const val KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED = "key_hook_lock_screen_lyrics_enabled"
-    const val KEY_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED =
-        "key_hook_keyguard_full_screen_lyrics_enabled"
     const val KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED =
         "key_hook_notification_center_lyrics_enabled"
+    const val KEY_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED =
+        "key_hook_keyguard_full_screen_lyrics_enabled"
     const val KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED =
         "key_hook_island_expanded_lyrics_enabled"
     const val KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE =
@@ -66,6 +66,80 @@ object RootConstants {
         "key_hook_lock_screen_aod_next_song_preview"
     const val KEY_HOOK_LOCK_SCREEN_AOD_NEXT_SONG_PREVIEW_POSITION =
         "key_hook_lock_screen_aod_next_song_preview_position"
+
+    // ================= 亮屏锁屏歌词（独立于息屏AOD的样式参数） =================
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_MAIN_TEXT_SIZE =
+        "key_hook_lock_screen_lyrics_main_text_size"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_BACKING_TEXT_SIZE =
+        "key_hook_lock_screen_lyrics_backing_text_size"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_TEXT_SIZE =
+        "key_hook_lock_screen_lyrics_translation_text_size"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_SHOW_NEXT_LYRIC =
+        "key_hook_lock_screen_lyrics_show_next_lyric"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_LYRIC_STYLE =
+        "key_hook_lock_screen_lyrics_next_lyric_style"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_DUET_LYRICS =
+        "key_hook_lock_screen_lyrics_duet_lyrics"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_CENTER_NON_DUET_SONG =
+        "key_hook_lock_screen_lyrics_center_non_duet_song"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_CENTER_GROUP_VOCALS =
+        "key_hook_lock_screen_lyrics_center_group_vocals"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_PAUSE_STYLE =
+        "key_hook_lock_screen_lyrics_pause_style"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_DISPLAY =
+        "key_hook_lock_screen_lyrics_translation_display"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_FALLBACK =
+        "key_hook_lock_screen_lyrics_translation_fallback"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_SWAP_TRANSLATION =
+        "key_hook_lock_screen_lyrics_swap_translation"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_SONG_PREVIEW =
+        "key_hook_lock_screen_lyrics_next_song_preview"
+    const val KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_SONG_PREVIEW_POSITION =
+        "key_hook_lock_screen_lyrics_next_song_preview_position"
+
+    // ================= 通知中心歌词（独立样式参数） =================
+    const val KEY_HOOK_NOTIFICATION_CENTER_MAIN_TEXT_SIZE =
+        "key_hook_notification_center_main_text_size"
+    const val KEY_HOOK_NOTIFICATION_CENTER_BACKING_TEXT_SIZE =
+        "key_hook_notification_center_backing_text_size"
+    const val KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_TEXT_SIZE =
+        "key_hook_notification_center_translation_text_size"
+    const val KEY_HOOK_NOTIFICATION_CENTER_SHOW_NEXT_LYRIC =
+        "key_hook_notification_center_show_next_lyric"
+    const val KEY_HOOK_NOTIFICATION_CENTER_NEXT_LYRIC_STYLE =
+        "key_hook_notification_center_next_lyric_style"
+    const val KEY_HOOK_NOTIFICATION_CENTER_DUET_LYRICS =
+        "key_hook_notification_center_duet_lyrics"
+    const val KEY_HOOK_NOTIFICATION_CENTER_CENTER_NON_DUET_SONG =
+        "key_hook_notification_center_center_non_duet_song"
+    const val KEY_HOOK_NOTIFICATION_CENTER_CENTER_GROUP_VOCALS =
+        "key_hook_notification_center_center_group_vocals"
+    const val KEY_HOOK_NOTIFICATION_CENTER_PAUSE_STYLE =
+        "key_hook_notification_center_pause_style"
+    const val KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_DISPLAY =
+        "key_hook_notification_center_translation_display"
+    const val KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_FALLBACK =
+        "key_hook_notification_center_translation_fallback"
+    const val KEY_HOOK_NOTIFICATION_CENTER_SWAP_TRANSLATION =
+        "key_hook_notification_center_swap_translation"
+    const val KEY_HOOK_NOTIFICATION_CENTER_NEXT_SONG_PREVIEW =
+        "key_hook_notification_center_next_song_preview"
+    const val KEY_HOOK_NOTIFICATION_CENTER_NEXT_SONG_PREVIEW_POSITION =
+        "key_hook_notification_center_next_song_preview_position"
+
+    // ================= 全屏锁屏歌词（独立字号） =================
+    const val KEY_HOOK_KEYGUARD_FULL_SCREEN_MAIN_TEXT_SIZE =
+        "key_hook_keyguard_full_screen_main_text_size"
+    const val KEY_HOOK_KEYGUARD_FULL_SCREEN_TRANSLATION_TEXT_SIZE =
+        "key_hook_keyguard_full_screen_translation_text_size"
+
+    // ================= 超级岛展开大岛（独立字号） =================
+    const val KEY_HOOK_ISLAND_EXPANDED_MAIN_TEXT_SIZE =
+        "key_hook_island_expanded_main_text_size"
+    const val KEY_HOOK_ISLAND_EXPANDED_BACKING_TEXT_SIZE =
+        "key_hook_island_expanded_backing_text_size"
+    const val KEY_HOOK_ISLAND_EXPANDED_TRANSLATION_TEXT_SIZE =
+        "key_hook_island_expanded_translation_text_size"
     const val KEY_HOOK_CLASSIC_AOD_MAIN_TEXT_SIZE =
         "key_hook_classic_aod_main_text_size"
     const val KEY_HOOK_CLASSIC_AOD_BACKING_TEXT_SIZE =
@@ -114,6 +188,7 @@ object RootConstants {
      * SystemUI 侧据此阻断 Provider 的僵尸发布（AOD-LYRICS-004）。
      */
     const val KEY_ACTIVE_MEDIA_SESSION_PACKAGES = "key_active_media_session_packages"
+
     const val KEY_HOOK_LYRICON_PROVIDER_DELAY_PREFIX = "key_hook_lyricon_provider_delay_"
     const val KEY_HOOK_REMOVE_CJK_LYRIC_SPACES =
         "key_hook_remove_cjk_lyric_spaces"
@@ -245,6 +320,84 @@ object RootConstants {
     const val KEY_HOOK_CUSTOM_TEXT_COLOR_ENABLED = "key_hook_custom_text_color_enabled"
     const val KEY_HOOK_CUSTOM_TEXT_COLOR = "key_hook_custom_text_color"
     const val KEY_HOOK_MONET_TEXT_COLOR = "key_hook_monet_text_color"
+
+    /**
+     * 各歌词位置独立的「字体颜色」偏好组。
+     * 摘要态（超级岛小岛）沿用上方无前缀旧 key，兼容存量数据；
+     * 其他位置以 [FONT_COLOR_KEY_SUFFIXES] 的 5 个后缀各自成组，互不影响。
+     */
+    data class FontColorKeys(
+        val coverColor: String,
+        val coverGradient: String,
+        val customEnabled: String,
+        val customColor: String,
+        val monet: String,
+    )
+
+    private const val FONT_COLOR_KEY_PREFIX_LOCK_SCREEN_AOD =
+        "key_hook_lock_screen_aod_font_color_"
+    private const val FONT_COLOR_KEY_PREFIX_LOCK_SCREEN_LYRICS =
+        "key_hook_lock_screen_lyrics_font_color_"
+    private const val FONT_COLOR_KEY_PREFIX_NOTIFICATION_CENTER =
+        "key_hook_notification_center_font_color_"
+    private const val FONT_COLOR_KEY_PREFIX_CLASSIC_AOD =
+        "key_hook_classic_aod_font_color_"
+    private const val FONT_COLOR_KEY_PREFIX_ISLAND_EXPANDED =
+        "key_hook_island_expanded_font_color_"
+    private const val FONT_COLOR_KEY_PREFIX_KEYGUARD_FULL_SCREEN =
+        "key_hook_keyguard_full_screen_font_color_"
+
+    /** 各歌词位置独立样式 key 的公共前缀（行为参数拼接模式：prefix + suffix）。 */
+    val STYLE_KEY_PREFIXES = listOf(
+        "key_hook_lock_screen_aod_",
+        "key_hook_lock_screen_lyrics_",
+        "key_hook_notification_center_",
+        "key_hook_classic_aod_",
+    )
+
+    private fun fontColorKeys(prefix: String): FontColorKeys = FontColorKeys(
+        coverColor = "${prefix}extract_cover_text_color",
+        coverGradient = "${prefix}extract_cover_text_gradient",
+        customEnabled = "${prefix}custom_text_color_enabled",
+        customColor = "${prefix}custom_text_color",
+        monet = "${prefix}monet_text_color",
+    )
+
+    /** 摘要态（超级岛小岛）字体颜色：沿用旧 key。 */
+    val FONT_COLOR_KEYS_SUMMARY = FontColorKeys(
+        coverColor = KEY_HOOK_EXTRACT_COVER_TEXT_COLOR,
+        coverGradient = KEY_HOOK_EXTRACT_COVER_TEXT_GRADIENT,
+        customEnabled = KEY_HOOK_CUSTOM_TEXT_COLOR_ENABLED,
+        customColor = KEY_HOOK_CUSTOM_TEXT_COLOR,
+        monet = KEY_HOOK_MONET_TEXT_COLOR,
+    )
+    val FONT_COLOR_KEYS_LOCK_SCREEN_AOD = fontColorKeys(FONT_COLOR_KEY_PREFIX_LOCK_SCREEN_AOD)
+    val FONT_COLOR_KEYS_LOCK_SCREEN_LYRICS =
+        fontColorKeys(FONT_COLOR_KEY_PREFIX_LOCK_SCREEN_LYRICS)
+    val FONT_COLOR_KEYS_NOTIFICATION_CENTER =
+        fontColorKeys(FONT_COLOR_KEY_PREFIX_NOTIFICATION_CENTER)
+    val FONT_COLOR_KEYS_CLASSIC_AOD = fontColorKeys(FONT_COLOR_KEY_PREFIX_CLASSIC_AOD)
+    val FONT_COLOR_KEYS_ISLAND_EXPANDED = fontColorKeys(FONT_COLOR_KEY_PREFIX_ISLAND_EXPANDED)
+    val FONT_COLOR_KEYS_KEYGUARD_FULL_SCREEN =
+        fontColorKeys(FONT_COLOR_KEY_PREFIX_KEYGUARD_FULL_SCREEN)
+
+    /** 判断偏好 key 是否属于任一位置的字体颜色设置（用于变更刷新）。 */
+    fun isFontColorKey(key: String): Boolean {
+        if (key in setOf(
+                KEY_HOOK_EXTRACT_COVER_TEXT_COLOR,
+                KEY_HOOK_EXTRACT_COVER_TEXT_GRADIENT,
+                KEY_HOOK_CUSTOM_TEXT_COLOR_ENABLED,
+                KEY_HOOK_CUSTOM_TEXT_COLOR,
+                KEY_HOOK_MONET_TEXT_COLOR,
+            )
+        ) return true
+        return FONT_COLOR_KEY_PREFIX_LOCK_SCREEN_AOD in key ||
+            FONT_COLOR_KEY_PREFIX_LOCK_SCREEN_LYRICS in key ||
+            FONT_COLOR_KEY_PREFIX_NOTIFICATION_CENTER in key ||
+            FONT_COLOR_KEY_PREFIX_CLASSIC_AOD in key ||
+            FONT_COLOR_KEY_PREFIX_ISLAND_EXPANDED in key ||
+            FONT_COLOR_KEY_PREFIX_KEYGUARD_FULL_SCREEN in key
+    }
     const val KEY_HOOK_ISLAND_GLOW_EXTRACT_COLOR = "key_hook_island_glow_extract_color"
     const val KEY_HOOK_ISLAND_PROGRESS_GLOW = "key_hook_island_progress_glow"
     const val KEY_HOOK_ISLAND_PROGRESS_STYLE = "key_hook_island_progress_style"
@@ -278,12 +431,16 @@ object RootConstants {
         "key_hook_online_translation_source_kuwo"
     const val KEY_HOOK_ONLINE_TRANSLATION_SOURCE_KUGOU =
         "key_hook_online_translation_source_kugou"
+    const val KEY_HOOK_ONLINE_TRANSLATION_SOURCE_LRCLIB =
+        "key_hook_online_translation_source_lrclib"
     const val KEY_HOOK_ONLINE_TRANSLATION_APP_QISHUI =
         "key_hook_online_translation_app_qishui"
     const val KEY_HOOK_ONLINE_TRANSLATION_APP_SPOTIFY =
         "key_hook_online_translation_app_spotify"
     const val KEY_HOOK_ONLINE_TRANSLATION_APP_SALT =
         "key_hook_online_translation_app_salt"
+    const val KEY_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC =
+        "key_hook_online_translation_app_youtube_music"
     const val KEY_HOOK_ONLINE_TRANSLATION_SALT_PREFER_ONLINE =
         "key_hook_online_translation_salt_prefer_online"
     const val KEY_HOOK_APPLE_MUSIC_CONTENT_UI_LANGUAGE =
@@ -381,8 +538,8 @@ object RootConstants {
     const val DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND = false
     const val DEFAULT_HOOK_ENABLE_AOD_LYRICS = false
     const val DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED = false
-    const val DEFAULT_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED = false
     const val DEFAULT_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED = false
+    const val DEFAULT_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED = false
     const val DEFAULT_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED = false
     const val AOD_SONG_INFO_FORMAT_NONE = 0
     const val AOD_SONG_INFO_FORMAT_TITLE = 1
@@ -611,15 +768,17 @@ object RootConstants {
     const val DEFAULT_HOOK_WORD_MOTION_LATIN_WAVE = 3.6f
     const val DEFAULT_HOOK_AI_TRANS_ENABLE = false
     const val DEFAULT_HOOK_APPLE_MUSIC_MATCH_ONLINE_TRANSLATION = false
-    const val DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_ORDER = "NE,QM,KUWO,KUGOU"
+    const val DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_ORDER = "NE,QM,KUWO,KUGOU,LRCLIB"
     const val DEFAULT_HOOK_ONLINE_TRANSLATION_AUTO_SELECT_BEST_SOURCE = true
     const val DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_NETEASE = true
     const val DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_QQ = true
     const val DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_KUWO = false
     const val DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_KUGOU = false
+    const val DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_LRCLIB = false
     const val DEFAULT_HOOK_ONLINE_TRANSLATION_APP_QISHUI = false
     const val DEFAULT_HOOK_ONLINE_TRANSLATION_APP_SPOTIFY = false
     const val DEFAULT_HOOK_ONLINE_TRANSLATION_APP_SALT = false
+    const val DEFAULT_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC = true
     const val DEFAULT_HOOK_ONLINE_TRANSLATION_SALT_PREFER_ONLINE = false
     const val DEFAULT_HOOK_AI_TRANS_AUTO_IGNORE_CHINESE = false
     const val DEFAULT_HOOK_AI_TRANS_SKIP_EXISTING_TRANSLATION = false
