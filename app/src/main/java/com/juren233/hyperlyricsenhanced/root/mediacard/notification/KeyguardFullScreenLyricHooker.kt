@@ -167,6 +167,13 @@ object KeyguardFullScreenLyricHooker {
         val lyrics = song?.lyrics.orEmpty().filterNot { line ->
             line.metadata?.getBoolean(SongPreprocessor.KEY_TITLE_LINE) == true
         }
+        HookLogger.i(
+            TAG,
+            "refresh: enabled=$enabled, keyguard=$keyguardLocked, interactive=$interactive, " +
+                "textMode=${LyriconDataBridge.isTextMode}, song=${song?.name.orEmpty()}, " +
+                "lyrics=${lyrics.size}, windows=${synchronized(shadeWindows) { shadeWindows.size }}, " +
+                "mediaTop=$mediaCardTopOnScreen"
+        )
         synchronized(shadeWindows) { shadeWindows.toList() }.forEach { shadeWindow ->
             val lyricView = findLyricView(shadeWindow)
             if (lyricView == null) {

@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Shader
+import android.graphics.Typeface
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
@@ -19,8 +20,8 @@ import kotlin.math.min
 
 /**
  * 全屏锁屏歌词渲染视图（ColorOS 风格）：
- * 时钟下方到媒体卡片上方之间的区域，多行滚动歌词——
- * 当前行高亮大字（含翻译），其余行暗淡，随时间轴行切换平滑滚动，上下边缘渐隐。
+ * 当前行组（粗体主歌词 + 翻译）从时钟下方顶部开始向下排列，
+ * 其余组依次向下滑动并按距离渐隐，上下边缘渐隐，随时间轴行切换平滑滚动。
  */
 internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
 
@@ -40,22 +41,24 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
     private val activePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = 26f * density
         color = Color.WHITE
+        typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        setShadowLayer(18f * density, 0f, 0f, Color.argb(110, 255, 255, 255))
     }
     private val inactivePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 22f * density
+        textSize = 24f * density
         color = Color.WHITE
+        typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
     }
     private val activeTranslationPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 15f * density
+        textSize = 14f * density
         color = Color.WHITE
     }
     private val inactiveTranslationPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 13f * density
+        textSize = 14f * density
         color = Color.WHITE
     }
-    private val lineGap = 20f * density
-    private val mainTranslationGap = 6f * density
-    private val fadePaint = Paint()
+    private val groupGap = 24f * density
+    private val mainTranslationGap = 5f * density
 
     private val layoutCache = HashMap<Int, Pair<StaticLayout, StaticLayout?>>()
 
@@ -102,7 +105,7 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
         }
         scrollFraction = 0f
         animator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 320L
+            duration = 340L
             interpolator = DecelerateInterpolator()
             addUpdateListener {
                 scrollFraction = it.animatedValue as Float
@@ -121,19 +124,18 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
     private fun lineLayouts(index: Int, active: Boolean): Pair<StaticLayout, StaticLayout?> {
         layoutCache[index]?.let { return it }
         val line = lines.getOrNull(index)
-        val width = width.coerceAtLeast(1)
+        val width = (width - contentSidePadding() * 2).coerceAtLeast(1f).toInt()
         val text = line?.text.orEmpty()
         val main = StaticLayout.Builder
             .obtain(text, 0, text.length, if (active) activePaint else inactivePaint, width)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setLineSpacing(0f, 1f)
+            .setLineSpacing(2f * density, 1f)
             .setIncludePad(false)
             .build()
-        val translationText = line?.translation
-            ?.takeIf { it.isNotBlank() && active }
+        val translationText = line?.translation?.takeIf { it.isNotBlank() }
         val translation = translationText?.let {
             StaticLayout.Builder
-                .obtain(it, 0, it.length, activeTranslationPaint, width)
+                .obtain(it, 0, it.length, if (active) activeTranslationPaint else inactiveTranslationPaint, width)
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                 .setLineSpacing(0f, 1f)
                 .setIncludePad(false)
@@ -157,35 +159,51 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
 
     private fun measureLineHeight(index: Int): Float {
         val line = lines.getOrNull(index) ?: return 0f
-        val width = width.coerceAtLeast(1)
+        val width = (width - contentSidePadding() * 2).coerceAtLeast(1f).toInt()
         val text = line.text.orEmpty()
         val main = StaticLayout.Builder
             .obtain(text, 0, text.length, activePaint, width)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setLineSpacing(2f * density, 1f)
             .setIncludePad(false)
             .build()
         var height = main.height.toFloat()
         line.translation?.takeIf { it.isNotBlank() }?.let { translation ->
             val trans = StaticLayout.Builder
-                .obtain(translation, 0, translation.length, inactiveTranslationPaint, width)
+                .obtain(translation, 0, translation.length, activeTranslationPaint, width)
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                 .setIncludePad(false)
                 .build()
             height += mainTranslationGap + trans.height
         }
-        return height + lineGap
+        return height + groupGap
     }
 
-    /** 当前行锚点：使当前行顶部落在绘制区间的锚点位置。 */
+    /** 当前行组顶部锚定在绘制区间顶部（时钟正下方）。 */
     private fun anchorOffset(index: Int): Float {
         if (index < 0 || index >= offsets.size) return 0f
-        val anchorY = drawTop + (drawBottom - drawTop) * ANCHOR_RATIO
+        val anchorY = drawTop + 8f * density
         return anchorY - offsets[index]
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (lines.isEmpty() || currentIndex < 0 || drawBottom <= drawTop) return
+        // 全屏暗色背景：模拟 ColorOS 锁屏歌词的整屏压暗效果——
+        // 顶部稍轻，其余整屏统一压暗（含媒体卡片下方区域），避免出现明暗分界
+        val heightF = height.toFloat()
+        val bgPaint = Paint()
+        bgPaint.shader = LinearGradient(
+            0f, 0f, 0f, heightF,
+            intArrayOf(
+                Color.argb(90, 4, 4, 6),
+                Color.argb(170, 4, 4, 6),
+                Color.argb(170, 4, 4, 6),
+            ),
+            floatArrayOf(0f, 0.12f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRect(0f, 0f, width.toFloat(), heightF, bgPaint)
         val shift = if (previousIndex in offsets.indices && scrollFraction < 1f) {
             val target = anchorOffset(currentIndex)
             val from = anchorOffset(previousIndex)
@@ -193,58 +211,63 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
         } else {
             anchorOffset(currentIndex)
         }
+        val sidePad = contentSidePadding()
         for (index in lines.indices) {
-            val lineTop = offsets[index] + shift
-            val lineBottom = lineTop + heights[index]
-            if (lineBottom < drawTop || lineTop > drawBottom) continue
+            val groupTop = offsets[index] + shift
+            val groupBottom = groupTop + heights[index]
+            if (groupBottom < drawTop || groupTop > drawBottom) continue
             val active = index == currentIndex
             val distance = abs(index - currentIndex)
             val (mainLayout, translationLayout) = lineLayouts(index, active)
-            drawLayout(canvas, mainLayout, lineTop, if (active) 242 else max(70, 180 - distance * 55))
+            canvas.save()
+            canvas.translate(sidePad, groupTop)
+            drawStaticLayout(canvas, mainLayout, 0f, groupAlpha(distance))
             translationLayout?.let { layout ->
-                drawLayout(
+                drawStaticLayout(
                     canvas,
                     layout,
-                    lineTop + mainLayout.height + mainTranslationGap,
-                    if (active) 160 else max(48, 120 - distance * 36),
+                    groupTop + mainLayout.height + mainTranslationGap,
+                    translationAlpha(distance),
                 )
             }
+            canvas.restore()
         }
-        drawEdgeFade(canvas)
     }
 
-    private fun drawLayout(canvas: Canvas, layout: StaticLayout, top: Float, alpha: Int) {
+    /** 亮度梯度：当前行最亮，随距离快速衰减（对齐 ColorOS 效果）。 */
+    private fun groupAlpha(distance: Int): Int = when (distance) {
+        0 -> 255
+        1 -> 200
+        2 -> 140
+        3 -> 100
+        else -> 80
+    }
+
+    private fun translationAlpha(distance: Int): Int = when (distance) {
+        0 -> 185
+        1 -> 120
+        2 -> 85
+        else -> 60
+    }
+
+    private fun contentSidePadding(): Float = 24f * density
+
+    private fun drawStaticLayout(canvas: Canvas, layout: StaticLayout, top: Float, alpha: Int) {
         canvas.save()
         canvas.translate(0f, top)
-        drawStaticLayout(canvas, layout, alpha)
-        canvas.restore()
-    }
-
-    private fun drawStaticLayout(canvas: Canvas, layout: StaticLayout, alpha: Int) {
         val paint = layout.paint as? TextPaint
         val previousAlpha = paint?.alpha
         paint?.alpha = alpha
-        layout.draw(canvas)
+        // 当前组主歌词保留辉光，非当前组关闭避免暗行发灰
+        if (alpha < 240) {
+            paint?.setShadowLayer(0f, 0f, 0f, Color.TRANSPARENT)
+            layout.draw(canvas)
+            paint?.setShadowLayer(18f * density, 0f, 0f, Color.argb(110, 255, 255, 255))
+        } else {
+            layout.draw(canvas)
+        }
         previousAlpha?.let { paint?.alpha = it }
-    }
-
-    private fun drawEdgeFade(canvas: Canvas) {
-        val fadeHeight = min(120f * density, (drawBottom - drawTop) / 4f)
-        if (fadeHeight <= 0f) return
-        fadePaint.shader = LinearGradient(
-            0f, drawTop, 0f, drawTop + fadeHeight,
-            intArrayOf(Color.argb(255, 0, 0, 0), Color.TRANSPARENT),
-            null,
-            Shader.TileMode.CLAMP,
-        )
-        canvas.drawRect(0f, drawTop, width.toFloat(), drawTop + fadeHeight, fadePaint)
-        fadePaint.shader = LinearGradient(
-            0f, drawBottom - fadeHeight, 0f, drawBottom,
-            intArrayOf(Color.TRANSPARENT, Color.argb(255, 0, 0, 0)),
-            null,
-            Shader.TileMode.CLAMP,
-        )
-        canvas.drawRect(0f, drawBottom - fadeHeight, width.toFloat(), drawBottom, fadePaint)
+        canvas.restore()
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -254,6 +277,5 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
 
     companion object {
         private const val MAX_CACHE = 32
-        private const val ANCHOR_RATIO = 0.30f
     }
 }
