@@ -8,9 +8,9 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.content.SharedPreferences
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.media.session.MediaController
 import android.media.session.PlaybackState
 import android.os.Handler
@@ -42,8 +42,11 @@ import com.juren233.hyperlyricsenhanced.lyric.view.SongPreprocessor
 import com.juren233.hyperlyricsenhanced.root.ClassicAodFocusNotificationRecovery
 import com.juren233.hyperlyricsenhanced.root.HookEntry
 import com.juren233.hyperlyricsenhanced.root.LyriconDataBridge
+import com.juren233.hyperlyricsenhanced.root.mediacard.LyricGestureHelper
+import com.juren233.hyperlyricsenhanced.root.utils.CoverColorHelper
 import com.juren233.hyperlyricsenhanced.root.utils.DisplayDiagnosticLogger
 import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
+import com.juren233.hyperlyricsenhanced.root.utils.OverlayFontColorApplier
 import com.juren233.hyperlyricsenhanced.root.utils.MediaCardDiagnosticLogger
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedInterface.HookHandle
@@ -254,6 +257,26 @@ internal object AodMediaLyricPolicy {
         actionBottom.coerceAtLeast(0),
         seekBarBottom.coerceAtLeast(0),
     )
+
+    /**
+     * 全屏 AOD（锁屏 AOD）专用锚点：专辑封面在该模式下是整卡背景（full-bleed），
+     * 以 album.bottom 参与取 max 会把歌词推到卡片中部甚至更低，卡片被大幅撑高。
+     * 改为锚定标题/歌手文本块底部，仅叠加**当前可见**的按钮/进度条，
+     * 隐藏（INVISIBLE/GONE）或缺失的控件不再把歌词往下顶，
+     * 呈现「紧凑卡片 + 歌词紧贴歌手下方」的效果。
+     */
+    fun fullScreenAodContentAnchorBottom(
+        artistBottom: Int,
+        actionBottom: Int = 0,
+        seekBarBottom: Int = 0,
+        actionVisible: Boolean = true,
+        seekBarVisible: Boolean = true,
+    ): Int {
+        var anchor = artistBottom.coerceAtLeast(0)
+        if (actionVisible) anchor = maxOf(anchor, actionBottom.coerceAtLeast(0))
+        if (seekBarVisible) anchor = maxOf(anchor, seekBarBottom.coerceAtLeast(0))
+        return anchor
+    }
 
     fun lockScreenHorizontalMargins(
         playerWidth: Int,
@@ -614,12 +637,13 @@ object NotificationMediaAodLyricHooker {
     // 歌词底部到卡片底的预留高度：需完整容纳贴底显示的进度条区（时间+滑条约40dp）及上下间距，
     // 防止歌词翻译行与进度条重叠。
     private const val LOCK_SCREEN_AOD_BOTTOM_RESERVE_DP = 56f
-    // 紧凑模式（亮屏锁屏/通知中心）：单行胶囊高度、与进度条行的间距
-    private const val COMPACT_LYRIC_BAR_HEIGHT_DP = 26f
+    // 紧凑模式（亮屏锁屏/通知中心）：歌词区与按钮行/进度条行的最小间距
     private const val COMPACT_LYRIC_TOP_GAP_DP = 4f
-    private const val COMPACT_LYRIC_BAR_CORNER_DP = 14f
-    private const val COMPACT_LYRIC_BAR_H_PADDING_DP = 12f
     private const val SEEK_BAR_CLASS_HINT = "HyperProgressSeekBar"
+    // 锁屏 AOD 自绘进度行：左右内边距、轨道高度、时间与轨道的间距
+    private const val AOD_PROGRESS_H_PADDING_DP = 6f
+    private const val AOD_PROGRESS_TRACK_HEIGHT_DP = 3f
+    private const val AOD_PROGRESS_TRACK_GAP_DP = 8f
     private const val LOCK_SCREEN_AOD_SIDE_MARGIN_EXTRA_DP = 1f
     private const val LOCK_SCREEN_AOD_HEIGHT_ANIMATION_MS = 160L
     // Hidden PowerManager level that permits frame submission while the display is dozing.
@@ -660,6 +684,8 @@ object NotificationMediaAodLyricHooker {
                 val position = LyriconDataBridge.estimatedPosition() ?: mediaPosition
                 if (position != null) {
                     val lyricChanged = LyriconDataBridge.updateEstimatedPosition(position)
+                    // 全屏 AOD 进度行：每个轮询节拍轻量刷新时间与轨道，不触发整卡重排。
+                    updateFullScreenAodProgressRows()
                     val refreshNoLyricPreview = shouldRefreshNoLyricPreview(position)
                     if (lyricChanged || refreshNoLyricPreview) {
                         controllerEntries.forEach { (controller, state) ->
@@ -1111,22 +1137,12 @@ object NotificationMediaAodLyricHooker {
         val interactive = player.context.getSystemService(PowerManager::class.java).isInteractive
         val keyguardLocked = player.context
             .getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
-        val keyguardFullScreenLyrics = keyguardLocked && isKeyguardFullScreenLyricsEnabled()
         val lockScreenLyricsActive = AodMediaLyricPolicy.isLockScreenLyricsActive(
             interactive = interactive,
             keyguardLocked = keyguardLocked,
             playerShown = player.isShown,
             featureEnabled = isLockScreenLyricsEnabled(),
         )
-        if (keyguardFullScreenLyrics) {
-            // 全屏锁屏歌词模式下，锁屏场景的胶囊让位给全屏歌词层；
-            // state.lockScreenLyricsActive 保持 true 以维持位置轮询推进。
-            if (lockScreenLyricsActive) {
-                val playerLocation = IntArray(2)
-                player.getLocationOnScreen(playerLocation)
-                KeyguardFullScreenLyricHooker.updateMediaCardTop(playerLocation[1])
-            }
-        }
         val notificationCenterActive = AodMediaLyricPolicy.isNotificationCenterLyricsActive(
             interactive = interactive,
             keyguardLocked = keyguardLocked,
@@ -1140,7 +1156,12 @@ object NotificationMediaAodLyricHooker {
         ) || lockScreenLyricsActive || notificationCenterActive
         state.lockScreenLyricsActive = lockScreenLyricsActive
         state.notificationCenterLyricsActive = notificationCenterActive
-        val textStyle = lockScreenAodTextStyle()
+        // 各位置样式参数独立：息屏AOD / 亮屏锁屏歌词 / 通知中心分别读取各自偏好组
+        val textStyle = when {
+            state.fullAod -> lockScreenAodTextStyle()
+            keyguardLocked -> lockScreenLyricsTextStyle()
+            else -> notificationCenterTextStyle()
+        }
         val lyricPackage = LyriconDataBridge.currentLyricPackageName
         val mediaPackage = api.packageName(state.mediaData ?: api.getMediaData(controller))
         val content = appendNextSongPreview(
@@ -1160,7 +1181,7 @@ object NotificationMediaAodLyricHooker {
             hasLyric = hasLyric,
             packageMatches = packageMatches,
             pauseStyle = textStyle.pauseStyle,
-            lockScreenLyrics = lockScreenLyricsActive && !keyguardFullScreenLyrics,
+            lockScreenLyrics = lockScreenLyricsActive,
             notificationCenter = notificationCenterActive,
         )
         val decisionReason = if (show) {
@@ -1226,8 +1247,17 @@ object NotificationMediaAodLyricHooker {
         }
 
         val actions = api.getActions(holder)
-        // 歌词样式优化：保留原生卡片的暂停/上下一首操作与进度条，
-        // 不再将按钮置为 INVISIBLE；卡片会自动撑高把歌词排在操作区下方。
+        // 原生三按钮（上一首/暂停/下一首）在歌词覆盖显示期间隐藏：交互改由歌词区
+        // 手势承担（长按=播放/暂停，双击左半区=上一首，双击右半区=下一首）。
+        // INVISIBLE 保持卡片几何不变；原始可见性记入 state，隐藏路径/detach 时恢复。
+        if (state.actionVisibilities.isEmpty()) {
+            actions.forEach { action ->
+                runCatching {
+                    state.actionVisibilities[action] = action.visibility
+                    if (action.visibility != View.INVISIBLE) action.visibility = View.INVISIBLE
+                }
+            }
+        }
 
         val overlay = state.overlay ?: createOverlay(api, holder, actions).also {
             state.overlay = it
@@ -1319,6 +1349,59 @@ object NotificationMediaAodLyricHooker {
                 translationColor
             }
         )
+        // 全屏 AOD：展示自绘进度行（系统该模式无原生进度条）；
+        // 紧凑模式由 applyCompactMode 隐藏，无时长数据时也不显示。
+        val songDurationMs = LyriconDataBridge.currentSong?.duration?.takeIf { it > 0L }
+        if (overlay.fullAodActive && songDurationMs != null) {
+            overlay.progressRow.visibility = View.VISIBLE
+            overlay.progressTimeLeft.setTextColor(translationColor)
+            overlay.progressTimeRight.setTextColor(translationColor)
+            overlay.progressTrack.fillColor = api.getTitleText(holder).currentTextColor
+            overlay.progressTrack.trackColor = translationColor and 0x60FFFFFF
+            updateProgressRow(overlay, LyriconDataBridge.currentPosition)
+        } else {
+            overlay.progressRow.visibility = View.GONE
+        }
+        // 字体颜色设置（莫奈取色/封面色/封面渐变色/自定义）非默认时覆盖系统跟随色。
+        // 各位置独立：息屏AOD（fullAod）/锁屏歌词（亮屏+keyguard）/通知中心（亮屏未锁）分别取各自偏好组。
+        val fontColorKeys = when {
+            state.fullAod -> RootConstants.FONT_COLOR_KEYS_LOCK_SCREEN_AOD
+            keyguardLocked -> RootConstants.FONT_COLOR_KEYS_LOCK_SCREEN_LYRICS
+            else -> RootConstants.FONT_COLOR_KEYS_NOTIFICATION_CENTER
+        }
+        // 锁屏媒体卡片有封面视图：从 albumImage（真封面 ImageView）提取，
+        // 提取失败再退回 albumView；共享给其他无封面视图的位置。
+        val albumBitmap = OverlayFontColorApplier.bitmapFromAlbumView(api.getAlbumImage(holder))
+            ?: OverlayFontColorApplier.bitmapFromAlbumView(api.getAlbumView(holder))
+        if (albumBitmap != null) {
+            CoverColorHelper.shareArtwork(albumBitmap)
+        }
+        OverlayFontColorApplier.apply(
+            prefs = prefs,
+            res = overlay.root.resources,
+            keys = fontColorKeys,
+            targets = listOf(
+                overlay.main,
+                overlay.backing,
+                overlay.overlappingMain,
+                overlay.overlappingBacking,
+            ),
+            secondaryTargets = listOf(
+                overlay.translation,
+                overlay.backingTranslation,
+                overlay.overlappingTranslation,
+                overlay.overlappingBackingTranslation,
+                overlay.next,
+            ),
+            albumBitmap = albumBitmap ?: CoverColorHelper.currentArtwork(),
+            mediaColorKey = CoverColorHelper.updateMediaSession(
+                packageName = LyriconDataBridge.currentLyricPackageName.orEmpty(),
+                title = api.getTitleText(holder).text?.toString().orEmpty(),
+                artist = api.getArtistText(holder).text?.toString().orEmpty(),
+                album = "",
+                diagnosticSource = "media_card_overlay"
+            ),
+        )
         overlay.fullAodActive = state.fullAod
         // 亮屏场景（锁屏歌词/通知中心）使用紧凑模式：不撑高卡片，
         // 在按钮与进度条之间的空白区域以单行滚动展示歌词与翻译。
@@ -1386,57 +1469,71 @@ object NotificationMediaAodLyricHooker {
 
     /**
      * 紧凑模式布局：完全不改卡片几何（不加高/不下移进度条/不加 padding），
-     * 以「单行胶囊」形态覆盖在进度条下方的原生底边距区：
-     * 歌词与翻译合并一行（翻译小字号次级色），超宽 marquee 滚动，
-     * 自带半透明圆角背景保证可读性，与按钮/进度条天然互不重叠。
+     * 歌词区覆盖显示在按钮行与进度条行之间的原生空隙内：
+     * - 空隙足够两行：显示主歌词 + 翻译
+     * - 空隙不足：合并为单行「歌词 翻译」（不同字号颜色，超宽 marquee）
      */
     private fun applyCompactOverlayLayout(overlay: LyricOverlay) {
+        val actionsBottom = overlay.actions.maxOfOrNull { it.bottom } ?: return
+        if (actionsBottom <= 0) return
         val density = overlay.root.resources.displayMetrics.density
-        val rowHeight = (COMPACT_LYRIC_BAR_HEIGHT_DP * density).toInt()
-        val topGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt()
-        // 锚点优先取进度条底部；找不到进度条时回退到按钮行底部
-        val anchorBottom = overlay.seekBar
+        val minGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt()
+        val seekBarTop = overlay.seekBar
             ?.takeIf { it.parent === overlay.player }
-            ?.bottom
-            ?: overlay.actions.maxOfOrNull { it.bottom } ?: 0
-        if (anchorBottom <= 0) return
+            ?.top
+            ?: overlay.player.height
+        val gap = seekBarTop - actionsBottom
+        if (gap <= minGap * 2) return
+
+        val widthSpec = View.MeasureSpec.makeMeasureSpec(
+            overlay.player.width.coerceAtLeast(1),
+            View.MeasureSpec.EXACTLY
+        )
+        overlay.root.measure(
+            widthSpec,
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
         val mainText = overlay.main.text.toString()
         val translationText = overlay.translation.text.toString()
-        val merged = if (translationText.isNotBlank()) {
-            SpannableStringBuilder(mainText).append("   ")
-                .append(translationText).let { builder ->
-                    val start = builder.length - translationText.length
-                    builder.setSpan(
-                        ForegroundColorSpan(overlay.translation.currentTextColor),
-                        start,
-                        builder.length,
-                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                    builder.setSpan(
-                        RelativeSizeSpan(0.78f),
-                        start,
-                        builder.length,
-                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                    builder
-                }
-        } else {
-            SpannableStringBuilder(mainText)
-        }
-        if (overlay.main.text.toString() != merged.toString()) {
+        val singleLine = overlay.root.measuredHeight > gap - minGap * 2 &&
+            translationText.isNotBlank()
+        if (singleLine) {
+            val merged = SpannableStringBuilder(mainText).append("   ")
+            val start = merged.length
+            merged.append(translationText)
+            merged.setSpan(
+                ForegroundColorSpan(overlay.translation.currentTextColor),
+                start,
+                merged.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            merged.setSpan(
+                RelativeSizeSpan(0.78f),
+                start,
+                merged.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
             overlay.main.text = merged
+            overlay.translation.visibility = View.GONE
+            overlay.root.measure(
+                widthSpec,
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+        } else {
+            if (overlay.main.text.toString() != mainText) overlay.main.text = mainText
+            overlay.translation.visibility =
+                if (translationText.isBlank()) View.GONE else View.VISIBLE
         }
-        overlay.translation.visibility = View.GONE
-        overlay.root.layoutParams?.let { params ->
-            if (params.height != rowHeight) {
-                params.height = rowHeight
-                overlay.root.layoutParams = params
-            }
-        }
+        val contentHeight = overlay.root.measuredHeight
+        if (contentHeight <= 0) return
+        val topMargin = actionsBottom + ((gap - contentHeight) / 2).coerceAtLeast(minGap) -
+            overlay.album.bottom
         (overlay.root.layoutParams as? ViewGroup.MarginLayoutParams)?.let { params ->
-            val topMargin = anchorBottom + topGap - overlay.album.bottom
-            if (params.topMargin != topMargin) {
+            if (params.topMargin != topMargin ||
+                params.height != ViewGroup.LayoutParams.WRAP_CONTENT
+            ) {
                 params.topMargin = topMargin
+                params.height = ViewGroup.LayoutParams.WRAP_CONTENT
                 overlay.root.layoutParams = params
             }
         }
@@ -1479,36 +1576,6 @@ object NotificationMediaAodLyricHooker {
                 view.isSelected = false
             }
         }
-        val density = overlay.root.resources.displayMetrics.density
-        if (compact) {
-            // 胶囊内单行空间有限，压缩字号
-            overlay.main.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            overlay.translation.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            if (overlay.root.background == null) {
-                overlay.root.background = GradientDrawable().apply {
-                    setColor(Color.argb(77, 0, 0, 0))
-                    cornerRadius = COMPACT_LYRIC_BAR_CORNER_DP * density
-                }
-                overlay.root.setPadding(
-                    (COMPACT_LYRIC_BAR_H_PADDING_DP * density).toInt(),
-                    0,
-                    (COMPACT_LYRIC_BAR_H_PADDING_DP * density).toInt(),
-                    0
-                )
-                overlay.root.gravity = Gravity.CENTER_VERTICAL
-            }
-        } else {
-            overlay.main.setTextSize(
-                TypedValue.COMPLEX_UNIT_SP,
-                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE.toFloat()
-            )
-            overlay.translation.setTextSize(
-                TypedValue.COMPLEX_UNIT_SP,
-                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE.toFloat()
-            )
-            overlay.root.background = null
-            overlay.root.gravity = Gravity.CENTER
-        }
         config(overlay.main, compact)
         config(overlay.translation, compact)
         listOf(
@@ -1526,6 +1593,9 @@ object NotificationMediaAodLyricHooker {
                 view.visibility = View.VISIBLE
             }
         }
+        // 进度行是 View 而非 TextView：紧凑模式一律隐藏，
+        // 非紧凑（全屏 AOD）下由 applyState 按是否有时长数据决定可见性。
+        overlay.progressRow.visibility = if (compact) View.GONE else overlay.progressRow.visibility
     }
 
     private fun refreshAodPluginStates() {
@@ -1709,6 +1779,22 @@ object NotificationMediaAodLyricHooker {
         applyLyricRowOrder(overlay, textStyle.swapTranslation)
         updateClassicEmbeddedSongInfo(overlay, songInfo)
         updateClassicLineSpacing(overlay)
+        // 字体颜色设置（自定义AOD独立偏好组）非默认时覆盖系统跟随色
+        OverlayFontColorApplier.apply(
+            prefs = prefs,
+            res = overlay.root.resources,
+            keys = RootConstants.FONT_COLOR_KEYS_CLASSIC_AOD,
+            targets = listOf(overlay.main, overlay.backing, overlay.overlappingMain, overlay.overlappingBacking),
+            secondaryTargets = listOf(
+                overlay.translation,
+                overlay.backingTranslation,
+                overlay.overlappingTranslation,
+                overlay.overlappingBackingTranslation,
+                overlay.next,
+            ),
+            albumBitmap = null,
+            mediaColorKey = CoverColorHelper.currentMediaKey(),
+        )
         overlay.root.visibility = View.VISIBLE
         overlay.root.bringToFront()
         positionAodPluginOverlay(overlay)
@@ -2215,7 +2301,7 @@ object NotificationMediaAodLyricHooker {
             overlay.appliedHeight = height
             HookLogger.i(
                 TAG,
-                "经典 AOD 歌词覆盖层已按内容实测高度调整: " +
+                "自定义 AOD 歌词覆盖层已按内容实测高度调整: " +
                     "contentHeight=$contentHeight, availableHeight=$availableHeight, " +
                     "targetHeight=$height"
             )
@@ -2324,6 +2410,70 @@ object NotificationMediaAodLyricHooker {
             )
             setTextColor(artist.currentTextColor)
         }
+        // 锁屏 AOD 专用的自绘进度行（紧凑模式下隐藏）：
+        // 当前时间 ── 进度轨道 ── 总时长，颜色跟随原生标题/歌手文字。
+        val progressDensity = context.resources.displayMetrics.density
+        val progressTimeLeft = TextView(context).apply {
+            includeFontPadding = false
+            typeface = artist.typeface
+            setTextSize(
+                TypedValue.COMPLEX_UNIT_SP,
+                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE.toFloat(),
+            )
+            setTextColor(artist.currentTextColor)
+        }
+        val progressTrack = AodProgressTrackView(context).apply {
+            fillColor = title.currentTextColor
+            trackColor = artist.currentTextColor and 0x60FFFFFF
+        }
+        val progressTimeRight = TextView(context).apply {
+            includeFontPadding = false
+            typeface = artist.typeface
+            setTextSize(
+                TypedValue.COMPLEX_UNIT_SP,
+                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE.toFloat(),
+            )
+            setTextColor(artist.currentTextColor)
+        }
+        val progressRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = false
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            visibility = View.GONE
+            setPadding(
+                (AOD_PROGRESS_H_PADDING_DP * progressDensity).toInt(),
+                0,
+                (AOD_PROGRESS_H_PADDING_DP * progressDensity).toInt(),
+                0,
+            )
+            addView(
+                progressTimeLeft,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            addView(
+                progressTrack,
+                LinearLayout.LayoutParams(
+                    0,
+                    (AOD_PROGRESS_TRACK_HEIGHT_DP * progressDensity).toInt(),
+                ).apply {
+                    weight = 1f
+                    marginStart = (AOD_PROGRESS_TRACK_GAP_DP * progressDensity).toInt()
+                    marginEnd = (AOD_PROGRESS_TRACK_GAP_DP * progressDensity).toInt()
+                },
+            )
+            addView(
+                progressTimeRight,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
         val root = LinearLayout(context).apply {
             id = View.generateViewId()
             tag = OVERLAY_TAG
@@ -2385,6 +2535,12 @@ object NotificationMediaAodLyricHooker {
             ).apply {
                 topMargin = (LOCK_SCREEN_AOD_LINE_GAP_DP * density).toInt()
             })
+            addView(progressRow, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = (LOCK_SCREEN_AOD_LINE_GAP_DP * density).toInt()
+            })
         }
 
         val params = createConstraintLayoutParams(player, album) ?: return null
@@ -2400,34 +2556,6 @@ object NotificationMediaAodLyricHooker {
         )
         if (fullAodHeightId != 0) {
             backgroundSize.baseHeight = context.resources.getDimensionPixelSize(fullAodHeightId)
-        }
-        // 同一 player 可能被多个控制器实例共享（锁屏/通知中心各绑定一次），
-        // state 按控制器隔离会触发重复 createOverlay → 两个歌词 overlay 叠在同一
-        // 位置、错位渲染（歌词与翻译重叠）。挂载前先清理同 tag 的旧实例。
-        val staleOverlays = mutableListOf<View>()
-        val queue = ArrayDeque<View>()
-        queue.add(player)
-        var scanSteps = 0
-        while (queue.isNotEmpty() && scanSteps < 128) {
-            scanSteps++
-            val view = queue.removeFirst()
-            if (view !== player && view.tag == OVERLAY_TAG) {
-                staleOverlays.add(view)
-                continue
-            }
-            if (view is ViewGroup) {
-                for (index in 0 until view.childCount) queue.add(view.getChildAt(index))
-            }
-        }
-        if (staleOverlays.isNotEmpty()) {
-            staleOverlays.forEach { stale ->
-                (stale.parent as? ViewGroup)?.removeView(stale)
-            }
-            HookLogger.w(
-                TAG,
-                "发现并清理重复的锁屏歌词 overlay: count=${staleOverlays.size}, " +
-                    "player=${player.javaClass.name}"
-            )
         }
         player.addView(root, params)
         val powerManager = context.getSystemService(PowerManager::class.java)
@@ -2448,6 +2576,10 @@ object NotificationMediaAodLyricHooker {
             overlappingBacking = overlappingBacking,
             overlappingBackingTranslation = overlappingBackingTranslation,
             next = next,
+            progressRow = progressRow,
+            progressTrack = progressTrack,
+            progressTimeLeft = progressTimeLeft,
+            progressTimeRight = progressTimeRight,
             artist = artist,
             album = album,
             seekBar = api.getSeekBar(holder)
@@ -2474,7 +2606,83 @@ object NotificationMediaAodLyricHooker {
                 "header=${headerHeightController?.view?.javaClass?.name.orEmpty()}, " +
                 "headerBase=${headerHeightController?.originalHeight ?: 0}"
         )
+        // 原生按钮已隐藏，歌词行接管播放控制手势。
+        LyricGestureHelper.attach(overlay.main, overlay.translation)
         return overlay
+    }
+
+    /**
+     * 锁屏 AOD 歌词区底部的自绘进度轨道：系统在该模式下不渲染原生进度条，
+     * 由模块补一条跟随播放位置的圆角进度线（左侧已播/右侧未播）。
+     */
+    private class AodProgressTrackView(context: Context) : View(context) {
+        var progress = 0f
+            set(value) {
+                val clamped = value.coerceIn(0f, 1f)
+                if (field != clamped) {
+                    field = clamped
+                    invalidate()
+                }
+            }
+        var fillColor = 0xFFFFFFFF.toInt()
+            set(value) {
+                if (field != value) {
+                    field = value
+                    invalidate()
+                }
+            }
+        var trackColor = 0x40FFFFFF
+            set(value) {
+                if (field != value) {
+                    field = value
+                    invalidate()
+                }
+            }
+
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        override fun onDraw(canvas: Canvas) {
+            val width = width.toFloat()
+            val height = height.toFloat()
+            if (width <= 0f || height <= 0f) return
+            val radius = height / 2f
+            paint.color = trackColor
+            canvas.drawRoundRect(0f, 0f, width, height, radius, radius, paint)
+            if (progress > 0f) {
+                paint.color = fillColor
+                canvas.drawRoundRect(0f, 0f, width * progress, height, radius, radius, paint)
+            }
+        }
+    }
+
+    private fun formatAodTime(ms: Long): String {
+        val totalSeconds = (ms.coerceAtLeast(0L) / 1000L).toInt()
+        return String.format(
+            java.util.Locale.US,
+            "%d:%02d",
+            totalSeconds / 60,
+            totalSeconds % 60,
+        )
+    }
+
+    /** 刷新单条锁屏 AOD 进度行的时间文本与轨道填充。 */
+    private fun updateProgressRow(overlay: LyricOverlay, positionMs: Long) {
+        val duration = LyriconDataBridge.currentSong?.duration?.takeIf { it > 0L } ?: return
+        val clamped = positionMs.coerceIn(0L, duration)
+        overlay.progressTimeLeft.text = formatAodTime(clamped)
+        overlay.progressTimeRight.text = formatAodTime(duration)
+        overlay.progressTrack.progress = clamped.toFloat() / duration
+    }
+
+    /** 每个轮询节拍刷新所有可见的锁屏 AOD 进度行（轻量，不触发整卡重排）。 */
+    private fun updateFullScreenAodProgressRows() {
+        synchronized(states) { states.values.toList() }.forEach { state ->
+            val overlay = state.overlay ?: return@forEach
+            if (!state.fullAod || overlay.progressRow.visibility != View.VISIBLE) {
+                return@forEach
+            }
+            runCatching { updateProgressRow(overlay, LyriconDataBridge.currentPosition) }
+        }
     }
 
     private fun createConstraintLayoutParams(
@@ -2506,6 +2714,9 @@ object NotificationMediaAodLyricHooker {
     }.getOrNull()
 
     private fun restoreActions(state: ControllerState) {
+        state.overlay?.actions?.forEach { view ->
+            if (view.alpha != 1f) view.alpha = 1f
+        }
         if (state.actionVisibilities.isEmpty()) return
         state.actionVisibilities.forEach { (view, visibility) -> view.visibility = visibility }
         state.actionVisibilities.clear()
@@ -2569,12 +2780,24 @@ object NotificationMediaAodLyricHooker {
             }
         }
         if (overlay.root.measuredHeight <= 0) return
-        val anchorBottom = AodMediaLyricPolicy.contentAnchorBottom(
-            albumBottom = overlay.album.bottom,
-            artistBottom = overlay.artist.bottom,
-            actionBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0,
-            seekBarBottom = overlay.seekBar?.bottom ?: 0,
-        )
+        val anchorBottom = if (overlay.fullAodActive) {
+            // 全屏 AOD（锁屏 AOD）：封面即整卡背景，锚定标题/歌手下方，忽略不可见控件，
+            // 避免卡片被大幅撑高、歌词悬在卡片中部。
+            AodMediaLyricPolicy.fullScreenAodContentAnchorBottom(
+                artistBottom = overlay.artist.bottom,
+                actionBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0,
+                seekBarBottom = overlay.seekBar?.bottom ?: 0,
+                actionVisible = overlay.actions.any { it.visibility == View.VISIBLE },
+                seekBarVisible = overlay.seekBar?.visibility == View.VISIBLE,
+            )
+        } else {
+            AodMediaLyricPolicy.contentAnchorBottom(
+                albumBottom = overlay.album.bottom,
+                artistBottom = overlay.artist.bottom,
+                actionBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0,
+                seekBarBottom = overlay.seekBar?.bottom ?: 0,
+            )
+        }
         if (anchorBottom <= 0) return
         if (overlay.playerSize.baseHeight <= 0) {
             overlay.playerSize.baseHeight = overlay.player.height.takeIf { it > 0 }
@@ -2889,13 +3112,13 @@ object NotificationMediaAodLyricHooker {
     private fun shouldRefreshNoLyricPreview(position: Long): Boolean {
         if (currentActualLyrics().isNotEmpty()) return false
         val currentPrefs = prefs ?: return false
-        val previewEnabled = currentPrefs.getBoolean(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_NEXT_SONG_PREVIEW,
-            RootConstants.DEFAULT_HOOK_AOD_NEXT_SONG_PREVIEW,
-        ) || currentPrefs.getBoolean(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_NEXT_SONG_PREVIEW,
-            RootConstants.DEFAULT_HOOK_AOD_NEXT_SONG_PREVIEW,
-        )
+        // 任一位置的「下一首预览」开启且歌曲无歌词时，接近歌曲结尾刷新一次预览
+        val previewEnabled = RootConstants.STYLE_KEY_PREFIXES.any { prefix ->
+            currentPrefs.getBoolean(
+                "${prefix}next_song_preview",
+                RootConstants.DEFAULT_HOOK_AOD_NEXT_SONG_PREVIEW,
+            )
+        }
         if (!previewEnabled) return false
         val duration = LyriconDataBridge.currentSong?.duration?.takeIf { it > 0L }
             ?: return false
@@ -3145,129 +3368,77 @@ object NotificationMediaAodLyricHooker {
             line.metadata?.getBoolean(SongPreprocessor.KEY_TITLE_LINE) == true
         }
 
-    private fun lockScreenAodTextStyle(): AodTextStyleConfig = AodTextStyleConfig(
+    private fun lockScreenAodTextStyle(): AodTextStyleConfig =
+        textStyleForPrefix("key_hook_lock_screen_aod_")
+
+    /** 亮屏锁屏歌词：独立偏好组（与息屏AOD互不影响）。 */
+    private fun lockScreenLyricsTextStyle(): AodTextStyleConfig =
+        textStyleForPrefix("key_hook_lock_screen_lyrics_")
+
+    /** 通知中心歌词：独立偏好组。 */
+    private fun notificationCenterTextStyle(): AodTextStyleConfig =
+        textStyleForPrefix("key_hook_notification_center_")
+
+    private fun classicAodTextStyle(): AodTextStyleConfig =
+        textStyleForPrefix("key_hook_classic_aod_")
+
+    /** 按偏好 key 前缀构建文字样式（各歌词位置参数独立）。 */
+    private fun textStyleForPrefix(prefix: String): AodTextStyleConfig = AodTextStyleConfig(
         mainTextSize = readAodTextSize(
-            key = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
+            key = "${prefix}main_text_size",
             defaultValue = RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
             min = RootConstants.MIN_HOOK_AOD_MAIN_TEXT_SIZE,
             max = RootConstants.MAX_HOOK_AOD_MAIN_TEXT_SIZE,
         ),
         backingTextSize = readAodTextSize(
-            key = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE,
+            key = "${prefix}backing_text_size",
             defaultValue = RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE,
             min = RootConstants.MIN_HOOK_AOD_BACKING_TEXT_SIZE,
             max = RootConstants.MAX_HOOK_AOD_BACKING_TEXT_SIZE,
         ),
         translationTextSize = readAodTextSize(
-            key = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
+            key = "${prefix}translation_text_size",
             defaultValue = RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
             min = RootConstants.MIN_HOOK_AOD_TRANSLATION_TEXT_SIZE,
             max = RootConstants.MAX_HOOK_AOD_TRANSLATION_TEXT_SIZE,
         ),
         showNextLyric = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_SHOW_NEXT_LYRIC,
+            "${prefix}show_next_lyric",
             RootConstants.DEFAULT_HOOK_AOD_SHOW_NEXT_LYRIC,
         ) ?: RootConstants.DEFAULT_HOOK_AOD_SHOW_NEXT_LYRIC,
-        nextLyricStyle = readAodNextLyricStyle(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_NEXT_LYRIC_STYLE
-        ),
+        nextLyricStyle = readAodNextLyricStyle("${prefix}next_lyric_style"),
         duetLyrics = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_DUET_LYRICS,
+            "${prefix}duet_lyrics",
             RootConstants.DEFAULT_HOOK_AOD_DUET_LYRICS,
         ) ?: RootConstants.DEFAULT_HOOK_AOD_DUET_LYRICS,
         centerNonDuetSong = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_CENTER_NON_DUET_SONG,
+            "${prefix}center_non_duet_song",
             RootConstants.DEFAULT_HOOK_AOD_CENTER_NON_DUET_SONG,
         ) ?: RootConstants.DEFAULT_HOOK_AOD_CENTER_NON_DUET_SONG,
         centerGroupVocals = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_CENTER_GROUP_VOCALS,
+            "${prefix}center_group_vocals",
             RootConstants.DEFAULT_HOOK_AOD_CENTER_GROUP_VOCALS,
         ) ?: RootConstants.DEFAULT_HOOK_AOD_CENTER_GROUP_VOCALS,
-        pauseStyle = readAodPauseStyle(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_PAUSE_STYLE
-        ),
+        pauseStyle = readAodPauseStyle("${prefix}pause_style"),
         translationDisplayMode = AodMediaLyricPolicy.readTranslationPronunciationMode(
             prefs = prefs,
-            key = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_DISPLAY,
+            key = "${prefix}translation_display",
             defaultValue = RootConstants.DEFAULT_HOOK_AOD_TRANSLATION_DISPLAY_MODE,
         ),
         translationFallback = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_FALLBACK,
+            "${prefix}translation_fallback",
             RootConstants.DEFAULT_HOOK_AOD_TRANSLATION_FALLBACK,
         ) ?: RootConstants.DEFAULT_HOOK_AOD_TRANSLATION_FALLBACK,
         swapTranslation = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_SWAP_TRANSLATION,
+            "${prefix}swap_translation",
             RootConstants.DEFAULT_HOOK_AOD_SWAP_TRANSLATION,
         ) ?: RootConstants.DEFAULT_HOOK_AOD_SWAP_TRANSLATION,
         nextSongPreview = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_NEXT_SONG_PREVIEW,
+            "${prefix}next_song_preview",
             RootConstants.DEFAULT_HOOK_AOD_NEXT_SONG_PREVIEW,
         ) ?: RootConstants.DEFAULT_HOOK_AOD_NEXT_SONG_PREVIEW,
         nextSongPreviewPosition = readAodNextSongPreviewPosition(
-            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_NEXT_SONG_PREVIEW_POSITION
-        ),
-    )
-
-    private fun classicAodTextStyle(): AodTextStyleConfig = AodTextStyleConfig(
-        mainTextSize = readAodTextSize(
-            key = RootConstants.KEY_HOOK_CLASSIC_AOD_MAIN_TEXT_SIZE,
-            defaultValue = RootConstants.DEFAULT_HOOK_CLASSIC_AOD_MAIN_TEXT_SIZE,
-            min = RootConstants.MIN_HOOK_AOD_MAIN_TEXT_SIZE,
-            max = RootConstants.MAX_HOOK_AOD_MAIN_TEXT_SIZE,
-        ),
-        backingTextSize = readAodTextSize(
-            key = RootConstants.KEY_HOOK_CLASSIC_AOD_BACKING_TEXT_SIZE,
-            defaultValue = RootConstants.DEFAULT_HOOK_CLASSIC_AOD_BACKING_TEXT_SIZE,
-            min = RootConstants.MIN_HOOK_AOD_BACKING_TEXT_SIZE,
-            max = RootConstants.MAX_HOOK_AOD_BACKING_TEXT_SIZE,
-        ),
-        translationTextSize = readAodTextSize(
-            key = RootConstants.KEY_HOOK_CLASSIC_AOD_TRANSLATION_TEXT_SIZE,
-            defaultValue = RootConstants.DEFAULT_HOOK_CLASSIC_AOD_TRANSLATION_TEXT_SIZE,
-            min = RootConstants.MIN_HOOK_AOD_TRANSLATION_TEXT_SIZE,
-            max = RootConstants.MAX_HOOK_AOD_TRANSLATION_TEXT_SIZE,
-        ),
-        showNextLyric = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_SHOW_NEXT_LYRIC,
-            RootConstants.DEFAULT_HOOK_AOD_SHOW_NEXT_LYRIC,
-        ) ?: RootConstants.DEFAULT_HOOK_AOD_SHOW_NEXT_LYRIC,
-        nextLyricStyle = readAodNextLyricStyle(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_NEXT_LYRIC_STYLE
-        ),
-        duetLyrics = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_DUET_LYRICS,
-            RootConstants.DEFAULT_HOOK_AOD_DUET_LYRICS,
-        ) ?: RootConstants.DEFAULT_HOOK_AOD_DUET_LYRICS,
-        centerNonDuetSong = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_CENTER_NON_DUET_SONG,
-            RootConstants.DEFAULT_HOOK_AOD_CENTER_NON_DUET_SONG,
-        ) ?: RootConstants.DEFAULT_HOOK_AOD_CENTER_NON_DUET_SONG,
-        centerGroupVocals = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_CENTER_GROUP_VOCALS,
-            RootConstants.DEFAULT_HOOK_AOD_CENTER_GROUP_VOCALS,
-        ) ?: RootConstants.DEFAULT_HOOK_AOD_CENTER_GROUP_VOCALS,
-        pauseStyle = readAodPauseStyle(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_PAUSE_STYLE
-        ),
-        translationDisplayMode = AodMediaLyricPolicy.readTranslationPronunciationMode(
-            prefs = prefs,
-            key = RootConstants.KEY_HOOK_CLASSIC_AOD_TRANSLATION_DISPLAY,
-            defaultValue = RootConstants.DEFAULT_HOOK_AOD_TRANSLATION_DISPLAY_MODE,
-        ),
-        translationFallback = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_TRANSLATION_FALLBACK,
-            RootConstants.DEFAULT_HOOK_AOD_TRANSLATION_FALLBACK,
-        ) ?: RootConstants.DEFAULT_HOOK_AOD_TRANSLATION_FALLBACK,
-        swapTranslation = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_SWAP_TRANSLATION,
-            RootConstants.DEFAULT_HOOK_AOD_SWAP_TRANSLATION,
-        ) ?: RootConstants.DEFAULT_HOOK_AOD_SWAP_TRANSLATION,
-        nextSongPreview = prefs?.getBoolean(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_NEXT_SONG_PREVIEW,
-            RootConstants.DEFAULT_HOOK_AOD_NEXT_SONG_PREVIEW,
-        ) ?: RootConstants.DEFAULT_HOOK_AOD_NEXT_SONG_PREVIEW,
-        nextSongPreviewPosition = readAodNextSongPreviewPosition(
-            RootConstants.KEY_HOOK_CLASSIC_AOD_NEXT_SONG_PREVIEW_POSITION
+            "${prefix}next_song_preview_position"
         ),
     )
 
@@ -3908,6 +4079,10 @@ object NotificationMediaAodLyricHooker {
         val overlappingBacking: TextView,
         val overlappingBackingTranslation: TextView,
         val next: TextView,
+        val progressRow: View,
+        val progressTrack: AodProgressTrackView,
+        val progressTimeLeft: TextView,
+        val progressTimeRight: TextView,
         val artist: View,
         val album: View,
         val seekBar: View?,
@@ -4119,6 +4294,7 @@ object NotificationMediaAodLyricHooker {
         private val playerField: Field,
         private val mediaBackgroundField: Field?,
         private val albumViewField: Field?,
+        private val albumImageField: Field?,
         private val titleTextField: Field,
         private val artistTextField: Field,
         private val actionFields: List<Field>,
@@ -4136,6 +4312,8 @@ object NotificationMediaAodLyricHooker {
             runCatching { mediaBackgroundField?.get(holder) as? View }.getOrNull()
         fun getAlbumView(holder: Any): View? =
             runCatching { albumViewField?.get(holder) as? View }.getOrNull()
+        fun getAlbumImage(holder: Any): View? =
+            runCatching { albumImageField?.get(holder) as? View }.getOrNull()
         fun getTitleText(holder: Any): TextView = titleTextField.get(holder) as TextView
         fun getArtistText(holder: Any): TextView = artistTextField.get(holder) as TextView
         fun getActions(holder: Any): List<View> = actionFields.map { it.get(holder) as View }
@@ -4185,6 +4363,9 @@ object NotificationMediaAodLyricHooker {
                         ?.accessible(),
                     albumViewField = holderClass.declaredFields
                         .firstOrNull { it.name == "albumView" }
+                        ?.accessible(),
+                    albumImageField = holderClass.declaredFields
+                        .firstOrNull { it.name == "albumImage" }
                         ?.accessible(),
                     titleTextField = holderClass.getDeclaredField("titleText").accessible(),
                     artistTextField = holderClass.getDeclaredField("artistText").accessible(),

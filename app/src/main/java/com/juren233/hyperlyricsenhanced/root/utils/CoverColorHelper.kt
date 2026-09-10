@@ -45,6 +45,19 @@ object CoverColorHelper {
     private var cachedDarkColors: IntArray? = null
     private val keyedCache = LinkedHashMap<String, CacheEntry>()
 
+    // 最近一次共享的封面 bitmap（按 activeMediaKey 对齐），供无封面视图的
+    // 歌词位置（经典AOD/大岛/全屏歌词）做封面取色
+    @Volatile
+    private var sharedArtwork: Bitmap? = null
+
+    /** 有封面视图的位置（锁屏媒体卡片）共享最近封面，切歌时失效。 */
+    fun shareArtwork(bitmap: Bitmap?) {
+        sharedArtwork = bitmap
+    }
+
+    /** 当前曲目的共享封面（与 activeMediaKey 同生命周期），可能为 null。 */
+    fun currentArtwork(): Bitmap? = sharedArtwork
+
     fun updateMediaSession(
         packageName: String,
         title: String,
@@ -71,6 +84,7 @@ object CoverColorHelper {
             cachedArtworkSignature = null
             cachedLightColors = null
             cachedDarkColors = null
+            sharedArtwork = null
             CoverColorDiagnostics.logMediaKeyChange(
                 source = diagnosticSource,
                 previousMediaKey = previousMediaKey,

@@ -16,6 +16,9 @@ import com.juren233.hyperlyricsenhanced.common.RootConstants
 import com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys
 import com.juren233.hyperlyricsenhanced.root.HookEntry
 import com.juren233.hyperlyricsenhanced.root.LyriconDataBridge
+import com.juren233.hyperlyricsenhanced.root.mediacard.LyricGestureHelper
+import com.juren233.hyperlyricsenhanced.root.utils.CoverColorHelper
+import com.juren233.hyperlyricsenhanced.root.utils.OverlayFontColorApplier
 import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedInterface.Chain
@@ -369,6 +372,22 @@ object IslandExpandedLyricHooker {
         RootConstants.DEFAULT_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED
     ) ?: RootConstants.DEFAULT_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED
 
+    /** 大岛独立字号（主句），默认与锁屏AOD默认一致。 */
+    private fun mainTextSize(): Int = prefs?.getInt(
+        RootConstants.KEY_HOOK_ISLAND_EXPANDED_MAIN_TEXT_SIZE,
+        RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE
+    ) ?: RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE
+
+    private fun backingTextSize(): Int = prefs?.getInt(
+        RootConstants.KEY_HOOK_ISLAND_EXPANDED_BACKING_TEXT_SIZE,
+        RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE
+    ) ?: RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE
+
+    private fun translationTextSize(): Int = prefs?.getInt(
+        RootConstants.KEY_HOOK_ISLAND_EXPANDED_TRANSLATION_TEXT_SIZE,
+        RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE
+    ) ?: RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE
+
     private fun applyState(binder: Any) {
         val api = nativeApi ?: return
         if (!isEnabled()) {
@@ -432,6 +451,17 @@ object IslandExpandedLyricHooker {
         val translationColor = artist?.currentTextColor ?: entry.title.currentTextColor
         lyricState.translation.setTextColor(translationColor)
         lyricState.backingTranslation.setTextColor(translationColor)
+        // 字体颜色设置（莫奈取色/封面色/封面渐变色/自定义）非默认时覆盖系统跟随色。
+        // 大岛卡片暂无稳定封面 bitmap 来源，封面色/渐变模式回退默认白色。
+        OverlayFontColorApplier.apply(
+            prefs = prefs,
+            res = entry.player.resources,
+            keys = RootConstants.FONT_COLOR_KEYS_ISLAND_EXPANDED,
+            targets = listOf(lyricState.main, lyricState.backing),
+            secondaryTargets = listOf(lyricState.translation, lyricState.backingTranslation),
+            albumBitmap = CoverColorHelper.currentArtwork(),
+            mediaColorKey = CoverColorHelper.currentMediaKey(),
+        )
         if (lyricState.overlay.visibility != View.VISIBLE) {
             lyricState.overlay.visibility = View.VISIBLE
         }
@@ -466,22 +496,22 @@ object IslandExpandedLyricHooker {
                 maxLines = 1
             }
         val main = lyricText(
-            RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
+            mainTextSize(),
             title.currentTextColor,
             title.typeface,
         )
         val translation = lyricText(
-            RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
+            translationTextSize(),
             artist?.currentTextColor ?: title.currentTextColor,
             artist?.typeface ?: title.typeface,
         )
         val backing = lyricText(
-            RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE,
+            backingTextSize(),
             title.currentTextColor,
             title.typeface,
         )
         val backingTranslation = lyricText(
-            RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
+            translationTextSize(),
             artist?.currentTextColor ?: title.currentTextColor,
             artist?.typeface ?: title.typeface,
         )
@@ -563,6 +593,8 @@ object IslandExpandedLyricHooker {
             playerBaseHeight = baseHeight,
         )
         synchronized(binderStates) { binderStates[binder] = state }
+        // 大岛歌词行接管播放控制手势（长按=播放/暂停，双击左/右半区=上/下一首）。
+        LyricGestureHelper.attach(main, translation)
         HookLogger.i(
             TAG,
             "大岛歌词覆盖层已挂载: player=${player.javaClass.name}, " +

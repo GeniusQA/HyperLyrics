@@ -33,6 +33,7 @@ import com.juren233.hyperlyricsenhanced.common.ClassicAodSongInfoConfig
 import com.juren233.hyperlyricsenhanced.common.RootConstants
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.AodMediaLyricPolicy
 import com.juren233.hyperlyricsenhanced.service.LiveLyricService
+import com.juren233.hyperlyricsenhanced.ui.component.FontColorModeCard
 import com.juren233.hyperlyricsenhanced.ui.component.NumberInputDialog
 import com.juren233.hyperlyricsenhanced.ui.component.SimpleDialog
 import com.juren233.hyperlyricsenhanced.ui.page.hooksettings.lyrics.common.XposedLyricSettingPage
@@ -48,7 +49,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private data class AodSettingsSpec(
     val titleRes: Int,
-    val fullScreenLyricsKey: String? = null,
+    val fontColorKeys: RootConstants.FontColorKeys,
     val mainTextSizeKey: String,
     val backingTextSizeKey: String,
     val translationTextSizeKey: String,
@@ -88,6 +89,7 @@ fun LockScreenAodSettingsPage() {
     AodSettingsPage(
         spec = AodSettingsSpec(
             titleRes = R.string.title_lock_screen_aod,
+            fontColorKeys = RootConstants.FONT_COLOR_KEYS_LOCK_SCREEN_AOD,
             mainTextSizeKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
             backingTextSizeKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE,
             translationTextSizeKey =
@@ -124,29 +126,67 @@ fun LockScreenLyricsSettingsPage() {
     AodSettingsPage(
         spec = AodSettingsSpec(
             titleRes = R.string.title_lock_screen_lyrics,
-            fullScreenLyricsKey = RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED,
-            mainTextSizeKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
-            backingTextSizeKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE,
+            fontColorKeys = RootConstants.FONT_COLOR_KEYS_LOCK_SCREEN_LYRICS,
+            mainTextSizeKey = RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_MAIN_TEXT_SIZE,
+            backingTextSizeKey = RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_BACKING_TEXT_SIZE,
             translationTextSizeKey =
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
-            showNextLyricKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_SHOW_NEXT_LYRIC,
-            nextLyricStyleKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_NEXT_LYRIC_STYLE,
-            duetLyricsKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_DUET_LYRICS,
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_TEXT_SIZE,
+            showNextLyricKey = RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_SHOW_NEXT_LYRIC,
+            nextLyricStyleKey = RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_LYRIC_STYLE,
+            duetLyricsKey = RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_DUET_LYRICS,
             centerNonDuetSongKey =
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_CENTER_NON_DUET_SONG,
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_CENTER_NON_DUET_SONG,
             centerGroupVocalsKey =
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_CENTER_GROUP_VOCALS,
-            pauseStyleKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_PAUSE_STYLE,
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_CENTER_GROUP_VOCALS,
+            pauseStyleKey = RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_PAUSE_STYLE,
             translationDisplayKey =
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_DISPLAY,
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_DISPLAY,
             translationFallbackKey =
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_FALLBACK,
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_FALLBACK,
             swapTranslationKey =
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_SWAP_TRANSLATION,
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_SWAP_TRANSLATION,
             nextSongPreviewKey =
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_NEXT_SONG_PREVIEW,
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_SONG_PREVIEW,
             nextSongPreviewPositionKey =
-                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_NEXT_SONG_PREVIEW_POSITION,
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_SONG_PREVIEW_POSITION,
+            defaultMainTextSize = RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
+            defaultBackingTextSize =
+                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE,
+            defaultTranslationTextSize =
+                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
+        )
+    )
+}
+
+/** 通知中心歌词设置页：样式参数独立于息屏AOD/锁屏歌词。 */
+@Composable
+fun NotificationCenterLyricsSettingsPage() {
+    AodSettingsPage(
+        spec = AodSettingsSpec(
+            titleRes = R.string.title_notification_center_lyrics,
+            fontColorKeys = RootConstants.FONT_COLOR_KEYS_NOTIFICATION_CENTER,
+            mainTextSizeKey = RootConstants.KEY_HOOK_NOTIFICATION_CENTER_MAIN_TEXT_SIZE,
+            backingTextSizeKey = RootConstants.KEY_HOOK_NOTIFICATION_CENTER_BACKING_TEXT_SIZE,
+            translationTextSizeKey =
+                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_TEXT_SIZE,
+            showNextLyricKey = RootConstants.KEY_HOOK_NOTIFICATION_CENTER_SHOW_NEXT_LYRIC,
+            nextLyricStyleKey = RootConstants.KEY_HOOK_NOTIFICATION_CENTER_NEXT_LYRIC_STYLE,
+            duetLyricsKey = RootConstants.KEY_HOOK_NOTIFICATION_CENTER_DUET_LYRICS,
+            centerNonDuetSongKey =
+                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_CENTER_NON_DUET_SONG,
+            centerGroupVocalsKey =
+                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_CENTER_GROUP_VOCALS,
+            pauseStyleKey = RootConstants.KEY_HOOK_NOTIFICATION_CENTER_PAUSE_STYLE,
+            translationDisplayKey =
+                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_DISPLAY,
+            translationFallbackKey =
+                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_FALLBACK,
+            swapTranslationKey =
+                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_SWAP_TRANSLATION,
+            nextSongPreviewKey =
+                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_NEXT_SONG_PREVIEW,
+            nextSongPreviewPositionKey =
+                RootConstants.KEY_HOOK_NOTIFICATION_CENTER_NEXT_SONG_PREVIEW_POSITION,
             defaultMainTextSize = RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
             defaultBackingTextSize =
                 RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE,
@@ -161,6 +201,7 @@ fun ClassicAodSettingsPage() {
     AodSettingsPage(
         spec = AodSettingsSpec(
             titleRes = R.string.title_classic_aod,
+            fontColorKeys = RootConstants.FONT_COLOR_KEYS_CLASSIC_AOD,
             mainTextSizeKey = RootConstants.KEY_HOOK_CLASSIC_AOD_MAIN_TEXT_SIZE,
             backingTextSizeKey = RootConstants.KEY_HOOK_CLASSIC_AOD_BACKING_TEXT_SIZE,
             translationTextSizeKey = RootConstants.KEY_HOOK_CLASSIC_AOD_TRANSLATION_TEXT_SIZE,
@@ -426,16 +467,6 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
     var showBackingTextSizeDialog by remember { mutableStateOf(false) }
     var showTranslationTextSizeDialog by remember { mutableStateOf(false) }
     var showSongInfoTextSizeDialog by remember { mutableStateOf(false) }
-    var fullScreenLyrics by remember(spec.fullScreenLyricsKey) {
-        mutableStateOf(
-            spec.fullScreenLyricsKey?.let {
-                prefs.getBoolean(
-                    it,
-                    RootConstants.DEFAULT_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED,
-                )
-            } ?: RootConstants.DEFAULT_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED
-        )
-    }
 
     NumberInputDialog(
         show = showMainTextSizeDialog,
@@ -556,25 +587,9 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
     )
 
     XposedLyricSettingPage(title = stringResource(spec.titleRes)) {
-        spec.fullScreenLyricsKey?.let { fullScreenLyricsKey ->
-            item(key = "keyguard_full_screen_lyrics") {
-                Card(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp)
-                        .fillMaxWidth()
-                ) {
-                    SwitchPreference(
-                        title = stringResource(R.string.title_keyguard_full_screen_lyrics),
-                        summary = stringResource(R.string.summary_keyguard_full_screen_lyrics),
-                        checked = fullScreenLyrics,
-                        onCheckedChange = {
-                            fullScreenLyrics = it
-                            saveConfig(fullScreenLyricsKey, it)
-                        },
-                    )
-                }
-            }
+        item(key = "aod_font_color") {
+            SmallTitle(text = stringResource(R.string.title_font_color))
+            FontColorModeCard(prefs = prefs, saveConfig = saveConfig, keys = spec.fontColorKeys)
         }
         item(key = "aod_text_style") {
             SmallTitle(text = stringResource(R.string.title_text))

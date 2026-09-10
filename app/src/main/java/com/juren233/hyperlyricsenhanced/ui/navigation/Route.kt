@@ -48,6 +48,8 @@ sealed interface Route : NavKey {
     @Serializable
     data object LockScreenLyricsSettings : Route
     @Serializable
+    data object NotificationCenterLyricsSettings : Route
+    @Serializable
     data object ClassicAodSettings : Route
     @Serializable
     data object Licenses : Route

@@ -81,6 +81,43 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
         invalidate()
     }
 
+    /**
+     * 应用字体颜色（字体颜色设置）：单色直接着色；渐变在布局完成后
+     * 以当前视图宽度构建水平 LinearGradient 套到主句画笔上。
+     */
+    fun setFontColor(mainColors: IntArray, translationColor: Int) {
+        if (mainColors.isEmpty()) return
+        if (mainColors.size > 1) {
+            post {
+                if (width <= 0) return@post
+                val shader = LinearGradient(
+                    0f, 0f, width.toFloat(), 0f,
+                    mainColors, null, Shader.TileMode.CLAMP
+                )
+                activePaint.shader = shader
+                inactivePaint.shader = shader
+                layoutCache.clear()
+                invalidate()
+            }
+            activeTranslationPaint.shader = null
+            inactiveTranslationPaint.shader = null
+            activeTranslationPaint.color = translationColor
+            inactiveTranslationPaint.color = translationColor
+        } else {
+            val color = mainColors.first()
+            activePaint.shader = null
+            inactivePaint.shader = null
+            activePaint.color = color
+            inactivePaint.color = color
+            activeTranslationPaint.shader = null
+            inactiveTranslationPaint.shader = null
+            activeTranslationPaint.color = translationColor
+            inactiveTranslationPaint.color = translationColor
+        }
+        layoutCache.clear()
+        invalidate()
+    }
+
     /** 更新歌词数据（已过滤标题行），重置滚动与缓存。 */
     fun setData(newLines: List<IRichLyricLine>) {
         val changed = newLines.size != lines.size ||
