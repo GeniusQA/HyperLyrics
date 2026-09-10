@@ -155,10 +155,14 @@ object KeyguardFullScreenLyricHooker {
     fun refresh() = runOnMain {
         if (shadeWindows.isEmpty()) return@runOnMain
         val enabled = isFeatureEnabled()
-        val keyguardLocked = shadeWindows.firstOrNull()?.context
+        val context = shadeWindows.firstOrNull()?.context
+        val keyguardLocked = context
             ?.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+        // 仅亮屏锁屏场景显示；熄屏 AOD 交给锁屏 AOD 歌词，且避免熄屏下持续重绘耗电
+        val interactive = context
+            ?.getSystemService(android.os.PowerManager::class.java)?.isInteractive == true
         val song = LyriconDataBridge.currentSong
-        val shouldShow = enabled && keyguardLocked &&
+        val shouldShow = enabled && keyguardLocked && interactive &&
             !LyriconDataBridge.isTextMode
         val lyrics = song?.lyrics.orEmpty().filterNot { line ->
             line.metadata?.getBoolean(SongPreprocessor.KEY_TITLE_LINE) == true
