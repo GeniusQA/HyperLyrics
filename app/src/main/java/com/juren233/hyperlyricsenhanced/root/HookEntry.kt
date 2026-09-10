@@ -542,11 +542,14 @@ class HookEntry : XposedModule() {
                     RootConstants.KEY_HOOK_CLASSIC_AOD_SONG_INFO_SHOW_ICON,
                     RootConstants.KEY_HOOK_CLASSIC_AOD_NEXT_SONG_PREVIEW,
                     RootConstants.KEY_HOOK_CLASSIC_AOD_NEXT_SONG_PREVIEW_POSITION,
-                    RootConstants.KEY_HOOK_REMOVE_CJK_LYRIC_SPACES -> {
+                    RootConstants.KEY_HOOK_REMOVE_CJK_LYRIC_SPACES,
+                    RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
+                    RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE -> {
                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                             ClassicAodFocusNotificationRecovery.ensureListenerCanRecover(app, prefs)
                             NotificationMediaAodLyricHooker.refresh()
                             BaseIslandRenderer.refreshActiveIsland()
+                            KeyguardFullScreenLyricHooker.refresh()
                         }
                     }
                     RootConstants.KEY_HOOK_ISLAND_ALBUM_COVER_STYLE,

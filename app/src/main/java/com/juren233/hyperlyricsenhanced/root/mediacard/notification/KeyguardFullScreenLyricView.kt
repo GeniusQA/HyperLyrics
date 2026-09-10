@@ -39,28 +39,47 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
 
     private val density = resources.displayMetrics.density
     private val activePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 26f * density
         color = Color.WHITE
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
         setShadowLayer(18f * density, 0f, 0f, Color.argb(110, 255, 255, 255))
     }
     private val inactivePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 24f * density
         color = Color.WHITE
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
     }
     private val activeTranslationPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 14f * density
         color = Color.WHITE
     }
     private val inactiveTranslationPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 14f * density
         color = Color.WHITE
     }
     private val groupGap = 24f * density
     private val mainTranslationGap = 5f * density
 
     private val layoutCache = HashMap<Int, Pair<StaticLayout, StaticLayout?>>()
+
+    init {
+        applyDefaultStyle()
+    }
+
+    /** 默认字号（未读取到配置时兜底）。 */
+    private fun applyDefaultStyle() {
+        setStyle(26f, 14f)
+    }
+
+    /** 应用「锁屏歌词配置」中的字号设置（主句/翻译字号实时生效）。 */
+    fun setStyle(mainTextSizeSp: Float, translationTextSizeSp: Float) {
+        val mainPx = mainTextSizeSp * density
+        val transPx = translationTextSizeSp * density
+        activePaint.textSize = mainPx
+        // 非当前行略缩小形成层次
+        inactivePaint.textSize = mainPx * 0.85f
+        activeTranslationPaint.textSize = transPx
+        inactiveTranslationPaint.textSize = transPx * 0.9f
+        layoutCache.clear()
+        recomputeMetrics()
+        invalidate()
+    }
 
     /** 更新歌词数据（已过滤标题行），重置滚动与缓存。 */
     fun setData(newLines: List<IRichLyricLine>) {
@@ -128,7 +147,7 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
         val text = line?.text.orEmpty()
         val main = StaticLayout.Builder
             .obtain(text, 0, text.length, if (active) activePaint else inactivePaint, width)
-            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .setLineSpacing(2f * density, 1f)
             .setIncludePad(false)
             .build()
@@ -136,7 +155,7 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
         val translation = translationText?.let {
             StaticLayout.Builder
                 .obtain(it, 0, it.length, if (active) activeTranslationPaint else inactiveTranslationPaint, width)
-                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setAlignment(Layout.Alignment.ALIGN_CENTER)
                 .setLineSpacing(0f, 1f)
                 .setIncludePad(false)
                 .build()
@@ -163,7 +182,7 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
         val text = line.text.orEmpty()
         val main = StaticLayout.Builder
             .obtain(text, 0, text.length, activePaint, width)
-            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .setLineSpacing(2f * density, 1f)
             .setIncludePad(false)
             .build()
@@ -171,7 +190,7 @@ internal class KeyguardFullScreenLyricView(context: Context) : View(context) {
         line.translation?.takeIf { it.isNotBlank() }?.let { translation ->
             val trans = StaticLayout.Builder
                 .obtain(translation, 0, translation.length, activeTranslationPaint, width)
-                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setAlignment(Layout.Alignment.ALIGN_CENTER)
                 .setIncludePad(false)
                 .build()
             height += mainTranslationGap + trans.height
