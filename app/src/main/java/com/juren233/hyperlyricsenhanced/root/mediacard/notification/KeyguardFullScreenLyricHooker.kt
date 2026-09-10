@@ -188,6 +188,7 @@ object KeyguardFullScreenLyricHooker {
                 return@forEach
             }
             bindBounds(shadeWindow, lyricView)
+            applyTextStyle(lyricView)
             lyricView.setData(lyrics)
             lyricView.setCurrentIndex(resolveIndex(lyrics))
             if (lyricView.visibility != View.VISIBLE) {
@@ -243,9 +244,29 @@ object KeyguardFullScreenLyricHooker {
             .takeIf { it > topOnScreen }
             ?: (shadeLocation[1] + shadeWindow.height * 3 / 4)
         lyricView.setDrawBounds(
-            (topOnScreen - shadeLocation[1]).toFloat() + 16f * lyricView.resources.displayMetrics.density,
-            (bottomOnScreen - shadeLocation[1]).toFloat() - 16f * lyricView.resources.displayMetrics.density,
+            (topOnScreen - shadeLocation[1]).toFloat() + 4f * lyricView.resources.displayMetrics.density,
+            (bottomOnScreen - shadeLocation[1]).toFloat() - 10f * lyricView.resources.displayMetrics.density,
         )
+    }
+
+    /** 读取「锁屏歌词配置」中的主句/翻译字号并应用到歌词视图。 */
+    private fun applyTextStyle(lyricView: KeyguardFullScreenLyricView) {
+        val preferences = prefs ?: return
+        val mainSize = preferences.getFloat(
+            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
+            preferences.getInt(
+                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
+                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE
+            ).toFloat()
+        )
+        val translationSize = preferences.getFloat(
+            RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
+            preferences.getInt(
+                RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
+                RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE
+            ).toFloat()
+        )
+        lyricView.setStyle(mainSize, translationSize)
     }
 
     /** 按播放进度定位当前行索引。 */
