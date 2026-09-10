@@ -95,7 +95,7 @@ object IslandExpandedMediaAmbientFlowHooker {
     private val restoringNativeForeground = ThreadLocal<Boolean>()
     private val bindingBinder = ThreadLocal<Any?>()
     private val colorExecutor = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "HyperLyrics Enhanced-IslandMediaColor").apply { isDaemon = true }
+        Thread(task, "HyperLyrics-IslandMediaColor").apply { isDaemon = true }
     }
     // 封面图标（setFixIcon）先于 binder 的 artWorkDrawable 刷新到达（真机日志：图标 T+0、
     // binder 滞后 0.6~0.7s，且滞后那跳并不保证出现）。流光封面色必须以图标更新为触发源，

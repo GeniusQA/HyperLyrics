@@ -281,6 +281,17 @@ object NotificationMediaCoverStyleHooker {
                         currentStyle()
                     )
                 }.onFailure { HookLogger.e(TAG, "应用通知中心媒体封面约束失败", it) }
+                // 原生 updateLayout 在 bind 后重建视图属性会覆盖模块样式（圆形 Outline/旋转），
+                // 需在原生布局落地后于主线程补跑一次 applyStyle，保证模块样式最后生效。
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    runCatching {
+                        if (SystemUiEnhancementGate.isEnabled() &&
+                            restoringNativeLayout.get() != true
+                        ) {
+                            applyStyle(controller, null)
+                        }
+                    }.onFailure { HookLogger.e(TAG, "布局后补应用封面样式失败", it) }
+                }
             }
             return result
         }
@@ -322,6 +333,13 @@ object NotificationMediaCoverStyleHooker {
             )
         }
         val isPlaying = api.isPlaying(mediaData ?: api.getMediaData(controller))
+        // 视图级隐藏不依赖布局 hook（部分场景 updateLayout 不触发）：每次 applyStyle 直接落
+        api.applyViewLevelHiding(
+            controller = controller,
+            hideCover = style == RootConstants.NOTIFICATION_MEDIA_COVER_STYLE_HIDDEN,
+            hideSource = hideSource,
+            hideDevice = hideDevice,
+        )
 
         when (style) {
             RootConstants.NOTIFICATION_MEDIA_COVER_STYLE_CIRCLE -> {
@@ -344,6 +362,19 @@ object NotificationMediaCoverStyleHooker {
             event = "style_apply_complete",
             details = "controller=${MediaCardDiagnosticLogger.identity(controller)},style=$style,hideCover=$hideSource,hideDevice=$hideDevice,albumView=${MediaCardDiagnosticLogger.view(albumView)},albumImage=${MediaCardDiagnosticLogger.view(albumImage)}",
         )
+        // bind 时卡片可能尚未 inflate/布局（size=0x0），原生布局刷新会覆盖样式：
+        // 未布局期间安排延迟重试，布局就绪后重新应用，保证旋转/圆形/隐藏最终落地。
+        if (albumView.width <= 0 || albumImage.width <= 0) {
+            listOf(300L, 1_000L, 2_500L).forEach { delay ->
+                albumView.postDelayed({
+                    runCatching {
+                        if (albumView.width > 0 && viewStates.containsKey(albumView)) {
+                            applyStyle(controller, mediaData)
+                        }
+                    }
+                }, delay)
+            }
+        }
     }
 
     private fun restoreStyle(controller: Any) {
@@ -462,6 +493,28 @@ object NotificationMediaCoverStyleHooker {
             return mediaData?.let { mediaDataIsPlayingField.get(it) == true } ?: false
         }
 
+        /**
+         * 视图级直接隐藏来源标识/设备切换/封面：
+         * 不依赖布局 hook 与 ConstraintSet 落地，每次 applyStyle 都可直接调用。
+         */
+        fun applyViewLevelHiding(
+            controller: Any,
+            hideCover: Boolean,
+            hideSource: Boolean,
+            hideDevice: Boolean,
+        ) {
+            val holder = getHolder(controller) as? View ?: return
+            val ids = LayoutResourceIds.from(holder.context)
+            fun hide(id: Int) {
+                holder.findViewById<View>(id)?.let { view ->
+                    if (view.visibility != View.GONE) view.visibility = View.GONE
+                }
+            }
+            if (hideCover) hide(ids.albumArt)
+            if (hideSource) hide(ids.coverSource)
+            if (hideDevice) hide(ids.mediaSeamless)
+        }
+
         fun applyLoadedLayout(controller: Any, style: Int) {
             val hideSource = hideCoverSource()
             val hideDevice = hideDeviceSwitch()
@@ -486,6 +539,14 @@ object NotificationMediaCoverStyleHooker {
             val normalLayout = normalLayoutField.get(controller)
             val context = layoutContextField.get(controller) as Context
             val ids = LayoutResourceIds.from(context)
+            // 视图级直接隐藏（ConstraintSet 修改发生在原生 applyTo 之后且不落地，
+            // 必须同时直接改视图可见性才能生效）
+            val holderRoot = getHolder(controller) as? View
+            fun hideById(id: Int) {
+                holderRoot?.findViewById<View>(id)?.let { view ->
+                    if (view.visibility != View.GONE) view.visibility = View.GONE
+                }
+            }
             if (style == RootConstants.NOTIFICATION_MEDIA_COVER_STYLE_HIDDEN) {
                 setGoneMarginMethod.invoke(
                     normalLayout,
@@ -512,10 +573,12 @@ object NotificationMediaCoverStyleHooker {
                     context.dp(78.5f)
                 )
                 setVisibilityMethod.invoke(normalLayout, ids.albumArt, View.GONE)
+                hideById(ids.albumArt)
             }
             if (hideSource) {
                 val normalAlbumLayout = normalAlbumLayoutField.get(controller)
                 setVisibilityMethod.invoke(normalAlbumLayout, ids.coverSource, View.GONE)
+                hideById(ids.coverSource)
             }
             if (hideDevice) {
                 setVisibilityMethod.invoke(normalLayout, ids.mediaSeamless, View.GONE)
@@ -531,6 +594,7 @@ object NotificationMediaCoverStyleHooker {
                     CONSTRAINT_END,
                     context.dp(26f)
                 )
+                hideById(ids.mediaSeamless)
             }
             val normalRoot = normalLayout as? View
             val albumRoot = normalAlbumLayoutField.get(controller) as? View

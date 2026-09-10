@@ -74,9 +74,29 @@ internal object NotificationMediaBackgroundController {
             return
         }
         mediaData ?: return
-        val context = readField(controller, "context") as? Context ?: return
-        val holder = readField(controller, "holder") ?: return
-        val mediaBg = readField(holder, "mediaBg") as? ImageView ?: return
+        val context = readField(controller, "context") as? Context
+        if (context == null) {
+            HookLogger.w(TAG, "通知中心背景渲染早退: reason=context_missing")
+            return
+        }
+        val holder = readField(controller, "holder") ?: run {
+            HookLogger.w(TAG, "通知中心背景渲染早退: reason=holder_missing")
+            return
+        }
+        val mediaBg = readField(holder, "mediaBg") as? ImageView ?: run {
+            HookLogger.w(
+                TAG,
+                "通知中心背景渲染早退: reason=mediaBg_missing, holderFields=" +
+                    runCatching {
+                        holder.javaClass.declaredFields.joinToString(",") { it.name }
+                    }.getOrDefault("unknown")
+            )
+            return
+        }
+        if (mediaBg.width <= 0 && !state.viewTreeDumped) {
+            state.viewTreeDumped = true
+            HookLogger.w(TAG, "通知中心媒体卡片视图树: " + dumpViewTree(holder))
+        }
         if (state.mediaBg !== mediaBg || (!state.customApplied && !state.renderPending)) {
             captureNativeBackground(state, mediaBg)
         }
@@ -84,10 +104,18 @@ internal object NotificationMediaBackgroundController {
         val artwork = readField(mediaData, "artwork") as? Icon
         val width = mediaBg.measuredWidth.takeIf { it > 0 }
             ?: mediaBg.layoutParams?.width?.takeIf { it > 0 }
-            ?: return
+            ?: run {
+                HookLogger.w(TAG, "通知中心背景渲染早退: reason=width_zero, mediaBg=$mediaBg")
+                attachLayoutRetry(controller, mediaBg, mediaData)
+                return
+            }
         val height = mediaBg.measuredHeight.takeIf { it > 0 }
             ?: mediaBg.layoutParams?.height?.takeIf { it > 0 }
-            ?: return
+            ?: run {
+                HookLogger.w(TAG, "通知中心背景渲染早退: reason=height_zero, mediaBg=$mediaBg")
+                attachLayoutRetry(controller, mediaBg, mediaData)
+                return
+            }
         val style = currentStyle()
         val blurAmount = currentBlurAmount()
         val autoInvert = currentAutoInvert()
@@ -142,6 +170,45 @@ internal object NotificationMediaBackgroundController {
                 state.appliedToken = token
                 state.artworkFingerprint = rendered.artworkFingerprint
                 state.renderPending = false
+            }
+        }
+    }
+
+    /** 递归 dump 视图树（类名+资源id+尺寸+可见性），用于定位移植包真实布局结构。 */
+    private fun dumpViewTree(holder: Any): String = runCatching {
+        val root = holder as? android.view.View ?: return@runCatching "holder_not_view"
+        fun idName(view: android.view.View): String = runCatching {
+            val id = view.id
+            if (id == android.view.View.NO_ID) "no_id"
+            else runCatching {
+                view.resources.getResourceEntryName(id)
+            }.getOrNull() ?: "0x${Integer.toHexString(id)}"
+        }.getOrDefault("?")
+        buildString {
+            fun walk(view: android.view.View, depth: Int) {
+                if (depth > 8) return
+                append("\n  ").append("  ".repeat(depth)).append(view.javaClass.simpleName)
+                    .append("#").append(idName(view))
+                    .append(" vis=").append(view.visibility)
+                    .append(" size=").append(view.width).append("x").append(view.height)
+                (view as? android.view.ViewGroup)?.let { group ->
+                    for (i in 0 until group.childCount) walk(group.getChildAt(i), depth + 1)
+                }
+            }
+            walk(root, 0)
+        }
+    }.getOrDefault("dump_failed")
+
+    /**
+     * bind 时 mediaBg 常尚未布局（0,0-0,0）：挂一次性布局监听，
+     * 首次获得尺寸后重新触发渲染，避免背景永远不落地。
+     */    private fun attachLayoutRetry(controller: Any, mediaBg: ImageView, mediaData: Any?) {
+        val state = states[controller] ?: return
+        if (state.layoutRetryAttached) return
+        state.layoutRetryAttached = true
+        mediaBg.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            if (mediaBg.measuredWidth > 0 && (top != oldTop || bottom != oldBottom)) {
+                mediaBg.post { runCatching { onBind(controller, mediaData) } }
             }
         }
     }
@@ -373,7 +440,7 @@ internal object NotificationMediaBackgroundController {
     }
 
     private fun newExecutor(): ExecutorService = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "HyperLyrics Enhanced-MediaBackground").apply { isDaemon = true }
+        Thread(task, "HyperLyrics-MediaBackground").apply { isDaemon = true }
     }
 
     private data class ControllerState(
@@ -388,6 +455,8 @@ internal object NotificationMediaBackgroundController {
         var originalScaleType: ImageView.ScaleType? = null,
         var originalPadding: IntArray = intArrayOf(0, 0, 0, 0),
         var originalClipToOutline: Boolean = false,
+        var layoutRetryAttached: Boolean = false,
+        var viewTreeDumped: Boolean = false,
         val request: AtomicInteger = AtomicInteger()
     )
 

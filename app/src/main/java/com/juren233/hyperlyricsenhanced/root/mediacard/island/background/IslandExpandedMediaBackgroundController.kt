@@ -726,7 +726,7 @@ internal object IslandExpandedMediaBackgroundController {
     }
 
     private fun newExecutor(): ExecutorService = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "HyperLyrics Enhanced-IslandMediaBackground").apply { isDaemon = true }
+        Thread(task, "HyperLyrics-IslandMediaBackground").apply { isDaemon = true }
     }
 
     private data class BinderState(
