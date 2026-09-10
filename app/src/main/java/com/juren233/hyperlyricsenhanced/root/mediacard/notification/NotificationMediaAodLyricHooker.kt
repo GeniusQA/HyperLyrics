@@ -1111,12 +1111,22 @@ object NotificationMediaAodLyricHooker {
         val interactive = player.context.getSystemService(PowerManager::class.java).isInteractive
         val keyguardLocked = player.context
             .getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+        val keyguardFullScreenLyrics = keyguardLocked && isKeyguardFullScreenLyricsEnabled()
         val lockScreenLyricsActive = AodMediaLyricPolicy.isLockScreenLyricsActive(
             interactive = interactive,
             keyguardLocked = keyguardLocked,
             playerShown = player.isShown,
             featureEnabled = isLockScreenLyricsEnabled(),
         )
+        if (keyguardFullScreenLyrics) {
+            // 全屏锁屏歌词模式下，锁屏场景的胶囊让位给全屏歌词层；
+            // state.lockScreenLyricsActive 保持 true 以维持位置轮询推进。
+            if (lockScreenLyricsActive) {
+                val playerLocation = IntArray(2)
+                player.getLocationOnScreen(playerLocation)
+                KeyguardFullScreenLyricHooker.updateMediaCardTop(playerLocation[1])
+            }
+        }
         val notificationCenterActive = AodMediaLyricPolicy.isNotificationCenterLyricsActive(
             interactive = interactive,
             keyguardLocked = keyguardLocked,
@@ -1150,7 +1160,7 @@ object NotificationMediaAodLyricHooker {
             hasLyric = hasLyric,
             packageMatches = packageMatches,
             pauseStyle = textStyle.pauseStyle,
-            lockScreenLyrics = lockScreenLyricsActive,
+            lockScreenLyrics = lockScreenLyricsActive && !keyguardFullScreenLyrics,
             notificationCenter = notificationCenterActive,
         )
         val decisionReason = if (show) {
@@ -2390,6 +2400,34 @@ object NotificationMediaAodLyricHooker {
         )
         if (fullAodHeightId != 0) {
             backgroundSize.baseHeight = context.resources.getDimensionPixelSize(fullAodHeightId)
+        }
+        // 同一 player 可能被多个控制器实例共享（锁屏/通知中心各绑定一次），
+        // state 按控制器隔离会触发重复 createOverlay → 两个歌词 overlay 叠在同一
+        // 位置、错位渲染（歌词与翻译重叠）。挂载前先清理同 tag 的旧实例。
+        val staleOverlays = mutableListOf<View>()
+        val queue = ArrayDeque<View>()
+        queue.add(player)
+        var scanSteps = 0
+        while (queue.isNotEmpty() && scanSteps < 128) {
+            scanSteps++
+            val view = queue.removeFirst()
+            if (view !== player && view.tag == OVERLAY_TAG) {
+                staleOverlays.add(view)
+                continue
+            }
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) queue.add(view.getChildAt(index))
+            }
+        }
+        if (staleOverlays.isNotEmpty()) {
+            staleOverlays.forEach { stale ->
+                (stale.parent as? ViewGroup)?.removeView(stale)
+            }
+            HookLogger.w(
+                TAG,
+                "发现并清理重复的锁屏歌词 overlay: count=${staleOverlays.size}, " +
+                    "player=${player.javaClass.name}"
+            )
         }
         player.addView(root, params)
         val powerManager = context.getSystemService(PowerManager::class.java)

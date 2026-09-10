@@ -45,6 +45,8 @@
     <string name="title_lock_screen_lyrics">锁屏歌词</string>
     <string name="summary_lock_screen_lyrics">亮屏且停留在锁屏界面时，同样在锁屏媒体卡片下方显示歌词</string>
     <string name="title_lock_screen_lyrics_config">锁屏歌词</string>
+    <string name="title_keyguard_full_screen_lyrics">全屏滚动歌词</string>
+    <string name="summary_keyguard_full_screen_lyrics">在锁屏界面时钟与媒体卡片之间全屏滚动显示歌词与翻译（ColorOS 风格，需先开启锁屏歌词）</string>
     <string name="title_notification_center_lyrics">通知中心歌词</string>
     <string name="summary_notification_center_lyrics">解锁后下拉通知中心时，在媒体通知卡片下方显示歌词</string>
     <string name="title_island_expanded_lyrics">超级岛·展开态歌词</string>

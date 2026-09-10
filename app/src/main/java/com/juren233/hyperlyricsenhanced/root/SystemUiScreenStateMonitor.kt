@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import com.juren233.hyperlyricsenhanced.root.island.renderer.BaseIslandRenderer
+import com.juren233.hyperlyricsenhanced.root.mediacard.notification.KeyguardFullScreenLyricHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaAodLyricHooker
 import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
 import com.juren233.hyperlyricsenhanced.root.utils.MediaCardDiagnosticLogger
@@ -53,6 +54,7 @@ internal object SystemUiScreenStateMonitor {
                         )
                         HookLogger.d(TAG, "收到解锁事件，隐藏锁屏歌词覆盖层")
                         NotificationMediaAodLyricHooker.hideLockScreenOverlays()
+                        KeyguardFullScreenLyricHooker.hide()
                     }
                 }
             }

@@ -44,6 +44,8 @@
     <string name="title_lock_screen_lyrics">Lock Screen Lyrics</string>
     <string name="summary_lock_screen_lyrics">Also show lyrics below the lock screen media card while the screen is awake and the device is locked</string>
     <string name="title_lock_screen_lyrics_config">Lock Screen Lyrics</string>
+    <string name="title_keyguard_full_screen_lyrics">Full Screen Scrolling Lyrics</string>
+    <string name="summary_keyguard_full_screen_lyrics">Scroll lyrics and translations across the lock screen between the clock and the media card (ColorOS style, requires Lock Screen Lyrics)</string>
     <string name="title_notification_center_lyrics">Notification Center Lyrics</string>
     <string name="summary_notification_center_lyrics">Show lyrics below the media card when the notification center is pulled down while unlocked</string>
     <string name="title_island_expanded_lyrics">Super Island · Expanded Lyrics</string>
