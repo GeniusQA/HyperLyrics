@@ -159,6 +159,8 @@
     <string name="title_predictive_back">Predictive Back Gesture</string>
     <string name="title_floating_nav">Floating Navigation Bar</string>
     <string name="title_exclude_from_recents">Hide from Recents</string>
+    <string name="title_hide_launcher_icon">Hide Launcher Icon</string>
+    <string name="summary_hide_launcher_icon">Hides the module icon from the launcher. Reopen this app from the LSPosed module page</string>
     <string name="title_config_management">Configuration Management</string>
     <string name="title_backup">Backup</string>
     <string name="title_restore">Restore</string>

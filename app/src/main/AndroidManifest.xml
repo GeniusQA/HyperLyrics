@@ -49,13 +49,47 @@
             android:configChanges="locale|layoutDirection"
             android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
             </intent-filter>
         </activity>
+
+        <!-- 桌面入口别名（双 alias 互斥）：隐藏桌面图标 = 禁用 LauncherAlias 并启用
+             LauncherEntry（无图标但保持 LAUNCHER 组件存在，LSPosed 模块详情的打开按钮始终可用） -->
+        <activity-alias
+            android:name=".ui.LauncherAlias"
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:targetActivity=".ui.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <receiver
+            android:name=".ui.LauncherIconStateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 备用入口：隐藏桌面图标时启用，图标为透明占位（视觉隐藏但 LAUNCHER 组件
+             始终存在，LSPosed 模块详情右下角打开按钮始终可用） -->
+        <activity-alias
+            android:name=".ui.LauncherEntry"
+            android:label="@string/app_name"
+            android:icon="@drawable/ic_launcher_transparent"
+            android:targetActivity=".ui.MainActivity"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <service
             android:name=".service.LiveLyricService"
