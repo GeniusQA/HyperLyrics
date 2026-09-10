@@ -12,6 +12,7 @@ import com.juren233.hyperlyricsenhanced.lyric.model.interfaces.IRichLyricLine
 import com.juren233.hyperlyricsenhanced.lyric.view.SongPreprocessor
 import com.juren233.hyperlyricsenhanced.root.HookEntry
 import com.juren233.hyperlyricsenhanced.root.LyriconDataBridge
+import com.juren233.hyperlyricsenhanced.BuildConfig
 import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedInterface.Chain
@@ -101,15 +102,37 @@ object KeyguardFullScreenLyricHooker {
         val lyricView = KeyguardFullScreenLyricView(shadeWindow.context)
         lyricView.visibility = View.GONE
         try {
+            // 插到通知堆栈层（NotificationStackScrollLayout）之前：
+            // 位于各遮罩层（scrim）之上避免歌词被压暗，又不会遮挡时钟与通知卡片。
+            var insertIndex = shadeWindow.childCount
+            for (index in 0 until shadeWindow.childCount) {
+                if (shadeWindow.getChildAt(index).javaClass.name
+                        .contains("NotificationStackScrollLayout")
+                ) {
+                    insertIndex = index
+                    break
+                }
+            }
+            if (BuildConfig.DEBUG) {
+                for (index in 0 until shadeWindow.childCount) {
+                    val child = shadeWindow.getChildAt(index)
+                    HookLogger.i(
+                        TAG,
+                        "SHADE_LAYER_DUMP index=$index view=${child.javaClass.name} " +
+                            "id=${child.id} visibility=${child.visibility} " +
+                            "alpha=${child.alpha} hasBackground=${child.background != null}"
+                    )
+                }
+            }
             shadeWindow.addView(
                 lyricView,
-                0,
+                insertIndex,
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
                 )
             )
-            HookLogger.i(TAG, "全屏锁屏歌词视图已注入锁屏窗口底层")
+            HookLogger.i(TAG, "全屏锁屏歌词视图已注入锁屏窗口: insertIndex=$insertIndex")
         } catch (error: Throwable) {
             synchronized(shadeWindows) { shadeWindows.remove(shadeWindow) }
             HookLogger.e(TAG, "注入全屏锁屏歌词视图失败", error)
