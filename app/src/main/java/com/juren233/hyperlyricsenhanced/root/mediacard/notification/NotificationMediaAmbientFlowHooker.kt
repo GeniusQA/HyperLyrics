@@ -937,7 +937,7 @@ object NotificationMediaAmbientFlowHooker {
     private data class ControllerThemeState(val originalContext: Context)
 
     private fun newColorExecutor() = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "HyperLyrics Enhanced-MediaColor").apply { isDaemon = true }
+        Thread(task, "HyperLyrics-MediaColor").apply { isDaemon = true }
     }
 
     private class CardThemeApi private constructor(

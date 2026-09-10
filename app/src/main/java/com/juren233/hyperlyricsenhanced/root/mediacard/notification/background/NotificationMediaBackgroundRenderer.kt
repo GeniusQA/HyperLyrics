@@ -507,7 +507,7 @@ internal class NotificationMediaBackgroundRenderer(
             width, height, PixelFormat.RGBA_8888, 1,
             HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
         )
-        val node = RenderNode("HyperLyrics EnhancedMediaBlur")
+        val node = RenderNode("HyperLyricsMediaBlur")
         val renderer = HardwareRenderer()
         try {
             renderer.setSurface(reader.surface)
