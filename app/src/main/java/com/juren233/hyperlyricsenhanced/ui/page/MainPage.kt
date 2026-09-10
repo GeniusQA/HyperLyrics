@@ -184,7 +184,14 @@ fun MainPage() {
     var oneTapRefreshMusicApps by remember {
         mutableStateOf(emptyList<OneTapRefreshMusicApp>())
     }
-    var oneTapRefreshSelectedIds by remember { mutableStateOf(emptySet<String>()) }
+    var oneTapRefreshSelectedIds by remember {
+        mutableStateOf(
+            setOf(
+                OneTapRefreshSelectionPolicy.SYSTEM_UI_ID,
+                OneTapRefreshSelectionPolicy.ALL_MUSIC_APPS_ID,
+            )
+        )
+    }
     var pendingOneTapRefreshPackages by remember { mutableStateOf(emptyList<String>()) }
     var oneTapRefreshRootCheckSequence by remember { mutableLongStateOf(0L) }
     var showPermissionSheet by remember { mutableStateOf(false) }
@@ -697,7 +704,11 @@ fun MainPage() {
                         onClassicAodConfigClick = { navigator.navigate(Route.ClassicAodSettings) },
                         onLyricSettingsClick = { navigator.navigate(Route.LyricSettings) },
                         onRefreshClick = {
-                            oneTapRefreshSelectedIds = emptySet()
+                            // 每次打开对话框恢复默认勾选（系统界面 + 所有音乐App）
+                            oneTapRefreshSelectedIds = setOf(
+                                OneTapRefreshSelectionPolicy.SYSTEM_UI_ID,
+                                OneTapRefreshSelectionPolicy.ALL_MUSIC_APPS_ID,
+                            )
                             oneTapRefreshMusicApps =
                                 OneTapRefreshCatalog.installedMusicApps(context.packageManager)
                             oneTapRefreshHasRoot = null
