@@ -32,6 +32,8 @@ object RootConstants {
     const val KEY_HOOK_ENABLE_DYNAMIC_ISLAND = "key_hook_enable_dynamic_island"
     const val KEY_HOOK_ENABLE_AOD_LYRICS = "key_hook_enable_aod_lyrics"
     const val KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED = "key_hook_lock_screen_lyrics_enabled"
+    const val KEY_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED =
+        "key_hook_keyguard_full_screen_lyrics_enabled"
     const val KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED =
         "key_hook_notification_center_lyrics_enabled"
     const val KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED =
@@ -379,6 +381,7 @@ object RootConstants {
     const val DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND = false
     const val DEFAULT_HOOK_ENABLE_AOD_LYRICS = false
     const val DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED = false
+    const val DEFAULT_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED = false
     const val DEFAULT_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED = false
     const val DEFAULT_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED = false
     const val AOD_SONG_INFO_FORMAT_NONE = 0

@@ -21,6 +21,7 @@ import com.juren233.hyperlyricsenhanced.root.island.IslandWidthHooker
 import com.juren233.hyperlyricsenhanced.root.island.RealIslandHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaAmbientFlowHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.AodEnvironmentDiagnostics
+import com.juren233.hyperlyricsenhanced.root.mediacard.notification.KeyguardFullScreenLyricHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaAodLyricHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaCoverStyleHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.island.IslandExpandedLyricHooker
@@ -193,6 +194,7 @@ class HookEntry : XposedModule() {
         NotificationMediaAmbientFlowHooker.releaseAll()
         NotificationMediaAodLyricHooker.releaseAll()
         IslandExpandedLyricHooker.releaseAll()
+        KeyguardFullScreenLyricHooker.releaseAll()
         IslandProgressGlowController.clearAll()
         MediaBackgroundRendererPool.releaseAll()
         BaseIslandRenderer.clearAllViews()
@@ -263,6 +265,7 @@ class HookEntry : XposedModule() {
         if (packageName == "com.android.systemui") {
             NotificationMediaAodLyricHooker.hook(this, param.defaultClassLoader)
             IslandExpandedLyricHooker.hook(this, param.defaultClassLoader)
+            KeyguardFullScreenLyricHooker.hook(this, param.defaultClassLoader)
             if (!lyricsOnlyAfterHotReload) {
                 IslandExpandedMediaAmbientFlowHooker.hook(this, param.defaultClassLoader)
                 NotificationMediaAmbientFlowHooker.hook(this, param.defaultClassLoader)
@@ -497,6 +500,7 @@ class HookEntry : XposedModule() {
                     RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND,
                     RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS,
                     RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED,
+                    RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED,
                     RootConstants.KEY_HOOK_APPLE_MUSIC_NATIVE_ONLINE_TRANSLATION -> {

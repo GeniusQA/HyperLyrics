@@ -48,6 +48,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private data class AodSettingsSpec(
     val titleRes: Int,
+    val fullScreenLyricsKey: String? = null,
     val mainTextSizeKey: String,
     val backingTextSizeKey: String,
     val translationTextSizeKey: String,
@@ -123,6 +124,7 @@ fun LockScreenLyricsSettingsPage() {
     AodSettingsPage(
         spec = AodSettingsSpec(
             titleRes = R.string.title_lock_screen_lyrics,
+            fullScreenLyricsKey = RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED,
             mainTextSizeKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
             backingTextSizeKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_BACKING_TEXT_SIZE,
             translationTextSizeKey =
@@ -424,6 +426,16 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
     var showBackingTextSizeDialog by remember { mutableStateOf(false) }
     var showTranslationTextSizeDialog by remember { mutableStateOf(false) }
     var showSongInfoTextSizeDialog by remember { mutableStateOf(false) }
+    var fullScreenLyrics by remember(spec.fullScreenLyricsKey) {
+        mutableStateOf(
+            spec.fullScreenLyricsKey?.let {
+                prefs.getBoolean(
+                    it,
+                    RootConstants.DEFAULT_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED,
+                )
+            } ?: RootConstants.DEFAULT_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED
+        )
+    }
 
     NumberInputDialog(
         show = showMainTextSizeDialog,
@@ -544,6 +556,26 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
     )
 
     XposedLyricSettingPage(title = stringResource(spec.titleRes)) {
+        spec.fullScreenLyricsKey?.let { fullScreenLyricsKey ->
+            item(key = "keyguard_full_screen_lyrics") {
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp)
+                        .fillMaxWidth()
+                ) {
+                    SwitchPreference(
+                        title = stringResource(R.string.title_keyguard_full_screen_lyrics),
+                        summary = stringResource(R.string.summary_keyguard_full_screen_lyrics),
+                        checked = fullScreenLyrics,
+                        onCheckedChange = {
+                            fullScreenLyrics = it
+                            saveConfig(fullScreenLyricsKey, it)
+                        },
+                    )
+                }
+            }
+        }
         item(key = "aod_text_style") {
             SmallTitle(text = stringResource(R.string.title_text))
             Card(
