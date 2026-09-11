@@ -222,16 +222,9 @@ object OnlineLyricTargeter {
                 fallbackToOtherSources = fallbackToOtherSources,
             )
         }
+        // LRCLIB 不属于在线源（在线源只有 NE/QM/KUWO/KUGOU 四个平台），
+        // 仅在调用方显式传入 Source.LRCLIB（无 Provider 播放器的兜底内置 Provider）时使用。
         val sources = resolvedSourceOrder.mapNotNull(sourcesByType::get)
-            .let { list ->
-                // LRCLIB 作为内置兜底歌词源（仅歌词、无翻译）固定殿后：
-                // 四库全部未命中时提供歌词，缺失的翻译由补翻译链路向四源补齐。
-                if (list.none { it.sourceType == Source.LRCLIB }) {
-                    list + LyricApiProvider.lrclibSource
-                } else {
-                    list
-                }
-            }
         val searchedSourceTypes = resolvedSourceOrder.toSet()
         val statusOnlySources = statusSourceOrder
             ?.distinct()
@@ -1175,14 +1168,6 @@ object OnlineLyricTargeter {
             Source.LRCLIB to LyricApiProvider.lrclibSource,
         )
         val sources = sourceOrder.mapNotNull(sourcesByType::get)
-            .let { list ->
-                // 诊断附带 LRCLIB（内置兜底歌词源），便于页面展示其实际命中情况。
-                if (list.none { it.sourceType == Source.LRCLIB }) {
-                    list + LyricApiProvider.lrclibSource
-                } else {
-                    list
-                }
-            }
         if (sources.isEmpty() || title.isBlank()) return emptyList()
         val sanitized = sanitizeLyricSearchTitle(title, artist)
         val searchTitle = sanitized.value
