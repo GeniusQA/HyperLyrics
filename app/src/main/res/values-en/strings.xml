@@ -8,7 +8,7 @@
     <string name="app_description">在 HyperOS3 媒体超级岛与米系AOD上体验歌词，更有 Apple Music 专属体验优化</string>
     <string name="label_lyric_listener_service">Media Information Listener</string>
     <string name="label_lyric_enable_service">HyperLyrics Media Monitor</string>
-    <string name="provider_release_home">https://github.com/juren233/HLE-Providers</string>
+    <string name="provider_release_home">https://github.com/QuanTum2088/HyperLyrics-Providers</string>
 
     <string name="add">Add</string>
     <string name="github">GitHub</string>

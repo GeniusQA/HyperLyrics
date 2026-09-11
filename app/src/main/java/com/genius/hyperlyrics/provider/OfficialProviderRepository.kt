@@ -57,9 +57,9 @@ data class OfficialProviderUiState(
 
 object OfficialProviderRepository {
     private const val CATALOG_URL =
-        "https://raw.githubusercontent.com/juren233/HLE-Providers/main/catalog/catalog.json"
+        "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics-Providers/main/catalog/catalog.json"
     private const val CATALOG_SIGNATURE_URL =
-        "https://raw.githubusercontent.com/juren233/HLE-Providers/main/catalog/catalog.sig"
+        "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics-Providers/main/catalog/catalog.sig"
     private const val MAX_CATALOG_BYTES = 512 * 1024
     private const val MAX_PACK_BYTES = 16 * 1024 * 1024
 
@@ -271,10 +271,7 @@ object OfficialProviderRepository {
         require(uri.scheme == "https" && uri.host == "github.com") {
             "Provider 下载地址必须使用 GitHub HTTPS"
         }
-        require(
-            uri.path.startsWith("/juren233/HLE-Providers/releases/download/") ||
-                uri.path.startsWith("/QuanTum2088/HyperLyrics-Providers/releases/download/")
-        ) {
+        require(uri.path.startsWith("/QuanTum2088/HyperLyrics-Providers/releases/download/")) {
             "Provider 下载地址不属于官方仓库"
         }
     }
