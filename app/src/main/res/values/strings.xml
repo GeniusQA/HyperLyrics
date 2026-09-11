@@ -223,8 +223,8 @@
     <string name="title_lyric_provider">Lyricon配置</string>
     <string name="title_builtin_provider">内置 Provider</string>
     <string name="summary_builtin_apple_provider">HyperLyrics默认内置且不可移除</string>
-    <string name="summary_builtin_lrclib_provider">HyperLyrics内置兜底歌词源，所有播放器统一生效且不可移除</string>
-    <string name="detail_builtin_lrclib_provider">LRCLIB（lrclib.net）为开源歌词库，作为所有播放器统一的兜底歌词源：QQ音乐、网易云音乐、酷我音乐、酷狗音乐全部未命中时，由 LRCLIB 提供同步歌词（仅歌词、无翻译、无逐字）；命中后缺失的翻译会自动向四库补齐，仍无则岛上仅显示歌词。该能力始终启用，无需配置，不可移除。</string>
+    <string name="summary_builtin_lrclib_provider">HyperLyrics通用歌词源，所有播放器统一生效且不可移除</string>
+    <string name="detail_builtin_lrclib_provider">LRCLIB（lrclib.net）为开源歌词库，作为所有播放器统一的通用歌词源：QQ音乐、网易云音乐、酷我音乐、酷狗音乐全部未命中时，由 LRCLIB 提供同步歌词（仅歌词、无翻译、无逐字）；命中后缺失的翻译会自动向四库补齐，仍无则岛上仅显示歌词。该能力始终启用，无需配置，不可移除。</string>
     <string name="summary_builtin_youtube_music_provider">HyperLyrics内置提供器，歌词由在线歌词源补全</string>
     <string name="title_official_provider_plugins">已添加的插件</string>
     <string name="title_provider_downloads">未添加的插件</string>
@@ -233,6 +233,7 @@
     <string name="summary_legacy_provider_repository">独立 Provider 模块可以在无需词幕服务模块的情况下直接使用，但插件优先级更高，使用插件可获得针对性维护与更方便的使用体验</string>
     <string name="legacy_provider_release_home">https://github.com/tomakino/LyricProvider/releases</string>
     <string name="provider_status_builtin">内置</string>
+    <string name="provider_status_universal">通用</string>
     <string name="provider_catalog_loading">正在加载插件目录</string>
     <string name="provider_catalog_load_failed">插件目录加载失败</string>
     <string name="provider_status_processing">处理中…</string>
@@ -500,10 +501,10 @@
     <string name="title_online_translation_no_enabled_apps">暂无可启用的App</string>
     <string name="online_translation_help">查看在线源补全逻辑</string>
     <string name="title_online_translation_help_dialog">在线源补全逻辑</string>
-    <string name="summary_online_translation_help_dialog">平台来源按优先级依次匹配 QQ音乐、网易云音乐、酷我音乐、酷狗音乐；开启“自动选择最优来源”时会比较所有已启用来源，自动采用匹配质量最优的结果。此外内置兜底歌词源 LRCLIB 固定殿后：四库全部未命中时由它提供歌词（开源歌词库，仅歌词、无翻译），命中后缺失的翻译会自动向四库补齐。</string>
+    <string name="summary_online_translation_help_dialog">平台来源按优先级依次匹配 QQ音乐、网易云音乐、酷我音乐、酷狗音乐；开启“自动选择最优来源”时会比较所有已启用来源，自动采用匹配质量最优的结果。此外通用歌词源 LRCLIB 固定殿后：四库全部未命中时由它提供歌词（开源歌词库，仅歌词、无翻译），命中后缺失的翻译会自动向四库补齐。</string>
     <string name="title_online_translation_help_table_app">App</string>
     <string name="title_online_translation_help_table_content">在线源补全内容</string>
-    <string name="summary_online_translation_help_note">“仅翻译”指只补齐原歌词缺少的中文翻译或罗马音/拼音；“歌词、翻译”指在无歌词或允许在线取词时，整首从在线源获取歌词并带上翻译。歌词来自内置兜底源 LRCLIB 时岛上仅显示歌词，翻译会自动向四库补齐或暂缺。</string>
+    <string name="summary_online_translation_help_note">“仅翻译”指只补齐原歌词缺少的中文翻译或罗马音/拼音；“歌词、翻译”指在无歌词或允许在线取词时，整首从在线源获取歌词并带上翻译。歌词来自通用源 LRCLIB 时岛上仅显示歌词，翻译会自动向四库补齐或暂缺。</string>
     <string name="title_online_translation_salt_special_settings">特殊设置</string>
     <string name="title_online_translation_salt_prefer_online">椒盐音乐优先使用在线源</string>
     <string name="summary_online_translation_salt_prefer_online">开启时不再优先读取歌曲文件内置歌词与同目录中的歌词文件</string>

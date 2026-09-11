@@ -223,7 +223,7 @@ object OnlineLyricTargeter {
             )
         }
         // LRCLIB 不属于在线源（在线源只有 NE/QM/KUWO/KUGOU 四个平台），
-        // 仅在调用方显式传入 Source.LRCLIB（无 Provider 播放器的兜底内置 Provider）时使用。
+        // 仅在调用方显式传入 Source.LRCLIB（无 Provider 播放器的通用歌词源 Provider）时使用。
         val sources = resolvedSourceOrder.mapNotNull(sourcesByType::get)
         val searchedSourceTypes = resolvedSourceOrder.toSet()
         val statusOnlySources = statusSourceOrder
