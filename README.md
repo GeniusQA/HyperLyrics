@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/hyperlyrics-app-icon-rounded.png" alt="HyperLyrics Enhanced" width="160" />
+  <img src="assets/hyperlyrics-app-icon-rounded.png" alt="HyperLyrics" width="160" />
 </p>
 
-<h1 align="center">HyperLyrics Enhanced</h1>
+<h1 align="center">HyperLyrics</h1>
 
 <p align="center">
   <strong>面向 HyperOS 的 Apple Music 深度适配与系统级歌词展示增强工具</strong>
@@ -19,7 +19,7 @@
 
 ## 项目定位
 
-HyperLyrics Enhanced 是一个为小米 HyperOS 设备打造的 Android 模块与独立应用，也为其他安卓品牌手机提供 Apple Music 体验优化。
+HyperLyrics 是一个为小米 HyperOS 设备打造的 Android 模块与独立应用，也为其他安卓品牌手机提供 Apple Music 体验优化。
 
 - 将 Apple Music 的逐字歌词、翻译、伴唱和歌曲信息更完整地带入小米 HyperOS 的超级岛、媒体卡片与 AOD。
 - 将 Apple Music 体验进一步优化，且面向所有安卓品牌手机。
@@ -28,7 +28,7 @@ HyperLyrics Enhanced 是一个为小米 HyperOS 设备打造的 Android 模块�
 本项目基于 [limczhh/HyperLyric](https://github.com/limczhh/HyperLyric) 二次开发，现已形成独立的功能方向和维护边界。
 
 > [!WARNING]
-> HyperLyrics Enhanced 不是 HyperLyric 的官方后续版本。仅在本项目中出现的问题，请在本项目的 Issue 中反馈，不要打扰原项目维护者。
+> HyperLyrics 不是 HyperLyric 的官方后续版本。仅在本项目中出现的问题，请在本项目的 Issue 中反馈，不要打扰原项目维护者。
 
 ## 相较原项目的主要优化
 
@@ -66,7 +66,6 @@ HyperLyrics Enhanced 是一个为小米 HyperOS 设备打造的 Android 模块�
 
 - **息屏歌词**：提供两套 AOD 歌词路径——锁屏 AOD 与经典 AOD，播放时在息屏媒体卡片下方显示歌词。
 - **锁屏歌词**：亮屏且停留在锁屏界面时，同样在锁屏媒体卡片下方显示歌词，位置与息屏 AOD 一致。
-- **全屏滚动歌词**：可选开启 ColorOS 风格的全屏锁屏歌词——时钟与媒体卡片之间的整片区域滚动显示歌词与翻译，当前行高亮、其余行渐隐、边缘渐隐。
 - **通知中心歌词**：解锁后下拉通知中心时，在媒体通知卡片下方显示歌词与翻译。
 - **超级岛大岛歌词**：展开超级岛媒体大岛时，在卡片内进度条下方显示歌词与翻译，卡片高度自适应。
 - 三套场景均支持主句、伴唱、翻译、下一句歌词、对唱居中、暂停行为、下首歌曲预览和显示位置配置；息屏 AOD 下自动撑高卡片并保留原生操作按钮与进度条。
@@ -86,7 +85,7 @@ HyperLyrics Enhanced 是一个为小米 HyperOS 设备打造的 Android 模块�
 ### Xposed / LSPosed 模式
 
 1. 从本项目的 [Releases](https://github.com/juren233/HyperLyrics-Enhanced/releases) 下载并安装 APK。
-2. 在 LSPosed 中启用 HyperLyrics Enhanced，并勾选推荐作用域：
+2. 在 LSPosed 中启用 HyperLyrics，并勾选推荐作用域：
    - **核心系统组件**：
      - `com.android.systemui`
      - `miui.systemui.plugin`
