@@ -11,7 +11,7 @@
       "available": true,
       "versionName": "1.0.16",
       "versionCode": 19,
-      "assetUrl": "https://github.com/QuanTum2088/HyperLyrics/releases/download/netease-v1.0.16/netease-1.0.16.hlp",
+      "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/netease-1.0.16.hlp",
       "sha256": "2c41b011db70e09ac09635b96f0418221cb88a4c0a03d4188d99dbd8496ff409"
     },
     {
@@ -24,7 +24,7 @@
       "available": true,
       "versionName": "1.0.11",
       "versionCode": 12,
-      "assetUrl": "https://github.com/QuanTum2088/HyperLyrics/releases/download/qqmusic-v1.0.11/qqmusic-1.0.11.hlp",
+      "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/qqmusic-1.0.11.hlp",
       "sha256": "bfca2c0f2f19c2e84f59bd2b6a322aad1cca67c7d638625b286a7706a7ca3931"
     },
     {
@@ -37,7 +37,7 @@
       "available": true,
       "versionName": "1.0.13",
       "versionCode": 14,
-      "assetUrl": "https://github.com/QuanTum2088/HyperLyrics/releases/download/kugou-v1.0.13/kugou-1.0.13.hlp",
+      "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/kugou-1.0.13.hlp",
       "sha256": "6ffcad6bcf06083ed238a672e23df3f3e171311a613f62064835135b10dd3baf"
     },
     {
@@ -49,7 +49,7 @@
       "available": true,
       "versionName": "1.0.9",
       "versionCode": 10,
-      "assetUrl": "https://github.com/QuanTum2088/HyperLyrics/releases/download/kuwo-v1.0.9/kuwo-1.0.9.hlp",
+      "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/kuwo-1.0.9.hlp",
       "sha256": "297f8acae23d6ba13a449fcf7915ec32fdac7d38a109305f22f2bc64143366b0"
     },
     {
@@ -61,7 +61,7 @@
       "available": true,
       "versionName": "1.0.15",
       "versionCode": 16,
-      "assetUrl": "https://github.com/QuanTum2088/HyperLyrics/releases/download/spotify-v1.0.15/spotify-1.0.15.hlp",
+      "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/spotify-1.0.15.hlp",
       "sha256": "20fe5b1c84c2a777d737db69e3fed43980595e9edc86a65d4ee1e2b5429293fc"
     },
     {
@@ -91,7 +91,7 @@
       "available": true,
       "versionName": "1.0.11",
       "versionCode": 13,
-      "assetUrl": "https://github.com/QuanTum2088/HyperLyrics/releases/download/salt-player-v1.0.11/salt-player-1.0.11.hlp",
+      "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/salt-player-1.0.11.hlp",
       "sha256": "f797f41a694638ae73b68869682c09de4a30513231e14156e1b0e0f5aafe1b53"
     },
     {
@@ -103,7 +103,7 @@
       "available": true,
       "versionName": "1.0.2",
       "versionCode": 3,
-      "assetUrl": "https://github.com/QuanTum2088/HyperLyrics/releases/download/qishui-v1.0.2/qishui-1.0.2.hlp",
+      "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/qishui-1.0.2.hlp",
       "sha256": "a67f6b7df5f2a4a8376702cc643ce7f364f9b9be02c53d6c01fa67f05bfc3ad9"
     },
     {

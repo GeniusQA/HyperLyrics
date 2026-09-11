@@ -268,10 +268,10 @@ object OfficialProviderRepository {
 
     private fun validateAssetUrl(url: String) {
         val uri = URI(url)
-        require(uri.scheme == "https" && uri.host == "github.com") {
-            "Provider 下载地址必须使用 GitHub HTTPS"
+        require(uri.scheme == "https" && uri.host == "raw.githubusercontent.com") {
+            "Provider 下载地址必须使用 raw.githubusercontent.com HTTPS"
         }
-        require(uri.path.startsWith("/QuanTum2088/HyperLyrics/releases/download/")) {
+        require(uri.path.startsWith("/QuanTum2088/HyperLyrics/main/providers/")) {
             "Provider 下载地址不属于官方仓库"
         }
     }
