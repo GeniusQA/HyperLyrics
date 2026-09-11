@@ -92,7 +92,9 @@ object ProviderPackVerifier {
         }
         require(
             manifest.providerPackageName ==
-                OfficialProviderCatalog.OFFICIAL_PROVIDER_PACKAGE_PREFIX + manifest.pluginId
+                OfficialProviderCatalog.OFFICIAL_PROVIDER_PACKAGE_PREFIX + manifest.pluginId ||
+                manifest.providerPackageName ==
+                OfficialProviderCatalog.LEGACY_PROVIDER_PACKAGE_PREFIX + manifest.pluginId
         ) { "Provider 来源标识无效" }
 
         val definition = requireNotNull(
