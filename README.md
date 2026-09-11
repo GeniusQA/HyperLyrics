@@ -162,6 +162,6 @@ Release 构建需要在项目根目录提供 keystore.properties，或设置构�
 
 - [miuix-kmp](https://github.com/compose-miuix-ui/miuix)：HyperOS 风格 Compose 组件库。
 - [lyricon](https://github.com/tomakino/lyricon)：歌词订阅、数据模型和部分歌词动画基础。
-- [SuperLyric](https://github.com/HChenX/SuperLyric)
-- [LyricInfo](https://github.com/limczhh/LyricInfo)
-- [libxposed](https://github.com/libxposed/api)
+- [SuperLyric](https://github.com/HChenX/SuperLyric)：第三方歌词广播与跨应用歌词数据接口，用于接收其他音乐 App 暴露的逐字/逐行歌词。
+- [LyricInfo](https://github.com/limczhh/LyricInfo)：歌词数据源与 LyricInfo 格式解析基础。
+- [libxposed](https://github.com/libxposed/api)：本项目使用的 Xposed / LSPosed Hook 框架 API。
