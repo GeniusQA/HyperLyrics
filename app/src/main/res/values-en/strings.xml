@@ -229,6 +229,8 @@
     <string name="legacy_provider_release_home">https://github.com/tomakino/LyricProvider/releases</string>
     <string name="provider_status_builtin">Built in</string>
     <string name="provider_status_universal">Universal</string>
+    <string name="lyric_error_no_lyrics">No lyrics found</string>
+    <string name="lyric_error_no_translation">No lyric translation found</string>
     <string name="provider_catalog_loading">Loading the plugin catalog</string>
     <string name="provider_catalog_load_failed">Unable to load the plugin catalog</string>
     <string name="provider_status_processing">Processing…</string>

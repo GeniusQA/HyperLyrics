@@ -132,6 +132,15 @@ internal class SongPreprocessor(
     }
 
     private fun fillGap(song: Song): Song {
+        // 无歌词 / 翻译缺失时优先展示上游写入的报错文案，而不是“歌名 - 歌手”占位。
+        val errorMessage = song.metadata
+            ?.getString(LyricMetadataKeys.LYRIC_ERROR_MESSAGE)
+            ?.takeIf { it.isNotBlank() }
+        if (errorMessage != null) {
+            val d = if (song.duration > 0) song.duration else Long.MAX_VALUE
+            song.lyrics = mutableListOf(titleLine(d, d, errorMessage))
+            return song
+        }
         val title = songTitle(song) ?: return song
         val lyrics = song.lyrics?.toMutableList() ?: mutableListOf()
         if (lyrics.isEmpty()) {

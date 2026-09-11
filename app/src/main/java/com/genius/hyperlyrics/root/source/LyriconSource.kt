@@ -13,6 +13,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.lyric.AppleOriginalMetadataPolicy
 import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceInfo
@@ -1810,7 +1811,17 @@ class LyriconSource : LyricSource {
                                             "MetaData未命中歌词翻译: title=${baseSong.name}, " +
                                                 "player=$playerPackage",
                                         )
-                                        lrclibSong
+                                        // 命中歌词但四库补不到翻译：用报错占位替代歌词展示，
+                                        // 避免用户误以为翻译源工作正常。
+                                        lrclibSong.copy(
+                                            lyrics = null,
+                                            metadata = lyricMetadataOf(
+                                                LyricMetadataKeys.LYRIC_ERROR_MESSAGE to
+                                                    application.getString(
+                                                        R.string.lyric_error_no_translation,
+                                                    ),
+                                            ),
+                                        )
                                     } else {
                                         OnlineTranslationMatcher
                                             .apply(lrclibSong, translationLines)
@@ -1919,6 +1930,16 @@ class LyriconSource : LyricSource {
                 TAG,
                 "$missMessage, player=$activeCentralPlayerPackageName",
             )
+            // 未命中任何歌词：把报错信息写入歌曲区域占位，替代“歌名 - 歌手”。
+            val errorText = app?.getString(R.string.lyric_error_no_lyrics) ?: "未命中歌词"
+            val errorSong = baseSong.copy(
+                lyrics = null,
+                metadata = lyricMetadataOf(
+                    LyricMetadataKeys.LYRIC_ERROR_MESSAGE to errorText,
+                ),
+            )
+            currentPublishedThirdPartySong = errorSong
+            publishSong(errorSong, restorePosition = true)
             return
         }
         thirdPartyFallbackSongActive = true
