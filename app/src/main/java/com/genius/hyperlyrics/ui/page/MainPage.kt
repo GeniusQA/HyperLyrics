@@ -1,0 +1,845 @@
+@file:OptIn(ExperimentalScrollBarApi::class)
+
+package com.genius.hyperlyrics.ui.page
+
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import top.yukonga.miuix.kmp.basic.SnackbarDuration
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.overscroll
+import androidx.compose.foundation.rememberOverscrollEffect
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.withoutEventHandling
+import androidx.compose.foundation.withoutVisualEffect
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.edit
+import androidx.core.content.pm.PackageInfoCompat
+import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.common.ClassicAodSongInfoConfig
+import com.genius.hyperlyrics.common.UIConstants
+import com.genius.hyperlyrics.R
+import com.genius.hyperlyrics.common.PrefsBridge
+import com.genius.hyperlyrics.root.RootApplication
+import com.genius.hyperlyrics.ui.component.EnhancedVersionNotice
+import com.genius.hyperlyrics.utils.MigrationData
+import com.genius.hyperlyrics.utils.UpdateData
+import com.genius.hyperlyrics.root.utils.ShellUtils
+import com.genius.hyperlyrics.service.LiveLyricService
+import com.genius.hyperlyrics.ui.navigation.LocalNavigator
+import com.genius.hyperlyrics.ui.navigation.Route
+import com.genius.hyperlyrics.ui.utils.rememberBlurBackdrop
+import com.genius.hyperlyrics.ui.page.main.AboutPage
+import com.genius.hyperlyrics.ui.page.main.AboutHeroView
+import com.genius.hyperlyrics.ui.page.main.AboutHeroVisualState
+import com.genius.hyperlyrics.ui.page.main.AboutDebugLog
+import com.genius.hyperlyrics.ui.page.main.HomePage
+import com.genius.hyperlyrics.ui.page.hooksettings.AppleMusicOptimizationPage
+import com.genius.hyperlyrics.ui.page.main.OneTapRefreshCatalog
+import com.genius.hyperlyrics.ui.page.main.OneTapRefreshDialog
+import com.genius.hyperlyrics.ui.page.main.OneTapRefreshMusicApp
+import com.genius.hyperlyrics.ui.page.main.OneTapRefreshSelectionPolicy
+import com.genius.hyperlyrics.ui.page.main.rememberMainPagerState
+import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
+import top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.NavigationBar
+import top.yukonga.miuix.kmp.basic.NavigationBarItem
+import top.yukonga.miuix.kmp.basic.NavigationItem
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurColors
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.Music
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import top.yukonga.miuix.kmp.window.WindowDialog
+import androidx.core.net.toUri
+import java.io.BufferedReader
+import java.io.InputStreamReader
+
+@Composable
+fun MainPage() {
+    val context = LocalContext.current
+    val navigator = LocalNavigator.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val sheetSnackbarHostState = remember { SnackbarHostState() }
+    val availableUpdate by UpdateData.availableUpdate.collectAsState()
+
+    // --- pager ---
+    val pagerState = rememberPagerState(pageCount = { 3 })
+    val mainPagerState = rememberMainPagerState(pagerState)
+    val pagerOverscrollEffect = rememberOverscrollEffect()
+    val pagerOverscrollEvents = remember(pagerOverscrollEffect) {
+        pagerOverscrollEffect?.withoutVisualEffect()
+    }
+    val sharedOverscrollVisual = remember(pagerOverscrollEffect) {
+        pagerOverscrollEffect?.withoutEventHandling()
+    }
+    var aboutHeroVisualState by remember { mutableStateOf(AboutHeroVisualState()) }
+    LaunchedEffect(mainPagerState.pagerState.currentPage) {
+        mainPagerState.syncPage()
+    }
+
+    // --- toast messages ---
+    val msgPermissionGranted = stringResource(R.string.toast_permission_granted)
+    val msgPermissionDenied = stringResource(R.string.toast_permission_denied)
+    val msgOneTapRefreshNoRoot = stringResource(R.string.toast_one_tap_refresh_no_root)
+    val msgPermissionNotGranted = stringResource(R.string.toast_permission_not_granted)
+    val msgOpenSettingsFailed = stringResource(R.string.toast_open_settings_failed)
+    val msgXposedNotActive = stringResource(R.string.toast_xposed_module_not_active)
+
+    // --- prefs & state ---
+    val prefs = remember { context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE) }
+    var floatingNavBarEnabled by remember {
+        mutableStateOf(prefs.getBoolean(UIConstants.KEY_FLOATING_NAV_BAR, UIConstants.DEFAULT_FLOATING_NAV_BAR))
+    }
+    var enableSuperIsland by remember {
+        mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_SUPER_ISLAND))
+    }
+    var enableDynamicIsland by remember {
+        mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND))
+    }
+    var enableAodLyrics by remember {
+        mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, RootConstants.DEFAULT_HOOK_ENABLE_AOD_LYRICS))
+    }
+    var enableLockScreenLyrics by remember {
+        mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, RootConstants.DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED))
+    }
+    var removeFocusWhitelist by remember {
+        mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_REMOVE_FOCUS_WHITELIST, RootConstants.DEFAULT_HOOK_REMOVE_FOCUS_WHITELIST))
+    }
+    var removeIslandWhitelist by remember {
+        mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_REMOVE_ISLAND_WHITELIST, RootConstants.DEFAULT_HOOK_REMOVE_ISLAND_WHITELIST))
+    }
+
+    // --- dialogs ---
+    var showOneTapRefreshDialog by remember { mutableStateOf(false) }
+    var oneTapRefreshHasRoot by remember { mutableStateOf<Boolean?>(null) }
+    var oneTapRefreshMusicApps by remember {
+        mutableStateOf(emptyList<OneTapRefreshMusicApp>())
+    }
+    var oneTapRefreshSelectedIds by remember {
+        mutableStateOf(
+            setOf(
+                OneTapRefreshSelectionPolicy.SYSTEM_UI_ID,
+                OneTapRefreshSelectionPolicy.ALL_MUSIC_APPS_ID,
+            )
+        )
+    }
+    var pendingOneTapRefreshPackages by remember { mutableStateOf(emptyList<String>()) }
+    var oneTapRefreshRootCheckSequence by remember { mutableLongStateOf(0L) }
+    var showPermissionSheet by remember { mutableStateOf(false) }
+
+    // --- permission launcher ---
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            scope.launch {
+                sheetSnackbarHostState.showSnackbar(
+                    message = if (isGranted) msgPermissionGranted else msgPermissionDenied,
+                    duration = SnackbarDuration.Custom(2000L)
+                )
+            }
+        }
+    )
+
+    // --- pref listener ---
+    val listener = remember {
+        SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
+            when (key) {
+                UIConstants.KEY_FLOATING_NAV_BAR ->
+                    floatingNavBarEnabled = p.getBoolean(UIConstants.KEY_FLOATING_NAV_BAR, UIConstants.DEFAULT_FLOATING_NAV_BAR)
+                RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND ->
+                    enableSuperIsland = p.getBoolean(RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_SUPER_ISLAND)
+                RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND ->
+                    enableDynamicIsland = p.getBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND)
+                RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS ->
+                    enableAodLyrics = p.getBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, RootConstants.DEFAULT_HOOK_ENABLE_AOD_LYRICS)
+                RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED ->
+                    enableLockScreenLyrics = p.getBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, RootConstants.DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED)
+            }
+        }
+    }
+
+    DisposableEffect(prefs) {
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val hasListenerPermission = NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+        val isDynamicIslandEnabled = prefs.getBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND)
+        val isClassicAodSongInfoEnabled = prefs.getBoolean(
+            RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS,
+            RootConstants.DEFAULT_HOOK_ENABLE_AOD_LYRICS,
+        ) && ClassicAodSongInfoConfig.displayStyle(prefs) ==
+            RootConstants.AOD_SONG_INFO_DISPLAY_STYLE_FOCUS_NOTIFICATION
+        if (hasListenerPermission && (isDynamicIslandEnabled || isClassicAodSongInfoEnabled)) {
+            LiveLyricService.ensureListenerBound(context)
+        }
+    }
+
+    // --- system back ---
+    BackHandler(enabled = mainPagerState.selectedPage != 0) {
+        mainPagerState.animateToPage(0)
+    }
+
+    // --- callbacks (remembered for reference stability) ---
+    val toggleSuperIsland: (Boolean) -> Unit = remember { { isChecked ->
+        if (isChecked) {
+            if (RootApplication.xposedService != null) {
+                enableSuperIsland = true
+                prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND, true) }
+                PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND, true)
+            } else {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = msgXposedNotActive,
+                        duration = SnackbarDuration.Custom(2000L)
+                    )
+                }
+            }
+        } else {
+            enableSuperIsland = false
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND, false) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND, false)
+        }
+    } }
+
+    val toggleDynamicIsland: (Boolean) -> Unit = remember { { isChecked ->
+        if (isChecked) {
+            val hasPostNotification = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            val hasListenerPermission = NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+            if (hasPostNotification && hasListenerPermission) {
+                enableDynamicIsland = true
+                prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, true) }
+                PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, true)
+                LiveLyricService.ensureListenerBound(context)
+            } else {
+                showPermissionSheet = true
+            }
+        } else {
+            enableDynamicIsland = false
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, false) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, false)
+        }
+    } }
+
+    val toggleAodLyrics: (Boolean) -> Unit = remember { { checked ->
+        if (checked) {
+            if (RootApplication.xposedService != null) {
+                enableAodLyrics = true
+                prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, true) }
+                PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, true)
+            } else {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = msgXposedNotActive,
+                        duration = SnackbarDuration.Custom(2000L)
+                    )
+                }
+            }
+        } else {
+            enableAodLyrics = false
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, false) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, false)
+        }
+    } }
+
+    val toggleLockScreenLyrics: (Boolean) -> Unit = remember { { checked ->
+        if (checked) {
+            if (RootApplication.xposedService != null) {
+                enableLockScreenLyrics = true
+                prefs.edit { putBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, true) }
+                PrefsBridge.putBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, true)
+                LiveLyricService.ensureListenerBound(context)
+            } else {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = msgXposedNotActive,
+                        duration = SnackbarDuration.Custom(2000L)
+                    )
+                }
+            }
+        } else {
+            enableLockScreenLyrics = false
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, false) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED, false)
+        }
+    } }
+
+    val toggleRemoveFocusWhitelist: (Boolean) -> Unit = remember { { checked ->
+        if (checked) {
+            if (RootApplication.xposedService != null) {
+                removeFocusWhitelist = true
+                prefs.edit { putBoolean(RootConstants.KEY_HOOK_REMOVE_FOCUS_WHITELIST, true) }
+                PrefsBridge.putBoolean(RootConstants.KEY_HOOK_REMOVE_FOCUS_WHITELIST, true)
+            } else {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = msgXposedNotActive,
+                        duration = SnackbarDuration.Custom(2000L)
+                    )
+                }
+            }
+        } else {
+            removeFocusWhitelist = false
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_REMOVE_FOCUS_WHITELIST, false) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_REMOVE_FOCUS_WHITELIST, false)
+        }
+    } }
+
+    val toggleRemoveIslandWhitelist: (Boolean) -> Unit = remember { { checked ->
+        if (checked) {
+            if (RootApplication.xposedService != null) {
+                removeIslandWhitelist = true
+                prefs.edit { putBoolean(RootConstants.KEY_HOOK_REMOVE_ISLAND_WHITELIST, true) }
+                PrefsBridge.putBoolean(RootConstants.KEY_HOOK_REMOVE_ISLAND_WHITELIST, true)
+            } else {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = msgXposedNotActive,
+                        duration = SnackbarDuration.Custom(2000L)
+                    )
+                }
+            }
+        } else {
+            removeIslandWhitelist = false
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_REMOVE_ISLAND_WHITELIST, false) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_REMOVE_ISLAND_WHITELIST, false)
+        }
+    } }
+
+    val confirmPermissionSheet: () -> Unit = remember { {
+        val hasPostNotification = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val hasListenerPermission = NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+        if (hasPostNotification && hasListenerPermission) {
+            showPermissionSheet = false
+            enableDynamicIsland = true
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, true) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, true)
+            LiveLyricService.ensureListenerBound(context)
+        } else {
+            scope.launch {
+                sheetSnackbarHostState.showSnackbar(
+                    message = msgPermissionNotGranted,
+                    duration = SnackbarDuration.Custom(2000L)
+                )
+            }
+        }
+    } }
+
+    // --- migration check ---
+    var migrationNotes by remember { mutableStateOf<List<com.genius.hyperlyrics.utils.MigrationNote>>(emptyList()) }
+    var showMigrationDialog by remember { mutableStateOf(false) }
+    val migrationTitle = stringResource(R.string.migration_dialog_title)
+    LaunchedEffect(Unit) {
+        try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            val currentVersion = PackageInfoCompat.getLongVersionCode(pInfo)
+            val lastSeen = (prefs.all[UIConstants.KEY_LAST_SEEN_VERSION] as? Number)
+                ?.toLong()
+                ?: 0L
+            val matched = MigrationData.notesForUpgrade(
+                lastSeenVersionCode = lastSeen,
+                currentVersionCode = currentVersion,
+                currentVersionName = pInfo.versionName.orEmpty(),
+            )
+            if (matched.isNotEmpty()) {
+                migrationNotes = matched
+                showMigrationDialog = true
+            }
+        } catch (_: Exception) {}
+    }
+
+    // --- about page data ---
+    val aboutAppVersion: String? = remember {
+        try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            val versionName = pInfo.versionName ?: return@remember null
+            "$versionName-${PackageInfoCompat.getLongVersionCode(pInfo)}"
+        } catch (_: Exception) {
+            null
+        }
+    }
+    val aboutDeviceModel = remember { getSystemProperty("ro.product.marketname") ?: Build.MODEL }
+    val aboutDeviceName = remember(aboutDeviceModel) {
+        listOfNotNull(
+            runCatching {
+                Settings.Global.getString(context.contentResolver, "device_name")
+            }.getOrNull(),
+            getSystemProperty("persist.private.device_name"),
+            getSystemProperty("persist.sys.device_name"),
+        ).firstOrNull { it.isNotBlank() } ?: aboutDeviceModel
+    }
+    val aboutOsVersion = remember { getSystemProperty("ro.build.version.incremental") ?: Build.DISPLAY }
+    val aboutAndroidVersion = Build.VERSION.RELEASE
+
+    // --- nav items ---
+    val homeLabel = stringResource(R.string.home)
+    val appleMusicOptimizationLabel = stringResource(R.string.apple_music_optimization_nav)
+    val aboutLabel = stringResource(R.string.about)
+    val navItems = remember(homeLabel, appleMusicOptimizationLabel, aboutLabel) {
+        listOf(
+            NavigationItem(homeLabel, MiuixIcons.Settings),
+            NavigationItem(appleMusicOptimizationLabel, MiuixIcons.Music),
+            NavigationItem(aboutLabel, MiuixIcons.Info),
+        )
+    }
+
+    // --- outer backdrop (bottom bar blur) ---
+    val outerBackdrop = rememberBlurBackdrop()
+    val outerBlurActive = outerBackdrop != null
+    val outerBarColor = if (outerBlurActive) Color.Transparent else MiuixTheme.colorScheme.surface
+    val appName = stringResource(R.string.app_name)
+    val darkMode = isSystemInDarkTheme()
+    val aboutPageIndex = 2
+    val aboutPageOffsetFraction =
+        (pagerState.currentPage - aboutPageIndex + pagerState.currentPageOffsetFraction)
+            .coerceIn(-1f, 1f)
+    val aboutPageInvolved = aboutPageOffsetFraction > -0.999f ||
+        pagerState.currentPage == aboutPageIndex ||
+        pagerState.settledPage == aboutPageIndex ||
+        pagerState.targetPage == aboutPageIndex
+    val aboutHeroEntryAlpha = if (
+        pagerState.settledPage == aboutPageIndex - 1 && aboutPageOffsetFraction < 0f
+    ) {
+        (1f + aboutPageOffsetFraction).coerceIn(0f, 1f)
+    } else {
+        1f
+    }
+    SideEffect {
+        AboutDebugLog.pager(
+            active = aboutPageInvolved,
+            offsetFraction = aboutPageOffsetFraction,
+            currentPage = pagerState.currentPage,
+            settledPage = pagerState.settledPage,
+            targetPage = pagerState.targetPage,
+            involved = aboutPageInvolved,
+            entryAlpha = aboutHeroEntryAlpha,
+        )
+    }
+
+    // --- dialogs at outer level ---
+    OneTapRefreshDialog(
+        show = showOneTapRefreshDialog,
+        hasRootAccess = oneTapRefreshHasRoot,
+        musicApps = oneTapRefreshMusicApps,
+        selectedIds = oneTapRefreshSelectedIds,
+        onToggle = { targetId ->
+            oneTapRefreshSelectedIds = OneTapRefreshSelectionPolicy.toggle(
+                selectedIds = oneTapRefreshSelectedIds,
+                targetId = targetId,
+                musicAppIds = oneTapRefreshMusicApps
+                    .mapTo(linkedSetOf(), OneTapRefreshMusicApp::packageName),
+            )
+        },
+        onDismiss = { showOneTapRefreshDialog = false },
+        onDismissFinished = {
+            val selectedPackages = pendingOneTapRefreshPackages
+            pendingOneTapRefreshPackages = emptyList()
+            if (selectedPackages.isNotEmpty()) {
+                scope.launch {
+                    val success = ShellUtils.killAppProcesses(selectedPackages)
+                    if (!success) {
+                        snackbarHostState.showSnackbar(
+                            message = msgOneTapRefreshNoRoot,
+                            duration = SnackbarDuration.Custom(2000L),
+                        )
+                    }
+                }
+            }
+        },
+        onConfirm = {
+            val selectedPackages = OneTapRefreshSelectionPolicy.selectedPackages(
+                selectedIds = oneTapRefreshSelectedIds,
+                musicApps = oneTapRefreshMusicApps,
+            )
+            if (selectedPackages.isNotEmpty()) {
+                pendingOneTapRefreshPackages = selectedPackages
+                showOneTapRefreshDialog = false
+            }
+        },
+    )
+
+    // --- migration dialog ---
+    WindowDialog(
+        title = migrationTitle,
+        show = showMigrationDialog,
+        onDismissRequest = {},
+        onDismissFinished = { migrationNotes = emptyList() },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            EnhancedVersionNotice(modifier = Modifier.fillMaxWidth())
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    migrationNotes.flatMap { it.items }.forEach { item ->
+                        if (item.url != null) {
+                            BasicComponent(
+                                title = item.text,
+                                summary = item.summary,
+                                onClick = {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, item.url.toUri()))
+                                }
+                            )
+                        } else {
+                            BasicComponent(title = item.text, summary = item.summary)
+                        }
+                    }
+                }
+            }
+            TextButton(
+                text = stringResource(R.string.confirm),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                    val currentVersion = PackageInfoCompat.getLongVersionCode(pInfo)
+                    prefs.edit { putLong(UIConstants.KEY_LAST_SEEN_VERSION, currentVersion) }
+                    showMigrationDialog = false
+                }
+            )
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(state = snackbarHostState) },
+        modifier = Modifier.fillMaxSize(),
+        bottomBar = {
+            AnimatedVisibility(
+                visible = !floatingNavBarEnabled,
+                enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .then(
+                            if (outerBlurActive) {
+                                Modifier.textureBlur(
+                                    backdrop = outerBackdrop,
+                                    shape = RectangleShape,
+                                    blurRadius = 25f,
+                                    colors = BlurColors(
+                                        blendColors = listOf(
+                                            BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(0.8f)),
+                                        ),
+                                    ),
+                                )
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .background(outerBarColor)
+                ) {
+                    NavigationBar(color = outerBarColor
+                    ) {
+                        navItems.forEachIndexed { index, item ->
+                            NavigationBarItem(
+                                selected = mainPagerState.selectedPage == index,
+                                onClick = { mainPagerState.animateToPage(index) },
+                                icon = item.icon,
+                                label = item.label
+                            )
+                        }
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = floatingNavBarEnabled,
+                enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
+            ) {
+                val floatingBarColor = if (outerBlurActive) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
+                val floatingBarShape = RoundedCornerShape(FloatingToolbarDefaults.CornerRadius)
+                val isDark = isSystemInDarkTheme()
+                val floatingHighlight = remember(isDark) {
+                    if (isDark) Highlight.GlassStrokeSmallDark else Highlight.GlassStrokeSmallLight
+                }
+                FloatingNavigationBar(
+                    modifier = (if (outerBlurActive) {
+                        Modifier
+                            .textureBlur(
+                                backdrop = outerBackdrop,
+                                shape = floatingBarShape,
+                                blurRadius = 25f,
+                                colors = BlurColors(
+                                    blendColors = listOf(
+                                        BlendColorEntry(color = MiuixTheme.colorScheme.surfaceContainer.copy(0.6f)),
+                                    ),
+                                ),
+                                highlight = floatingHighlight,
+                            )
+                    } else {
+                        Modifier
+                    }).padding(horizontal = 12.dp),
+                    color = floatingBarColor,
+                ) {
+                    navItems.forEachIndexed { index, item ->
+                        FloatingNavigationBarItem(
+                            selected = mainPagerState.selectedPage == index,
+                            onClick = { mainPagerState.animateToPage(index) },
+                            icon = item.icon,
+                            label = item.label
+                        )
+                        if (index < navItems.size - 1) {
+                            Spacer(Modifier.width(12.dp))
+                        }
+                    }
+                }
+            }
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = (if (outerBackdrop != null) Modifier.layerBackdrop(outerBackdrop) else Modifier)
+                .clipToBounds()
+                .overscroll(sharedOverscrollVisual),
+        ) {
+            AndroidView(
+                factory = { context -> AboutHeroView(context) },
+                update = { view ->
+                    view.bind(appName, darkMode)
+                    view.updateVisualState(
+                        active = aboutPageInvolved,
+                        backgroundAlpha = aboutHeroVisualState.backgroundAlpha,
+                        logoAlpha = aboutHeroVisualState.logoAlpha * aboutHeroEntryAlpha,
+                        logoScale = aboutHeroVisualState.logoScale,
+                        scrollOffsetPx = aboutHeroVisualState.scrollOffsetPx,
+                        pageOffsetFraction = aboutPageOffsetFraction,
+                    )
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.imePadding(),
+                beyondViewportPageCount = 1,
+                verticalAlignment = Alignment.Top,
+                overscrollEffect = pagerOverscrollEvents,
+            ) { page ->
+                if (page == 0) {
+                    HomePage(
+                        outerPadding = innerPadding,
+                        availableUpdateVersion = availableUpdate?.displayVersion,
+                        enableSuperIsland = enableSuperIsland,
+                        onSuperIslandToggle = toggleSuperIsland,
+                        enableDynamicIsland = enableDynamicIsland,
+                        onDynamicIslandToggle = toggleDynamicIsland,
+                        enableAodLyrics = enableAodLyrics,
+                        onAodLyricsToggle = toggleAodLyrics,
+                        enableLockScreenLyrics = enableLockScreenLyrics,
+                        onLockScreenLyricsToggle = toggleLockScreenLyrics,
+                        onSuperIslandConfigClick = { navigator.navigate(Route.HookSettings) },
+                        onMediaCardConfigClick = { navigator.navigate(Route.MediaCardSettings) },
+                        onDynamicIslandConfigClick = { navigator.navigate(Route.DynamicIslandNotification) },
+                        onLockScreenAodConfigClick = { navigator.navigate(Route.LockScreenAodSettings) },
+                        onLockScreenLyricsConfigClick = { navigator.navigate(Route.LockScreenLyricsSettings) },
+                        onClassicAodConfigClick = { navigator.navigate(Route.ClassicAodSettings) },
+                        onLyricSettingsClick = { navigator.navigate(Route.LyricSettings) },
+                        onRefreshClick = {
+                            // 每次打开对话框恢复默认勾选（系统界面 + 所有音乐App）
+                            oneTapRefreshSelectedIds = setOf(
+                                OneTapRefreshSelectionPolicy.SYSTEM_UI_ID,
+                                OneTapRefreshSelectionPolicy.ALL_MUSIC_APPS_ID,
+                            )
+                            oneTapRefreshMusicApps =
+                                OneTapRefreshCatalog.installedMusicApps(context.packageManager)
+                            oneTapRefreshHasRoot = null
+                            showOneTapRefreshDialog = true
+                            val rootCheckSequence = oneTapRefreshRootCheckSequence + 1L
+                            oneTapRefreshRootCheckSequence = rootCheckSequence
+                            scope.launch {
+                                val hasRootAccess = ShellUtils.hasRootAccess()
+                                if (oneTapRefreshRootCheckSequence == rootCheckSequence) {
+                                    oneTapRefreshHasRoot = hasRootAccess
+                                }
+                            }
+                        },
+                        removeFocusWhitelist = removeFocusWhitelist,
+                        onRemoveFocusWhitelistToggle = toggleRemoveFocusWhitelist,
+                        removeIslandWhitelist = removeIslandWhitelist,
+                        onRemoveIslandWhitelistToggle = toggleRemoveIslandWhitelist,
+                        onAppSettingsClick = { navigator.navigate(Route.Settings) },
+                    )
+                } else if (page == 1) {
+                    AppleMusicOptimizationPage(
+                        outerPadding = innerPadding,
+                        showNavigationIcon = false,
+                    )
+                } else {
+                    AboutPage(
+                        outerPadding = innerPadding,
+                        aboutAppVersion = aboutAppVersion,
+                        availableUpdateVersion = availableUpdate?.displayVersion,
+                        aboutDeviceName = aboutDeviceName,
+                        aboutDeviceModel = aboutDeviceModel,
+                        aboutOsVersion = aboutOsVersion,
+                        aboutAndroidVersion = aboutAndroidVersion,
+                        onHelpClick = { navigator.navigate(Route.Help) },
+                        onLicensesClick = { navigator.navigate(Route.Licenses) },
+                        onChangelogClick = { navigator.navigate(Route.Changelog) },
+                        onContributorsClick = { navigator.navigate(Route.Contributors) },
+                        onHeroStateChanged = { state ->
+                            if (aboutHeroVisualState != state) {
+                                aboutHeroVisualState = state
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    WindowBottomSheet(
+        show = showPermissionSheet,
+        title = stringResource(R.string.sheet_permission_title),
+        allowDismiss = false,
+        backgroundColor = MiuixTheme.colorScheme.surface,
+        startAction = {
+            IconButton(onClick = { showPermissionSheet = false }) {
+                Icon(
+                    imageVector = MiuixIcons.Close,
+                    contentDescription = stringResource(R.string.close),
+                    tint = MiuixTheme.colorScheme.onBackground
+                )
+            }
+        },
+        endAction = {
+            IconButton(onClick = confirmPermissionSheet) {
+                Icon(
+                    imageVector = MiuixIcons.Ok,
+                    contentDescription = stringResource(R.string.confirm),
+                    tint = MiuixTheme.colorScheme.onBackground
+                )
+            }
+        },
+        onDismissRequest = { showPermissionSheet = false }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .layout { measurable, constraints ->
+                    val paddingPx = 24.dp.roundToPx()
+                    val placeable = measurable.measure(
+                        constraints.copy(maxWidth = constraints.maxWidth + paddingPx * 2)
+                    )
+                    layout(constraints.maxWidth, placeable.height) {
+                        placeable.place(-paddingPx, 0)
+                    }
+                }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 40.dp)
+            ) {
+                Card(modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth()) {
+                    ArrowPreference(
+                        title = stringResource(R.string.title_permission_post_notification),
+                        onClick = { notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.title_permission_listener),
+                        onClick = {
+                            try {
+                                val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                scope.launch {
+                                    sheetSnackbarHostState.showSnackbar(
+                                        message = msgOpenSettingsFailed,
+                                        duration = SnackbarDuration.Custom(2000L)
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+            SnackbarHost(
+                state = sheetSnackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+    }
+}
+
+/** 读取只读系统属性，获取失败时交由上层选择回退值。 */
+private fun getSystemProperty(key: String): String? {
+    return try {
+        val process = Runtime.getRuntime().exec("getprop $key")
+        BufferedReader(InputStreamReader(process.inputStream)).use {
+            val line = it.readLine()
+            if (line.isNullOrEmpty()) null else line
+        }
+    } catch (_: Exception) {
+        null
+    }
+}

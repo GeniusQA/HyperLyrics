@@ -1,0 +1,96 @@
+package com.genius.hyperlyrics.ui.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.ui.NavDisplay
+import com.genius.hyperlyrics.ui.page.MainPage
+import com.genius.hyperlyrics.ui.page.SetupPage
+import com.genius.hyperlyrics.ui.page.LicensesPage
+import com.genius.hyperlyrics.ui.page.LogPage
+import com.genius.hyperlyrics.ui.page.SettingsPage
+import com.genius.hyperlyrics.ui.page.PoetryPage
+import com.genius.hyperlyrics.ui.page.HookSettingsPage
+import com.genius.hyperlyrics.ui.page.hooksettings.LyricProviderPage
+import com.genius.hyperlyrics.ui.page.hooksettings.OfficialProviderDownloadPage
+import com.genius.hyperlyrics.ui.page.hooksettings.LyricAnimationPage
+import com.genius.hyperlyrics.ui.page.hooksettings.LyricSettingsPage
+import com.genius.hyperlyrics.ui.page.hooksettings.OnlineTranslationSourcesPage
+import com.genius.hyperlyrics.ui.page.hooksettings.AppleMusicOptimizationPage
+import com.genius.hyperlyrics.ui.page.hooksettings.SuperIslandSettingsPage
+import com.genius.hyperlyrics.ui.page.hooksettings.SuperIslandAlbumCoverWhitelistPage
+import com.genius.hyperlyrics.ui.page.hooksettings.media.MediaCardSettingsPage
+import com.genius.hyperlyrics.ui.page.hooksettings.aod.ClassicAodSettingsPage
+import com.genius.hyperlyrics.ui.page.hooksettings.aod.LockScreenAodSettingsPage
+import com.genius.hyperlyrics.ui.page.hooksettings.aod.LockScreenLyricsSettingsPage
+import com.genius.hyperlyrics.ui.page.hooksettings.aod.NotificationCenterLyricsSettingsPage
+import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.display.LyricDisplayPage
+import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.scroll.LyricScrollPage
+import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.translation.LyricTranslationPage
+import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.verbatim.VerbatimLyricPage
+import com.genius.hyperlyrics.ui.page.DynamicIslandNotificationPage
+import com.genius.hyperlyrics.ui.page.HelpPage
+import com.genius.hyperlyrics.ui.page.ChangelogPage
+import com.genius.hyperlyrics.ui.page.ContributorsPage
+
+@Composable
+fun AppNavigation(startRoute: Route) {
+    val backStack = rememberNavBackStack(startRoute)
+    val navigator = remember { Navigator(backStack) }
+
+    CompositionLocalProvider(LocalNavigator provides navigator) {
+        val entryProvider = remember(backStack) {
+            entryProvider<NavKey> {
+                entry<Route.Setup> {
+                    SetupPage(onNavigateToMain = {
+                        navigator.popUpTo(Route.Setup, inclusive = true)
+                        navigator.navigate(Route.Main)
+                    })
+                }
+                entry<Route.Main> { MainPage() }
+                
+                entry<Route.Settings> { SettingsPage() }
+                entry<Route.HookSettings> { HookSettingsPage() }
+                entry<Route.AppleMusicOptimization> { AppleMusicOptimizationPage() }
+                entry<Route.LyricProvider> { LyricProviderPage() }
+                entry<Route.LyricProviderDownloads> { OfficialProviderDownloadPage() }
+                entry<Route.LyricAnimation> { LyricAnimationPage() }
+                entry<Route.LyricSettings> { LyricSettingsPage() }
+                entry<Route.OnlineTranslationSources> { OnlineTranslationSourcesPage() }
+                entry<Route.LyricDisplay> { LyricDisplayPage() }
+                entry<Route.LyricScroll> { LyricScrollPage() }
+                entry<Route.VerbatimLyric> { VerbatimLyricPage() }
+                entry<Route.LyricTranslation> { LyricTranslationPage() }
+                entry<Route.SuperIslandSettings> { SuperIslandSettingsPage() }
+                entry<Route.SuperIslandAlbumCoverWhitelist> { SuperIslandAlbumCoverWhitelistPage() }
+                entry<Route.MediaCardSettings> { MediaCardSettingsPage() }
+                entry<Route.LockScreenAodSettings> { LockScreenAodSettingsPage() }
+                entry<Route.LockScreenLyricsSettings> { LockScreenLyricsSettingsPage() }
+                entry<Route.NotificationCenterLyricsSettings> { NotificationCenterLyricsSettingsPage() }
+                entry<Route.ClassicAodSettings> { ClassicAodSettingsPage() }
+                entry<Route.DynamicIslandNotification> { DynamicIslandNotificationPage() }
+                entry<Route.Log> { LogPage() }
+                entry<Route.Licenses> { LicensesPage() }
+                entry<Route.Poetry> { PoetryPage() }
+                entry<Route.Help> { HelpPage() }
+                entry<Route.Changelog> { ChangelogPage() }
+                entry<Route.Contributors> { ContributorsPage() }
+            }
+        }
+        val entries = rememberDecoratedNavEntries(
+            backStack = backStack, 
+            entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator()),
+            entryProvider = entryProvider
+        )
+        
+        NavDisplay(
+            entries = entries,
+            onBack = { navigator.pop() }
+        )
+    }
+}

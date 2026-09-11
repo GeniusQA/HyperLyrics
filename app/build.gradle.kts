@@ -34,12 +34,12 @@ val hasReleaseSigning = listOf(
 val ciVersionName = providers.gradleProperty("ciVersionName").orNull
 
 android {
-    namespace = "com.juren233.hyperlyricsenhanced"
+    namespace = "com.genius.hyperlyrics"
     compileSdk = 37
     // 使用本机已完整安装的 Build-Tools 37；36.0.0 曾因下载损坏只剩空壳，已清理。
     buildToolsVersion = "37.0.0"
     defaultConfig {
-        // applicationId 与上游仓库区分；namespace/源码包名保持不变（无需重构包目录）
+        // applicationId 与 namespace/源码包名统一为独立发布线 com.genius.hyperlyrics
         applicationId = "com.genius.hyperlyrics"
         minSdk = 33
         targetSdk = 37

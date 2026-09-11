@@ -1,0 +1,7 @@
+package com.genius.hyperlyrics.common
+
+object PreferenceKeys {
+    const val PREF_NAME = "com.genius.hyperlyrics_preferences"
+    const val KEY_LOG_LEVEL = "key_log_level"
+    const val DEFAULT_LOG_LEVEL = LogLevelPolicy.LEVEL_NORMAL
+}

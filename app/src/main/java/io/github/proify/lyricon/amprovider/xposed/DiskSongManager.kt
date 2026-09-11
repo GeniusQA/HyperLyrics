@@ -10,7 +10,7 @@ import android.content.Context
 import io.github.proify.extensions.deflate
 import io.github.proify.extensions.inflate
 import io.github.proify.extensions.json
-import com.juren233.hyperlyricsenhanced.lyric.model.Song
+import com.genius.hyperlyrics.lyric.model.Song
 import io.github.proify.lyricon.amprovider.xposed.model.AppleSong
 import kotlinx.serialization.ExperimentalSerializationApi
 import java.io.File

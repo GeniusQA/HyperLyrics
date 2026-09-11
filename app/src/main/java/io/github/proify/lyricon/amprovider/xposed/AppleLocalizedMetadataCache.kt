@@ -201,7 +201,7 @@ internal class AppleLocalizedMetadataCache(
     }
 
     private companion object {
-        const val DATABASE_NAME = "hyperlyricsenhanced_apple_metadata.db"
+        const val DATABASE_NAME = "hyperlyrics_apple_metadata.db"
         const val DATABASE_VERSION = 1
         const val TABLE_NAME = "localized_metadata"
         const val COLUMN_KEY = "cache_key"

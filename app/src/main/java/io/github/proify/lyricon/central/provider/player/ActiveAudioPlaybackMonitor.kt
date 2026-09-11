@@ -9,8 +9,8 @@ package io.github.proify.lyricon.central.provider.player
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.root.utils.HookLogger
 
 /**
  * Answers whether another application is verifiably producing media audio.

@@ -1,9 +1,9 @@
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.lyric.model.RichLyricLine
-import com.juren233.hyperlyricsenhanced.lyric.model.Song
-import com.juren233.hyperlyricsenhanced.lyric.model.lyricMetadataOf
-import com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys
+import com.genius.hyperlyrics.lyric.model.RichLyricLine
+import com.genius.hyperlyrics.lyric.model.Song
+import com.genius.hyperlyrics.lyric.model.lyricMetadataOf
+import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

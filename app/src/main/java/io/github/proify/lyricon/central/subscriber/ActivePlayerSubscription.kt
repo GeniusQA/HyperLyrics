@@ -11,8 +11,8 @@ import android.os.SystemClock
 import android.os.Parcel
 import android.system.OsConstants
 import android.util.Log
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.root.utils.HookLogger
 import io.github.proify.lyricon.central.json
 import io.github.proify.lyricon.central.provider.player.ActivePlayerListener
 import io.github.proify.lyricon.lyric.model.Song

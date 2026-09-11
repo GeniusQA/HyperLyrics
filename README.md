@@ -5,7 +5,7 @@
 <h1 align="center">HyperLyrics</h1>
 
 <p align="center">
-  <strong>面向 HyperOS 的 Apple Music 深度适配与系统级歌词展示增强工具</strong>
+  <strong>面向 HyperOS 3/4 Apple Music 深度适配与系统级歌词LsPosed模块</strong>
 </p>
 
 <p align="center">
@@ -24,11 +24,6 @@ HyperLyrics 是一个为小米 HyperOS 设备打造的 Android 模块与独立�
 - 将 Apple Music 的逐字歌词、翻译、伴唱和歌曲信息更完整地带入小米 HyperOS 的超级岛、媒体卡片与 AOD。
 - 将 Apple Music 体验进一步优化，且面向所有安卓品牌手机。
 - 内置 Lyricon Central 调度中枢与官方 Provider 插件中心，无缝兼容支持网易云音乐、QQ 音乐、Spotify 等其他主流播放器。
-
-本项目基于 [limczhh/HyperLyric](https://github.com/limczhh/HyperLyric) 二次开发，现已形成独立的功能方向和维护边界。
-
-> [!WARNING]
-> HyperLyrics 不是 HyperLyric 的官方后续版本。仅在本项目中出现的问题，请在本项目的 Issue 中反馈，不要打扰原项目维护者。
 
 ## 相较原项目的主要优化
 
@@ -84,7 +79,7 @@ HyperLyrics 是一个为小米 HyperOS 设备打造的 Android 模块与独立�
 
 ### Xposed / LSPosed 模式
 
-1. 从本项目的 [Releases](https://github.com/juren233/HyperLyrics-Enhanced/releases) 下载并安装 APK。
+1. 从本项目的 [Releases](https://github.com/QuanTum2088/HyperLyrics/releases) 下载并安装 APK。
 2. 在 LSPosed 中启用 HyperLyrics，并勾选推荐作用域：
    - **核心系统组件**：
      - `com.android.systemui`
@@ -165,11 +160,8 @@ Release 构建需要在项目根目录提供 keystore.properties，或设置构�
 
 感谢以下项目和贡献者：
 
-- [HyperLyric](https://github.com/limczhh/HyperLyric)：本项目的基础项目，原有能力和上游贡献仍归原作者及其贡献者。
 - [miuix-kmp](https://github.com/compose-miuix-ui/miuix)：HyperOS 风格 Compose 组件库。
 - [lyricon](https://github.com/tomakino/lyricon)：歌词订阅、数据模型和部分歌词动画基础。
 - [SuperLyric](https://github.com/HChenX/SuperLyric)
 - [LyricInfo](https://github.com/limczhh/LyricInfo)
 - [libxposed](https://github.com/libxposed/api)
-
-请在提交 Issue 或 Pull Request 时保留相关上游项目、第三方库和原作者的归属信息。

@@ -9,8 +9,8 @@ package io.github.proify.lyricon.amprovider.xposed.hooks
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.SystemClock
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.common.RootConstants
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.common.RootConstants
 import io.github.proify.lyricon.amprovider.xposed.AppleContentHttpTimingTracker
 import io.github.proify.lyricon.amprovider.xposed.AppleInternalCatalogResolver
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicHookPoint

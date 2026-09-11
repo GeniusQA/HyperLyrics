@@ -9,7 +9,7 @@ package io.github.proify.lyricon.amprovider.xposed
 import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
-import com.juren233.hyperlyricsenhanced.common.dexkit.DexResolutionSource
+import com.genius.hyperlyrics.common.dexkit.DexResolutionSource
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.FindClass
 import org.luckypray.dexkit.query.FindMethod

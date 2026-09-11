@@ -6,7 +6,7 @@
 
 package io.github.proify.lyricon.central.provider.player
 
-import com.juren233.hyperlyricsenhanced.provider.OfficialProviderControlProtocol
+import com.genius.hyperlyrics.provider.OfficialProviderControlProtocol
 import io.github.proify.lyricon.lyric.model.Song
 import io.github.proify.lyricon.provider.ProviderInfo
 import io.github.proify.lyricon.provider.ProviderMetadata
@@ -21,7 +21,7 @@ class ActivePlayerCoordinatorTest {
         playerPackageName,
     )
     private val officialInfo = ProviderInfo(
-        "com.juren233.hyperlyricsenhanced.provider.salt-player",
+        "com.genius.hyperlyrics.provider.salt-player",
         playerPackageName,
     )
     private val nativeSaltInfo = ProviderInfo(
@@ -29,7 +29,7 @@ class ActivePlayerCoordinatorTest {
         playerPackageName,
     )
     private val controlOnlyInfo = ProviderInfo(
-        "com.juren233.hyperlyricsenhanced.provider.salt-player",
+        "com.genius.hyperlyrics.provider.salt-player",
         playerPackageName,
         metadata = ProviderMetadata(
             mapOf(OfficialProviderControlProtocol.CONTROL_ONLY_METADATA_KEY to "true"),
@@ -37,7 +37,7 @@ class ActivePlayerCoordinatorTest {
     )
     private val otherPlayerPackageName = "com.luna.music"
     private val otherOfficialInfo = ProviderInfo(
-        "com.juren233.hyperlyricsenhanced.provider.qishui",
+        "com.genius.hyperlyrics.provider.qishui",
         otherPlayerPackageName,
     )
 

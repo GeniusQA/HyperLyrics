@@ -8,7 +8,7 @@ package io.github.proify.lyricon.amprovider.xposed.hooks
 
 import android.media.AudioFormat
 import android.media.AudioTrack
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicProviderRuntime
 import io.github.proify.lyricon.amprovider.xposed.ProviderLogger
 import io.github.proify.lyricon.amprovider.xposed.internal.WeakIdentityMap

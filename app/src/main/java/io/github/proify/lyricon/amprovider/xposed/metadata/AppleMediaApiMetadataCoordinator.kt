@@ -6,7 +6,7 @@
 
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 
 internal enum class AppleMediaApiTextAttribute(
     val getterRuntimeMember: AppleMusicRuntimeMember,

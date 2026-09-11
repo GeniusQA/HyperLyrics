@@ -8,7 +8,7 @@ package io.github.proify.lyricon.amprovider.xposed
 
 import android.media.MediaMetadata
 import android.os.Bundle
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import java.util.concurrent.atomic.AtomicLong
 
 /** Resolves Media3 metadata identity and owns the shared metadata-chain diagnostics. */

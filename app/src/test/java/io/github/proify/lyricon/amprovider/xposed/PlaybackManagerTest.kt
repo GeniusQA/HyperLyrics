@@ -1,6 +1,6 @@
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys
+import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import io.github.proify.lyricon.lyric.model.RichLyricLine
 import io.github.proify.lyricon.lyric.model.Song
 import io.github.proify.lyricon.lyric.model.lyricMetadataOf

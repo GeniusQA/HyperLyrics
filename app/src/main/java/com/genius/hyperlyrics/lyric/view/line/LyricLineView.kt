@@ -1,0 +1,642 @@
+/*
+ * Copyright 2026 Proify, Tomakino, juren233
+ * Licensed under the Apache License, Version 2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
+
+package com.genius.hyperlyrics.lyric.view.line
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Shader
+import android.graphics.Typeface
+import android.text.TextPaint
+import android.util.AttributeSet
+import android.view.Choreographer
+import android.view.View
+import androidx.core.view.doOnAttach
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.root.utils.HookLogger
+import com.genius.hyperlyrics.lyric.model.LyricLine
+import com.genius.hyperlyrics.lyric.view.Highlight
+import com.genius.hyperlyrics.lyric.view.LyricPlayListener
+import com.genius.hyperlyrics.lyric.view.Marquee
+import com.genius.hyperlyrics.lyric.view.TextLook
+import com.genius.hyperlyrics.lyric.view.UpdatableColor
+import com.genius.hyperlyrics.lyric.view.WordMotion
+import com.genius.hyperlyrics.lyric.view.dp
+import com.genius.hyperlyrics.lyric.view.line.model.LyricModel
+import com.genius.hyperlyrics.lyric.view.line.model.createModel
+import com.genius.hyperlyrics.lyric.view.line.model.emptyLyricModel
+import com.genius.hyperlyrics.lyric.view.sp
+import kotlin.math.abs
+import kotlin.math.ceil
+
+open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
+    View(context, attrs), UpdatableColor, LyricTextPaintOwner {
+
+    init {
+        isHorizontalFadingEdgeEnabled = true
+        setFadingEdgeLength(10.dp)
+    }
+
+    override val textPaint: TextPaint = TextPaintX().apply { textSize = 24f.sp }
+
+    val model: LyricModel get() = _model
+    private var _model: LyricModel = emptyLyricModel()
+
+    private val interludeDotsRenderer = InterludeDotsRenderer()
+
+    val lineWidth: Float
+        get() = if (interludeDotsRenderer.isIndicator(_model)) {
+            interludeDotsRenderer.width(textPaint.textSize)
+        } else {
+            _model.width
+        }
+
+    // ---- Metadata marquee overrides (called from HyperLyrics) ----
+    fun setMarqueeSpeed(speed: Float) { scrollRenderer.scrollSpeed = speed }
+    fun setMarqueeInitialDelay(ms: Int) { scrollRenderer.initialDelayMs = ms }
+    fun setMarqueeLoopDelay(ms: Int) { scrollRenderer.loopDelayMs = ms }
+    fun setMarqueeRepeatCount(count: Int) { scrollRenderer.repeatCount = count }
+    fun setMarqueeStopAtEnd(stop: Boolean) { scrollRenderer.stopAtEnd = stop }
+    val isPlainText: Boolean get() = _model.isPlainText
+    val isInterludeIndicator: Boolean get() = interludeDotsRenderer.isIndicator(_model)
+    val isWordSync: Boolean get() = !isPlainText
+    val isOverflow: Boolean get() = lineWidth > measuredWidth
+    val isPlaying: Boolean get() = activeRenderer.isPlaying
+    val isFinished: Boolean get() = activeRenderer.isFinished
+    val isStarted: Boolean get() = activeRenderer.isStarted
+
+    var isScrollOnly: Boolean = false
+        set(value) {
+            field = value
+            syncRenderer.isScrollOnly = value
+        }
+
+    var centerIfPossible: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            syncRenderer.centerIfPossible = value
+            scrollRenderer.centerIfPossible = value
+            invalidate()
+        }
+
+    var alignRight: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            syncRenderer.alignRight = value
+            scrollRenderer.alignRight = value
+            invalidate()
+        }
+
+    var playListener: LyricPlayListener? = null
+        set(value) {
+            field = value
+            syncRenderer.playListener = value
+        }
+
+    /**
+     * 动态长度模式：测量宽度收缩为当前行文字实际宽度（不超过可用宽度），
+     * 让系统按内容实测宽度计算超级岛总宽度；文字超长时回到可用宽度并沿用滚动。
+     */
+    var hugContentWidth: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            requestLayout()
+        }
+
+    var isWordCharMotionEnabled: Boolean
+        get() = syncRenderer.isCharMotionEnabled
+        set(value) {
+            if (syncRenderer.isCharMotionEnabled == value) return
+            syncRenderer.isCharMotionEnabled = value
+            requestLayout()
+            invalidate()
+        }
+
+    var wordMotion: WordMotion = WordMotion()
+        set(value) {
+            if (field == value) return
+            field = value
+            syncRenderer.isCharMotionEnabled = value.enabled
+            syncRenderer.cjkMotionLiftFactor = value.cjkLiftFactor
+            syncRenderer.cjkMotionWaveFactor = value.cjkWaveFactor
+            syncRenderer.latinMotionLiftFactor = value.latinLiftFactor
+            syncRenderer.latinMotionWaveFactor = value.latinWaveFactor
+            requestLayout()
+            invalidate()
+        }
+
+    private val lineState = LineState()
+    private val scrollRenderer = ScrollTextRenderer()
+    private val syncRenderer = WordSyncRenderer(this)
+    private val lineShadowRenderer = LineShadowRenderer()
+
+    override fun forEachDrawingTextPaint(action: (TextPaint) -> Unit) {
+        // Host shadow parameters live only on textPaint. Word-sync color paints remain untouched.
+        action(textPaint)
+    }
+
+    private val animator = Animator()
+
+    private var baseTypeface: Typeface = Typeface.DEFAULT
+    private var narrowTypeface: Typeface? = null
+
+    private val currentTypefaceSelector: ((Char) -> Typeface)?
+        get() {
+            val narrow = narrowTypeface ?: return null
+            val base = baseTypeface
+            return { ch -> if (ch.isCjk()) base else narrow }
+        }
+
+    private var activeRenderer: LineRenderer = scrollRenderer
+
+    private var primaryColors = intArrayOf()
+    private var backgroundColors = intArrayOf()
+    private var highlightColors = intArrayOf()
+
+    private var ghostSpacing: Float = 40f.dp
+    private var scrollStarted = false
+    private var scrollUnlocked = false
+    private var playbackActive = true
+
+    var isStaticPreview: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (value) {
+                animator.stop()
+                scrollUnlocked = false
+                scrollStarted = false
+                lineState.reset()
+            }
+            updatePlainTextColors()
+            invalidate()
+        }
+
+    val textSize: Float get() = textPaint.textSize
+
+    fun currentTextStartX(): Float = resolveTextStartX(lineWidth, _model.isAlignedRight)
+
+    fun textStartX(text: String?, isAlignedRight: Boolean): Float =
+        resolveTextStartX(textPaint.measureText(text.orEmpty()), isAlignedRight)
+
+    fun setTextSize(size: Float) {
+        val needsUpdate = textPaint.textSize != size || syncRenderer.bgPaint.textSize != size
+        if (!needsUpdate) return
+        textPaint.textSize = size
+        syncRenderer.setTextSize(size)
+        refreshSizes()
+        syncRenderer.updateLayout(_model, lineState, measuredWidth, measuredHeight)
+        invalidate()
+    }
+
+    private fun applyCurrentTypeface() {
+        textPaint.typeface = baseTypeface
+        syncRenderer.setTypeface(baseTypeface)
+        syncRenderer.typefaceSelector = currentTypefaceSelector
+        scrollRenderer.typefaceSelector = currentTypefaceSelector
+    }
+
+    fun setLyric(rawLine: LyricLine?) {
+        val line = if (rawLine?.text.isNullOrBlank()) null else rawLine
+
+        reset()
+        scrollUnlocked = false
+        scrollStarted = false
+
+        _model = line?.normalize()?.createModel() ?: emptyLyricModel()
+        applyCurrentTypeface()
+        activeRenderer = if (_model.isPlainText) scrollRenderer else syncRenderer
+        refreshSizes()
+        updateColorsIfReady()
+        invalidate()
+    }
+
+    fun configureWith(
+        text: TextLook, highlight: Highlight, marquee: Marquee,
+        gradient: Boolean, fadingEdge: Int, center: Boolean
+    ) {
+        this.centerIfPossible = center
+        updateColor(text.color, highlight.background, highlight.foreground)
+        setTextSize(text.size)
+        baseTypeface = text.typeface
+        narrowTypeface = text.narrowTypeface
+        applyCurrentTypeface()
+        syncRenderer.isGradientEnabled = gradient
+
+        scrollRenderer.apply {
+            scrollSpeed = marquee.speed
+            ghostSpacing = marquee.spacing
+            initialDelayMs = marquee.initialDelay
+            loopDelayMs = marquee.loopDelay
+            repeatCount = marquee.repeatCount
+            stopAtEnd = marquee.stopAtEnd
+        }
+        ghostSpacing = marquee.spacing
+
+        if (fadingEdge <= 0) {
+            setFadingEdgeLength(0)
+            isHorizontalFadingEdgeEnabled = false
+        } else {
+            setFadingEdgeLength(fadingEdge)
+            isHorizontalFadingEdgeEnabled = true
+        }
+
+        refreshSizes()
+        animator.stop()
+        if (!isStaticPreview && playbackActive) animator.startIfNeeded()
+        invalidate()
+    }
+
+    fun requestScroll() {
+        if (isStaticPreview) return
+        doOnAttach {
+            if (isStaticPreview) return@doOnAttach
+            scrollUnlocked = true
+            if (isPlainText && playbackActive) startScrolling()
+        }
+    }
+
+    fun seekTo(posMs: Long) {
+        if (isStaticPreview) return
+        if (isInterludeIndicator) {
+            interludeDotsRenderer.updatePosition(posMs)
+            invalidate()
+            return
+        }
+        if (isPlainText) {
+            if (playbackActive) startScrolling()
+        } else {
+            activeRenderer.seek(_model, lineState, posMs, measuredWidth, measuredHeight)
+            if (playbackActive) {
+                animator.startIfNeeded()
+            } else {
+                animator.stop()
+                invalidate()
+            }
+        }
+    }
+
+    fun updatePosition(posMs: Long) {
+        if (isStaticPreview) return
+        if (isInterludeIndicator) {
+            interludeDotsRenderer.updatePosition(posMs)
+            if (playbackActive) postInvalidateOnAnimation() else invalidate()
+            return
+        }
+        if (isWordSync) {
+            if (syncRenderer.isScrollOnly && !isOverflow) return
+            if (playbackActive) {
+                activeRenderer.update(_model, lineState, posMs, measuredWidth, measuredHeight)
+                if (syncRenderer.isPlaying && !syncRenderer.isFinished) {
+                    animator.startIfNeeded()
+                }
+            } else {
+                activeRenderer.seek(_model, lineState, posMs, measuredWidth, measuredHeight)
+                animator.stop()
+                invalidate()
+            }
+        } else {
+            if (playbackActive) startScrolling()
+        }
+    }
+
+    fun setPlaybackActive(active: Boolean) {
+        if (playbackActive == active) {
+            if (active) resumePlaybackAnimation() else animator.stop()
+            return
+        }
+        playbackActive = active
+        interludeDotsRenderer.setPlaybackActive(active)
+        if (!active) {
+            animator.stop()
+            (activeRenderer as? WordSyncRenderer)?.let { renderer ->
+                renderer.freeze(_model, lineState, measuredWidth)
+                if (isShown) invalidate()
+            }
+            return
+        }
+
+        resumePlaybackAnimation()
+    }
+
+    private fun resumePlaybackAnimation() {
+        if (isPlainText) {
+            if (!scrollUnlocked) return
+            if (!scrollStarted) {
+                startScrolling()
+            } else if (activeRenderer.isPlaying) {
+                animator.startIfNeeded()
+            }
+        } else if (activeRenderer.isPlaying && !activeRenderer.isFinished) {
+            animator.startIfNeeded()
+        }
+    }
+
+    fun refreshSizes() {
+        _model.updateSizes(textPaint, currentTypefaceSelector)
+    }
+
+    fun relayout() {
+        if (isWordSync) syncRenderer.updateLayout(_model, lineState, measuredWidth, measuredHeight)
+    }
+
+    override fun updateColor(primary: IntArray, background: IntArray, highlight: IntArray) {
+        primaryColors = primary
+        backgroundColors = background
+        highlightColors = highlight
+
+        updatePlainTextColors()
+        syncRenderer.setColors(background, highlight)
+        invalidate()
+    }
+
+    fun reset() {
+        animator.stop()
+        interludeDotsRenderer.reset()
+        lineState.reset()
+        scrollRenderer.reset(lineState)
+        syncRenderer.reset(lineState)
+        lineShadowRenderer.clear()
+        _model = emptyLyricModel()
+        activeRenderer = scrollRenderer
+        refreshSizes()
+        invalidate()
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        if (changed) relayout()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (w > 0 && h > 0) {
+            refreshSizes()
+            updateColorsIfReady()
+        }
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        if (interludeDotsRenderer.isIndicator(_model)) {
+            interludeDotsRenderer.draw(
+                canvas,
+                _model,
+                textPaint,
+                measuredWidth,
+                measuredHeight,
+                centerIfPossible,
+                alignRight
+            )
+            if (playbackActive && !isStaticPreview && isShown) postInvalidateOnAnimation()
+        } else {
+            drawShadowAndContent(canvas, measuredWidth)
+        }
+    }
+
+    private fun drawShadowAndContent(canvas: Canvas, availableWidth: Int) {
+        lineShadowRenderer.draw(
+            canvas = canvas,
+            model = _model,
+            sourcePaint = textPaint,
+            typefaceSelector = currentTypefaceSelector,
+            fontSignature = currentFontSignature(),
+            viewWidth = availableWidth,
+            viewHeight = measuredHeight,
+            scrollOffset = lineState.scrollOffset,
+            centerIfPossible = centerIfPossible,
+            alignRight = alignRight,
+            ghostSpacing = ghostSpacing,
+        )
+        textPaint.withoutShadowLayer {
+            activeRenderer.draw(canvas, _model, textPaint, lineState, availableWidth, measuredHeight)
+        }
+    }
+
+    private fun currentFontSignature(): Int =
+        31 * System.identityHashCode(baseTypeface) + System.identityHashCode(narrowTypeface)
+
+    override fun getLeftFadingEdgeStrength(): Float {
+        if (lineWidth <= width || horizontalFadingEdgeLength <= 0) return 0f
+        val edgeL = horizontalFadingEdgeLength.toFloat()
+
+        val offsetInUnit = if (isPlainText) {
+            scrollRenderer.scrollProgress
+        } else {
+            -lineState.scrollOffset
+        }
+
+        if (offsetInUnit <= 0f) return 0f
+        if (isPlainText && offsetInUnit > lineWidth) return 0f
+        return (offsetInUnit / edgeL).coerceIn(0f, 1f)
+    }
+
+    override fun getRightFadingEdgeStrength(): Float {
+        if (lineWidth <= width || horizontalFadingEdgeLength <= 0) return 0f
+        val viewW = width.toFloat()
+        val edgeL = horizontalFadingEdgeLength.toFloat()
+
+        if (isPlainText) {
+            if (lineState.isScrollFinished) {
+                val remaining = lineWidth + lineState.scrollOffset - viewW
+                return (remaining / edgeL).coerceIn(0f, 1f)
+            }
+            val offsetInUnit = scrollRenderer.scrollProgress
+            val primaryRightEdge = lineWidth - offsetInUnit
+            val ghostLeftEdge = primaryRightEdge + ghostSpacing
+            return if (primaryRightEdge < viewW && ghostLeftEdge > viewW) 0f else 1.0f
+        } else {
+            if (isFinished) return 0f
+        }
+
+        val remaining = lineWidth + lineState.scrollOffset - viewW
+        return (remaining / edgeL).coerceIn(0f, 1f)
+    }
+
+    override fun onMeasure(wSpec: Int, hSpec: Int) {
+        val specW = MeasureSpec.getSize(wSpec)
+        val w = if (hugContentWidth) resolveHugContentWidth(specW) else specW
+        val charMotionPadding = if (isWordCharMotionEnabled) {
+            val maxLift = maxOf(wordMotion.cjkLiftFactor, wordMotion.latinLiftFactor)
+            ceil(textPaint.textSize * maxLift).toInt()
+        } else {
+            0
+        }
+        val textHeight = (textPaint.descent() - textPaint.ascent()).toInt() + charMotionPadding
+        setMeasuredDimension(w, resolveSize(textHeight, hSpec))
+    }
+
+    private fun resolveHugContentWidth(specWidth: Int): Int {
+        val shadowRadius = textPaint.getShadowLayerRadius()
+        val shadowPad = if (shadowRadius > 0f) {
+            ceil(shadowRadius + abs(textPaint.getShadowLayerDx())).toInt()
+        } else {
+            0
+        }
+        val hug = (ceil(lineWidth).toInt() + shadowPad).coerceIn(0, specWidth)
+        if (BuildConfig.DEBUG) {
+            HookLogger.d(
+                "LyricHug",
+                "slot=${(parent as? View)?.tag}, lineWidth=$lineWidth, shadowPad=$shadowPad, " +
+                    "spec=$specWidth, final=$hug, view=${System.identityHashCode(this).toString(16)}"
+            )
+        }
+        return hug
+    }
+
+    /**
+     * 用本视图当前的绘制参数（字号/字体选择器/阴影/间奏点）测量一行歌词
+     * 落定后的 hug 宽度，不改变视图任何状态。
+     * 与 [setLyric] 后的 [lineWidth] 实测走同一条管线，用于动态长度在
+     * 预览提升动画期间同步预判内容落地后的岛宽。
+     */
+    fun measureIncomingHugWidth(rawLine: LyricLine?): Int {
+        val line = if (rawLine?.text.isNullOrBlank()) null else rawLine
+        val model = line?.normalize()?.createModel() ?: return 0
+        val width = if (interludeDotsRenderer.isIndicator(model)) {
+            interludeDotsRenderer.width(textPaint.textSize)
+        } else {
+            model.updateSizes(textPaint, currentTypefaceSelector)
+            model.width
+        }
+        val shadowRadius = textPaint.getShadowLayerRadius()
+        val shadowPad = if (shadowRadius > 0f) {
+            ceil(shadowRadius + abs(textPaint.getShadowLayerDx())).toInt()
+        } else {
+            0
+        }
+        return ceil(width).toInt() + shadowPad
+    }
+
+    override fun onVisibilityAggregated(isVisible: Boolean) {
+        super.onVisibilityAggregated(isVisible)
+        if (isVisible && playbackActive) {
+            resumePlaybackAnimation()
+        } else {
+            animator.stop()
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        reset()
+    }
+
+    private fun startScrolling() {
+        if (!playbackActive || isStaticPreview || !isPlainText || !scrollUnlocked || scrollStarted) return
+        scrollStarted = true
+        lineState.reset()
+        if (!isOverflow) return
+        post {
+            scrollRenderer.update(_model, lineState, 0, measuredWidth, measuredHeight)
+            animator.stop()
+            animator.startIfNeeded()
+        }
+    }
+
+    private fun updateColorsIfReady() {
+        if (primaryColors.isNotEmpty() && backgroundColors.isNotEmpty() && highlightColors.isNotEmpty()) {
+            updateColor(primaryColors, backgroundColors, highlightColors)
+        }
+    }
+
+    private fun updatePlainTextColors() {
+        val colors = if (isStaticPreview && backgroundColors.isNotEmpty()) {
+            backgroundColors
+        } else {
+            primaryColors
+        }
+        textPaint.apply {
+            color = colors.firstOrNull() ?: Color.BLACK
+            shader = if (colors.size > 1) makeRainbowShader(colors) else null
+        }
+    }
+
+    private fun resolveTextStartX(textWidth: Float, isAlignedRight: Boolean): Float {
+        val availableWidth = measuredWidth.toFloat()
+        return when {
+            textWidth >= availableWidth -> 0f
+            alignRight -> availableWidth - textWidth
+            centerIfPossible -> (availableWidth - textWidth) / 2f
+            isAlignedRight -> availableWidth - textWidth
+            else -> 0f
+        }
+    }
+
+    private var rainbowShader: Shader? = null
+    private var rainbowShaderHash = 0
+    private var rainbowShaderWidth = -1f
+
+    private fun makeRainbowShader(colors: IntArray): Shader {
+        val hash = colors.contentHashCode()
+        if (rainbowShader != null && rainbowShaderHash == hash && rainbowShaderWidth == lineWidth) {
+            return rainbowShader!!
+        }
+        val positions = FloatArray(colors.size) { i -> i.toFloat() / (colors.size - 1) }
+        rainbowShader =
+            LinearGradient(0f, 0f, lineWidth, 0f, colors, positions, Shader.TileMode.CLAMP)
+        rainbowShaderHash = hash
+        rainbowShaderWidth = lineWidth
+        return rainbowShader!!
+    }
+
+    private inner class Animator : Choreographer.FrameCallback {
+        private var running = false
+        private var lastFrameNanos = 0L
+
+        fun startIfNeeded() {
+            if (playbackActive && !running && isAttachedToWindow && isShown) {
+                running = true
+                lastFrameNanos = 0L
+                post { Choreographer.getInstance().postFrameCallback(this) }
+            }
+        }
+
+        fun stop() {
+            running = false
+            Choreographer.getInstance().removeFrameCallback(this)
+            lastFrameNanos = 0L
+        }
+
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!running || !playbackActive || !isAttachedToWindow || !isShown) {
+                running = false
+                return
+            }
+
+            val deltaNanos = if (lastFrameNanos == 0L) 0L else frameTimeNanos - lastFrameNanos
+            lastFrameNanos = frameTimeNanos
+
+            val renderer = activeRenderer
+            val changed = renderer.step(deltaNanos, _model, lineState, measuredWidth)
+            if (changed) postInvalidateOnAnimation()
+
+            if (running && renderer.isPlaying) {
+                Choreographer.getInstance().postFrameCallback(this)
+            } else {
+                running = false
+                lastFrameNanos = 0L
+            }
+        }
+    }
+}
+
+private fun Char.isCjk(): Boolean {
+    val block = Character.UnicodeBlock.of(this)
+    return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
+        block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
+        block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B ||
+        block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS ||
+        block == Character.UnicodeBlock.HIRAGANA ||
+        block == Character.UnicodeBlock.KATAKANA ||
+        block == Character.UnicodeBlock.HANGUL_SYLLABLES ||
+        block == Character.UnicodeBlock.HANGUL_JAMO ||
+        block == Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO
+}

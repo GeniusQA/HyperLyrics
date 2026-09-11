@@ -6,7 +6,7 @@
 
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceStatus
+import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceStatus
 
 internal fun effectiveOnlineSourceSelection(
     storedSource: String?,

@@ -1,0 +1,61 @@
+package com.genius.hyperlyrics.lyric
+
+import android.content.Context
+import com.genius.hyperlyrics.common.lyric.LrcParser
+import com.genius.hyperlyrics.online.LrcCacheManager
+import com.genius.hyperlyrics.online.OnlineLyricTargeter
+import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
+import com.genius.hyperlyrics.utils.LogManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+class LyricProviderImpl(private val context: Context) : ILyricProvider {
+
+    override suspend fun fetchLyrics(params: LyricSearchParams): List<LrcLine>? {
+        return withContext(Dispatchers.IO) {
+            LogManager.d("LyricProvider", "正在获取歌词: 标题=${params.title}, 艺术家=${params.artist}, 专辑=${params.album}, pkg=${params.packageName}, 时长=${params.duration}ms")
+
+            // 1. 尝试从缓存获取
+            var lines = LrcCacheManager.getLyricFromCache(context, params.title, params.artist)?.let {
+                LrcParser.parse(it)
+            }
+
+            if (!lines.isNullOrEmpty()) {
+                LogManager.d("LyricProvider", "缓存命中: 行数=${lines.size}")
+            } else {
+                // 2. 缓存没有，则在线搜索
+                LogManager.d("LyricProvider", "缓存未命中，正在在线搜索")
+                lines = OnlineLyricTargeter.fetchBestLyric(
+                    context = context,
+                    pkgName = params.packageName,
+                    title = params.title,
+                    artist = params.artist,
+                    durationMs = params.duration,
+                    album = params.album,
+                )
+
+                // 3. 搜索成功，存入缓存
+                if (!lines.isNullOrEmpty()) {
+                    LrcCacheManager.saveLyricToCache(
+                        context,
+                        params.title,
+                        params.artist,
+                        buildLrcString(lines)
+                    )
+                }
+            }
+            LogManager.d("LyricProvider", "歌词获取完成: 行数=${lines?.size ?: 0}")
+            lines
+        }
+    }
+
+    private fun buildLrcString(lines: List<LrcLine>): String {
+        return lines.joinToString("\n") { line ->
+            val totalMs = line.startTimeMs
+            val min = totalMs / 60000
+            val sec = (totalMs % 60000) / 1000
+            val ms = (totalMs % 1000) / 10
+            String.format("[%02d:%02d.%02d]%s", min, sec, ms, line.content)
+        }
+    }
+}

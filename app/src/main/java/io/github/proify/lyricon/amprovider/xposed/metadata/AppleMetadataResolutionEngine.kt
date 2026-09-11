@@ -6,7 +6,7 @@
 
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleOriginalMetadataPolicy
+import com.genius.hyperlyrics.common.lyric.AppleOriginalMetadataPolicy
 
 /**
  * Pure metadata resolution policy for Apple Music.

@@ -15,7 +15,7 @@ class ProviderSourcePriorityTest {
         assertEquals(
             ProviderSourcePriority.BUILT_IN,
             ProviderSourcePriorityResolver.resolve(
-                "com.juren233.hyperlyricsenhanced",
+                "com.genius.hyperlyrics",
                 "com.apple.android.music",
             ),
         )
@@ -37,7 +37,7 @@ class ProviderSourcePriorityTest {
         assertEquals(
             ProviderSourcePriority.OFFICIAL_PLUGIN,
             ProviderSourcePriorityResolver.resolve(
-                "com.juren233.hyperlyricsenhanced.provider.kuwo",
+                "com.genius.hyperlyrics.provider.kuwo",
                 "cn.kuwo.player",
             ),
         )
@@ -55,14 +55,14 @@ class ProviderSourcePriorityTest {
         assertEquals(
             ProviderSourcePriority.LEGACY_APK,
             ProviderSourcePriorityResolver.resolve(
-                "com.juren233.hyperlyricsenhanced.provider.unknown",
+                "com.genius.hyperlyrics.provider.unknown",
                 "cn.kuwo.player",
             ),
         )
         assertEquals(
             ProviderSourcePriority.LEGACY_APK,
             ProviderSourcePriorityResolver.resolve(
-                "com.juren233.hyperlyricsenhanced.provider.kuwo",
+                "com.genius.hyperlyrics.provider.kuwo",
                 "com.spotify.music",
             ),
         )

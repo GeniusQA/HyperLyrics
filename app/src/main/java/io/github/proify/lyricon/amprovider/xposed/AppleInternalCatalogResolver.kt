@@ -3,9 +3,9 @@ package io.github.proify.lyricon.amprovider.xposed
 import android.content.Context
 import android.os.Handler
 import android.os.SystemClock
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.common.RootConstants
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleOriginalMetadataPolicy
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.common.lyric.AppleOriginalMetadataPolicy
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier

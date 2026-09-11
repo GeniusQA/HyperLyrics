@@ -6,7 +6,7 @@
 
 package io.github.proify.lyricon.central.provider.player
 
-import com.juren233.hyperlyricsenhanced.provider.OfficialProviderCatalog
+import com.genius.hyperlyrics.provider.OfficialProviderCatalog
 import io.github.proify.lyricon.provider.ProviderInfo
 
 internal enum class ProviderSourcePriority(val rank: Int) {

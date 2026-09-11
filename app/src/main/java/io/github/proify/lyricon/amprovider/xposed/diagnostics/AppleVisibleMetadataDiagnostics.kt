@@ -10,7 +10,7 @@ import android.app.Activity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap

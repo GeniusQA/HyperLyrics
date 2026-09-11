@@ -1,7 +1,7 @@
 package io.github.proify.lyricon.amprovider.xposed
 
 import android.content.Context
-import com.juren233.hyperlyricsenhanced.online.utils.ChineseUtils
+import com.genius.hyperlyrics.online.utils.ChineseUtils
 
 internal object AppleLyricTextTransform {
     private val rawReadDepth = ThreadLocal.withInitial { 0 }

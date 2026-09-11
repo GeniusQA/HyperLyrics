@@ -6,10 +6,10 @@
 
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.common.dexkit.DexMethodWatchdog
-import com.juren233.hyperlyricsenhanced.common.dexkit.DexResolutionSource
-import com.juren233.hyperlyricsenhanced.common.dexkit.DexWatchdogEvent
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.common.dexkit.DexMethodWatchdog
+import com.genius.hyperlyrics.common.dexkit.DexResolutionSource
+import com.genius.hyperlyrics.common.dexkit.DexWatchdogEvent
 import java.lang.reflect.Executable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean

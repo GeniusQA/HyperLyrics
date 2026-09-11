@@ -1,0 +1,297 @@
+/*
+ * Copyright 2026 juren233
+ * Licensed under the Apache License, Version 2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
+
+package com.genius.hyperlyrics.provider
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class OfficialProviderDexMethodCacheCodecTest {
+    private val target = OfficialProviderMethodTarget(
+        className = "yv2.b",
+        methodName = "a",
+        parameterTypeNames = listOf("java.lang.String"),
+        returnTypeName = "com.kugou.framework.lyric.k",
+        isStatic = true,
+    )
+
+    @Test
+    fun `round trips exact binary method target`() {
+        assertEquals(target, OfficialProviderDexMethodCacheCodec.decode(
+            OfficialProviderDexMethodCacheCodec.encode(target)
+        ))
+    }
+
+    @Test
+    fun `matches only declared query constraints`() {
+        val query = OfficialProviderDexMethodQuery(
+            cacheKey = "kugou-full-lyric-loader-v1",
+            requiredStrings = listOf("file is not krc or lyc or txt file"),
+            parameterTypeNames = listOf("java.lang.String"),
+            isStatic = true,
+        )
+        assertTrue(OfficialProviderDexMethodCacheCodec.matches(target, query))
+        assertFalse(
+            OfficialProviderDexMethodCacheCodec.matches(
+                target,
+                query.copy(isStatic = false),
+            )
+        )
+    }
+
+    @Test
+    fun `cache key changes with app or query version`() {
+        val query = OfficialProviderDexMethodQuery(
+            cacheKey = "kugou-full-lyric-loader-v1",
+            requiredStrings = listOf("file is not krc or lyc or txt file"),
+        )
+        val first = OfficialProviderDexMethodCacheCodec.cacheKey(
+            packageName = "com.kugou.android",
+            processName = "com.kugou.android.support",
+            versionCode = 20759,
+            lastUpdateTime = 1,
+            query = query,
+        )
+        assertNotEquals(first, OfficialProviderDexMethodCacheCodec.cacheKey(
+            packageName = "com.kugou.android",
+            processName = "com.kugou.android.support",
+            versionCode = 20760,
+            lastUpdateTime = 2,
+            query = query,
+        ))
+        assertNotEquals(first, OfficialProviderDexMethodCacheCodec.cacheKey(
+            packageName = "com.kugou.android",
+            processName = "com.kugou.android.support",
+            versionCode = 20759,
+            lastUpdateTime = 1,
+            query = query.copy(cacheKey = "kugou-full-lyric-loader-v2"),
+        ))
+    }
+
+    @Test
+    fun `cache key includes query graph references`() {
+        val base = OfficialProviderDexMethodQuery(
+            cacheKey = "graph-node",
+            declaringClassReference = OfficialProviderDexTypeReference(
+                queryCacheKey = "manager",
+                source = OfficialProviderDexTypeSource.RETURN_TYPE,
+            ),
+        )
+        val first = OfficialProviderDexMethodCacheCodec.cacheKey(
+            packageName = "example.player",
+            processName = "example.player",
+            versionCode = 1,
+            lastUpdateTime = 1,
+            query = base,
+        )
+        val changed = OfficialProviderDexMethodCacheCodec.cacheKey(
+            packageName = "example.player",
+            processName = "example.player",
+            versionCode = 1,
+            lastUpdateTime = 1,
+            query = base.copy(
+                declaringClassReference = base.declaringClassReference?.copy(
+                    queryCacheKey = "different-manager",
+                ),
+            ),
+        )
+        assertNotEquals(first, changed)
+    }
+
+    @Test
+    fun `cache key includes caller method semantics`() {
+        val base = OfficialProviderDexMethodQuery(
+            cacheKey = "kugou-lite-next-media-v2",
+            declaringClassName = "com.kugou.common.player.manager.QueuePlayerManager",
+            requiredCallerMethodNames = listOf("getNextMedia"),
+        )
+        val first = OfficialProviderDexMethodCacheCodec.cacheKey(
+            packageName = "com.kugou.android.lite",
+            processName = "com.kugou.android.lite.support",
+            versionCode = 11540,
+            lastUpdateTime = 1,
+            query = base,
+        )
+        assertNotEquals(
+            first,
+            OfficialProviderDexMethodCacheCodec.cacheKey(
+                packageName = "com.kugou.android.lite",
+                processName = "com.kugou.android.lite.support",
+                versionCode = 11540,
+                lastUpdateTime = 1,
+                query = base.copy(requiredCallerMethodNames = listOf("getPreMedia")),
+            ),
+        )
+    }
+
+    @Test
+    fun `cache key includes forbidden invoke semantics`() {
+        val base = OfficialProviderDexMethodQuery(
+            cacheKey = "qqmusic-hd-current-song-v4",
+            declaringClassName = "com.tencent.qqmusic.qplayer.core.player.MusicPlayerHelper",
+            forbiddenInvokedMethodDescriptors = listOf(
+                "Lcom/tencent/qqmusic/openapisdk/model/SongInfo;->getSongId()J",
+            ),
+        )
+        val first = OfficialProviderDexMethodCacheCodec.cacheKey(
+            packageName = "com.tencent.qqmusicpad",
+            processName = "com.tencent.qqmusicpad",
+            versionCode = 6_120_005L,
+            lastUpdateTime = 1L,
+            query = base,
+        )
+        assertNotEquals(
+            first,
+            OfficialProviderDexMethodCacheCodec.cacheKey(
+                packageName = "com.tencent.qqmusicpad",
+                processName = "com.tencent.qqmusicpad",
+                versionCode = 6_120_005L,
+                lastUpdateTime = 1L,
+                query = base.copy(
+                    forbiddenInvokedMethodDescriptors = listOf(
+                        "Lcom/tencent/qqmusic/openapisdk/model/SongInfo;->getSongName()Ljava/lang/String;",
+                    ),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `cache key includes annotation anchor semantics`() {
+        val base = OfficialProviderDexMethodQuery(
+            cacheKey = "spotify-lyrics-service-v2",
+            requiredMethodAnnotation = OfficialProviderMethodAnnotationConstraint(
+                elementValue = "color-lyrics/v2/track/{trackId}",
+            ),
+        )
+        val first = OfficialProviderDexMethodCacheCodec.cacheKey(
+            packageName = "com.spotify.music",
+            processName = "com.spotify.music",
+            versionCode = 145767611L,
+            lastUpdateTime = 1L,
+            query = base,
+        )
+        assertNotEquals(
+            first,
+            OfficialProviderDexMethodCacheCodec.cacheKey(
+                packageName = "com.spotify.music",
+                processName = "com.spotify.music",
+                versionCode = 145767611L,
+                lastUpdateTime = 1L,
+                query = base.copy(
+                    requiredMethodAnnotation = OfficialProviderMethodAnnotationConstraint(
+                        elementValue = "color-lyrics/v3/track/{trackId}",
+                    ),
+                ),
+            ),
+        )
+        assertEquals(
+            first,
+            OfficialProviderDexMethodCacheCodec.cacheKey(
+                packageName = "com.spotify.music",
+                processName = "com.spotify.music",
+                versionCode = 145767611L,
+                lastUpdateTime = 1L,
+                query = base.copy(),
+            ),
+        )
+    }
+
+    @Test
+    fun `cache key includes declaring class field constraints`() {
+        val reference = OfficialProviderDexTypeReference(
+            queryCacheKey = "spotify-lyrics-service-v3",
+            source = OfficialProviderDexTypeSource.DECLARING_CLASS,
+        )
+        val base = OfficialProviderDexMethodQuery(
+            cacheKey = "spotify-lyrics-client-v3",
+            declaringClassFieldReferences = listOf(reference),
+            parameterTypeNames = listOf("java.lang.String", "java.lang.String"),
+            returnTypeName = "io.reactivex.rxjava3.core.Single",
+        )
+        val first = OfficialProviderDexMethodCacheCodec.cacheKey(
+            packageName = "com.spotify.music",
+            processName = "com.spotify.music",
+            versionCode = 145767611L,
+            lastUpdateTime = 1L,
+            query = base,
+        )
+        assertNotEquals(
+            first,
+            OfficialProviderDexMethodCacheCodec.cacheKey(
+                packageName = "com.spotify.music",
+                processName = "com.spotify.music",
+                versionCode = 145767611L,
+                lastUpdateTime = 1L,
+                query = base.copy(declaringClassFieldTypeNames = listOf("p.sja0")),
+            ),
+        )
+        assertNotEquals(
+            first,
+            OfficialProviderDexMethodCacheCodec.cacheKey(
+                packageName = "com.spotify.music",
+                processName = "com.spotify.music",
+                versionCode = 145767611L,
+                lastUpdateTime = 1L,
+                query = base.copy(
+                    declaringClassFieldReferences = listOf(
+                        reference.copy(queryCacheKey = "spotify-lyrics-service-v2"),
+                    ),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `cross version method baseline round trips structural identity`() {
+        val baseline = OfficialProviderDexMethodBaseline(
+            fieldCount = 18,
+            methodCount = 42,
+            interfaceCount = 2,
+            stableFieldTypeCounts = mapOf(
+                "java.lang.String" to 3,
+                "long" to 1,
+            ),
+            parameterCount = 0,
+            stableParameterTypeNames = emptyList(),
+            stableReturnTypeName = "java.lang.String",
+            isStatic = false,
+            ordinal = 4,
+        )
+
+        assertEquals(
+            baseline,
+            OfficialProviderDexMethodBaselineCodec.decode(
+                OfficialProviderDexMethodBaselineCodec.encode(baseline),
+            ),
+        )
+    }
+
+    @Test
+    fun `cross version method baseline preserves obfuscated parameter slots`() {
+        val baseline = OfficialProviderDexMethodBaseline(
+            fieldCount = 3,
+            methodCount = 9,
+            interfaceCount = 1,
+            stableFieldTypeCounts = emptyMap(),
+            parameterCount = 3,
+            stableParameterTypeNames = listOf("java.lang.String", null, "int"),
+            stableReturnTypeName = null,
+            isStatic = true,
+            ordinal = 1,
+        )
+
+        assertEquals(
+            baseline,
+            OfficialProviderDexMethodBaselineCodec.decode(
+                OfficialProviderDexMethodBaselineCodec.encode(baseline),
+            ),
+        )
+    }
+}

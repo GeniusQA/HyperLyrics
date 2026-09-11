@@ -6,8 +6,8 @@
 
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.root.utils.HookLogger
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method

@@ -6,7 +6,7 @@
 
 package io.github.proify.lyricon.central
 
-import com.juren233.hyperlyricsenhanced.provider.OfficialProviderPreferencePolicy
+import com.genius.hyperlyrics.provider.OfficialProviderPreferencePolicy
 import io.github.proify.lyricon.central.provider.ProviderDirectory
 import io.github.proify.lyricon.central.provider.player.ActivePlayerCoordinator
 import io.github.proify.lyricon.central.registration.RegistrationHandler

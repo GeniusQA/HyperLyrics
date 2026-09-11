@@ -1,7 +1,7 @@
--keep class com.juren233.hyperlyricsenhanced.root.** { *; }
--keep class com.juren233.hyperlyricsenhanced.common.RootConstants { *; }
--keep class com.juren233.hyperlyricsenhanced.common.ServiceConstants { *; }
--keep class com.juren233.hyperlyricsenhanced.common.UIConstants { *; }
+-keep class com.genius.hyperlyrics.root.** { *; }
+-keep class com.genius.hyperlyrics.common.RootConstants { *; }
+-keep class com.genius.hyperlyrics.common.ServiceConstants { *; }
+-keep class com.genius.hyperlyrics.common.UIConstants { *; }
 
 # 保护 libxposed 接口
 -keep class io.github.libxposed.api.** { *; }
@@ -17,17 +17,17 @@
 # --- Serialization 和在线网络模型防止混淆 ---
 -keep @kotlinx.serialization.Serializable class * { *; }
 -keepclassmembers @kotlinx.serialization.Serializable class * { *; }
--keep class com.juren233.hyperlyricsenhanced.online.** { *; }
+-keep class com.genius.hyperlyrics.online.** { *; }
 
 # --- 歌词数据模型（Parcelable + Serializable）---
--keep class com.juren233.hyperlyricsenhanced.lyric.model.** { *; }
+-keep class com.genius.hyperlyrics.lyric.model.** { *; }
 
 # Runtime hook target verified from provider-0.1.70.aar. The reconnect control-frame bridge
 # resolves this exact binary class and its method names, so R8 must not rename or inline it.
 -keep class io.github.proify.lyricon.provider.CachedRemotePlayer { *; }
 
 # --- Shizuku User Service ---
--keep class com.juren233.hyperlyricsenhanced.service.utils.shizuku.PrivilegedServiceImpl { *; }
+-keep class com.genius.hyperlyrics.service.utils.shizuku.PrivilegedServiceImpl { *; }
 
 # --- SuperLyric API ---
 -keep class com.hchen.superlyricapi.* { *; }
@@ -37,28 +37,28 @@
 # Let R8 retain only the reachable Ed25519 implementation instead of the whole crypto package.
 
 # Stable ABI used by independently compiled official Provider Packs.
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderPlugin { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderHost { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderSystemMediaPlugin { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderSystemMediaHost { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderSystemMediaCallback { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderSystemMediaSubscription { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderApplicationCallback { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderPlaybackStateCallback { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderMetadataCallback { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderMethodCallback { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderMethodResultCallback { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderConstructorCallback { *; }
--keep interface com.juren233.hyperlyricsenhanced.provider.OfficialProviderDexMethodsCallback { *; }
--keep class com.juren233.hyperlyricsenhanced.provider.OfficialProviderMethodTarget { *; }
--keep class com.juren233.hyperlyricsenhanced.provider.OfficialProviderConstructorTarget { *; }
--keep class com.juren233.hyperlyricsenhanced.provider.OfficialProviderDexTypeSource { *; }
--keep class com.juren233.hyperlyricsenhanced.provider.OfficialProviderDexTypeReference { *; }
--keep class com.juren233.hyperlyricsenhanced.provider.OfficialProviderDexMethodQuery { *; }
--keep class com.juren233.hyperlyricsenhanced.provider.OfficialProviderMethodAnnotationConstraint { *; }
--keep class com.juren233.hyperlyricsenhanced.provider.OfficialProviderDexMethodQueryBuilder { *; }
--keep class com.juren233.hyperlyricsenhanced.provider.OfficialProviderNextTrackFrame { *; }
--keep class com.juren233.hyperlyricsenhanced.provider.OfficialProviderControlProtocol { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderPlugin { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderHost { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderSystemMediaPlugin { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderSystemMediaHost { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderSystemMediaCallback { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderSystemMediaSubscription { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderApplicationCallback { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderPlaybackStateCallback { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderMetadataCallback { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderMethodCallback { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderMethodResultCallback { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderConstructorCallback { *; }
+-keep interface com.genius.hyperlyrics.provider.OfficialProviderDexMethodsCallback { *; }
+-keep class com.genius.hyperlyrics.provider.OfficialProviderMethodTarget { *; }
+-keep class com.genius.hyperlyrics.provider.OfficialProviderConstructorTarget { *; }
+-keep class com.genius.hyperlyrics.provider.OfficialProviderDexTypeSource { *; }
+-keep class com.genius.hyperlyrics.provider.OfficialProviderDexTypeReference { *; }
+-keep class com.genius.hyperlyrics.provider.OfficialProviderDexMethodQuery { *; }
+-keep class com.genius.hyperlyrics.provider.OfficialProviderMethodAnnotationConstraint { *; }
+-keep class com.genius.hyperlyrics.provider.OfficialProviderDexMethodQueryBuilder { *; }
+-keep class com.genius.hyperlyrics.provider.OfficialProviderNextTrackFrame { *; }
+-keep class com.genius.hyperlyrics.provider.OfficialProviderControlProtocol { *; }
 
 # Official Provider Packs compile against kotlin-stdlib as compileOnly and run inside an
 # InMemoryDexClassLoader whose parent is the core module. Kotlin Runtime is therefore part of

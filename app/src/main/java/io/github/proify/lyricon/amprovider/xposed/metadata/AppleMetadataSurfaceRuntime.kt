@@ -10,7 +10,7 @@ import android.app.Activity
 import android.os.SystemClock
 import android.view.View
 import androidx.recyclerview.widget.RecyclerView
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicLong
 

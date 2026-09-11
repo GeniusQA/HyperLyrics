@@ -11,7 +11,7 @@ import android.media.audiofx.LoudnessEnhancer
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import io.github.proify.lyricon.amprovider.xposed.ProviderLogger
 import io.github.proify.lyricon.amprovider.xposed.internal.WeakIdentityMap
 

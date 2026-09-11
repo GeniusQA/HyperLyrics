@@ -8,7 +8,7 @@ package io.github.proify.lyricon.amprovider.xposed
 
 import android.os.Bundle
 import androidx.recyclerview.widget.RecyclerView
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue

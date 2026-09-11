@@ -18,7 +18,7 @@ tasks.register("generateContributors") {
             connection.setConnectTimeout(15_000)
             connection.setReadTimeout(15_000)
             connection.setRequestProperty("Accept", "application/vnd.github+json")
-            connection.setRequestProperty("User-Agent", "HyperLyrics-Enhanced-Gradle")
+            connection.setRequestProperty("User-Agent", "HyperLyrics-Gradle")
             if (githubToken) {
                 connection.setRequestProperty("Authorization", "Bearer ${githubToken}")
                 connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
@@ -89,7 +89,7 @@ tasks.register("generateContributors") {
                     def avatarConnection = new URL("${avatarUrl}${separator}s=120").openConnection()
                     avatarConnection.setConnectTimeout(15_000)
                     avatarConnection.setReadTimeout(15_000)
-                    avatarConnection.setRequestProperty("User-Agent", "HyperLyrics-Enhanced-Gradle")
+                    avatarConnection.setRequestProperty("User-Agent", "HyperLyrics-Gradle")
                     def image = avatarConnection.inputStream.withCloseable { ImageIO.read(it) }
                     if (image == null) {
                         throw new GradleException("Unsupported avatar format for ${login}")
@@ -98,7 +98,7 @@ tasks.register("generateContributors") {
                     if (!ImageIO.write(image, "png", drawableFile)) {
                         throw new GradleException("PNG writer unavailable for ${login}")
                     }
-                    avatarResource = "com.juren233.hyperlyricsenhanced.R.drawable.${drawableName}"
+                    avatarResource = "com.genius.hyperlyrics.R.drawable.${drawableName}"
                 } catch (Exception exception) {
                     println("Failed to download avatar for ${login}, using system fallback: ${exception.message}")
                 }
@@ -107,7 +107,7 @@ tasks.register("generateContributors") {
             "ContributorItem(\"${escapeKotlinString(name)}\", \"@${escapeKotlinString(login)}\", \"${escapeKotlinString(htmlUrl)}\", ${avatarResource})"
         }
 
-        def content = '''package com.juren233.hyperlyricsenhanced.ui.utils
+        def content = '''package com.genius.hyperlyrics.ui.utils
 
 data class ContributorItem(
     val name: String,
@@ -133,7 +133,7 @@ object ContributorsProvider {
 }
 '''
 
-        def file = new File(projectDir, "src/main/java/com/juren233/hyperlyricsenhanced/ui/utils/ContributorsProvider.kt")
+        def file = new File(projectDir, "src/main/java/com/genius/hyperlyrics/ui/utils/ContributorsProvider.kt")
         file.parentFile.mkdirs()
         file.setText(content, "UTF-8")
         println("ContributorsProvider.kt generated: maintainer=1, development=${developmentSources.size()}, originalHyperLyric=${originalSources.size()}.")
