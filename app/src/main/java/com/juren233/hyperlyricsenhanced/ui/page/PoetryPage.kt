@@ -91,7 +91,7 @@ fun PoetryPage() {
                 searchStatus.TopAppBarAnim(backgroundColor = barColor) {
                     TopAppBar(
                         color = barColor,
-                        title = "HyperLyrics Enhanced",
+                        title = "HyperLyrics",
                         scrollBehavior = topAppBarScrollBehavior,
                         navigationIcon = {
                             IconButton(onClick = { navigator.pop() }) {

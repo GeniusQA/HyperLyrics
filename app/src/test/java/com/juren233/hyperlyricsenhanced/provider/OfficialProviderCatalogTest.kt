@@ -8,6 +8,7 @@ package com.juren233.hyperlyricsenhanced.provider
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -46,11 +47,32 @@ class OfficialProviderCatalogTest {
             .mapTo(linkedSetOf(), OfficialProviderCatalog.Definition::id)
 
         assertEquals(
-            setOf("lxmusic", "poweramp", "musicfree", "gramophone", "symfonium"),
+            setOf(
+                "lxmusic",
+                "poweramp",
+                "musicfree",
+                "gramophone",
+                "symfonium",
+                // Built into the core APK: nothing to download.
+                "youtube-music",
+            ),
             hiddenIds,
         )
         assertTrue(OfficialProviderCatalog.shouldShowInDownloadList("salt-player"))
         assertFalse(OfficialProviderCatalog.shouldShowInDownloadList("lxmusic"))
+    }
+
+    @Test
+    fun `resolves the built-in YouTube Music provider without a Pack`() {
+        val definition = requireNotNull(OfficialProviderCatalog.definitionForId("youtube-music"))
+
+        assertTrue(definition.builtin)
+        assertEquals(
+            setOf("com.google.android.apps.youtube.music"),
+            definition.targetPackages,
+        )
+        assertNotNull(OfficialProviderCatalog.builtinPlugin("youtube-music"))
+        assertNull(OfficialProviderCatalog.builtinPlugin("spotify"))
     }
 
     @Test

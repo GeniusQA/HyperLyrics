@@ -15,6 +15,7 @@ object OnlineTranslationSourcePreferences {
     const val QISHUI_PACKAGE = "com.luna.music"
     const val SPOTIFY_PACKAGE = "com.spotify.music"
     const val SALT_PACKAGE = "com.salt.music"
+    const val YOUTUBE_MUSIC_PACKAGE = "com.google.android.apps.youtube.music"
 
     val defaultOrder: List<Source> = listOf(
         Source.NE,
@@ -34,6 +35,14 @@ object OnlineTranslationSourcePreferences {
         )
         return resolveEnabledSources(order) { source -> isSourceEnabled(prefs, source) }
     }
+
+    /** 无 SharedPreferences 场景（如 Provider Pack 进程）按键值读取解析启用来源顺序。 */
+    fun orderedSources(
+        rawOrder: String?,
+        automaticSelection: Boolean,
+        isEnabled: (Source) -> Boolean,
+    ): List<Source> =
+        resolveEnabledSources(resolveOrder(rawOrder, automaticSelection), isEnabled)
 
     fun resolveEnabledSources(
         order: List<Source>,
@@ -61,6 +70,8 @@ object OnlineTranslationSourcePreferences {
             .mapNotNull { value ->
                 runCatching { Source.valueOf(value.trim()) }.getOrNull()
             }
+            // LRCLIB 已改为内置兜底歌词源（固定殿后、无需开关），不再作为可选平台来源。
+            .filter { it != Source.LRCLIB }
             .distinct()
         return parsed + defaultOrder.filterNot(parsed::contains)
     }
@@ -74,6 +85,7 @@ object OnlineTranslationSourcePreferences {
         Source.QM -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_QQ
         Source.KUWO -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_KUWO
         Source.KUGOU -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_KUGOU
+        Source.LRCLIB -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_LRCLIB
         Source.LB -> RootConstants.KEY_HOOK_APPLE_MUSIC_LUNABEAT_WORD_LYRICS
     }
 
@@ -82,6 +94,7 @@ object OnlineTranslationSourcePreferences {
         Source.QM -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_QQ
         Source.KUWO -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_KUWO
         Source.KUGOU -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_KUGOU
+        Source.LRCLIB -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_SOURCE_LRCLIB
         Source.LB -> RootConstants.DEFAULT_HOOK_APPLE_MUSIC_LUNABEAT_WORD_LYRICS
     }
 
@@ -94,6 +107,7 @@ object OnlineTranslationSourcePreferences {
         QISHUI_PACKAGE -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_QISHUI
         SPOTIFY_PACKAGE -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SPOTIFY
         SALT_PACKAGE -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SALT
+        YOUTUBE_MUSIC_PACKAGE -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC
         else -> null
     }
 
@@ -102,6 +116,7 @@ object OnlineTranslationSourcePreferences {
         QISHUI_PACKAGE -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_APP_QISHUI
         SPOTIFY_PACKAGE -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_APP_SPOTIFY
         SALT_PACKAGE -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_APP_SALT
+        YOUTUBE_MUSIC_PACKAGE -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC
         else -> false
     }
 
@@ -119,6 +134,7 @@ object OnlineTranslationSourcePreferences {
         RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_QQ,
         RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_KUWO,
         RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_KUGOU,
+        RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_LRCLIB,
     )
 
     fun isAppPreference(key: String?): Boolean = key in setOf(
@@ -126,5 +142,6 @@ object OnlineTranslationSourcePreferences {
         RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_QISHUI,
         RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SPOTIFY,
         RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SALT,
+        RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC,
     )
 }

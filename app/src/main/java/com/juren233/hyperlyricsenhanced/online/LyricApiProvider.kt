@@ -7,6 +7,7 @@ import com.juren233.hyperlyricsenhanced.online.source.ne.NeApi
 import com.juren233.hyperlyricsenhanced.online.source.ne.NeSource
 import com.juren233.hyperlyricsenhanced.online.source.kugou.KugouSource
 import com.juren233.hyperlyricsenhanced.online.source.kuwo.KuwoSource
+import com.juren233.hyperlyricsenhanced.online.source.lrclib.LrcLibSource
 import com.juren233.hyperlyricsenhanced.online.source.qm.QmApi
 import com.juren233.hyperlyricsenhanced.online.source.qm.QmSource
 import kotlinx.serialization.json.Json
@@ -63,6 +64,7 @@ object LyricApiProvider {
     val qmSource: SearchSource by lazy { QmSource(qmApi) }
     val kuwoSource: SearchSource by lazy { KuwoSource() }
     val kugouSource: SearchSource by lazy { KugouSource() }
+    val lrclibSource: SearchSource by lazy { LrcLibSource() }
 
     private var _neSource: SearchSource? = null
     

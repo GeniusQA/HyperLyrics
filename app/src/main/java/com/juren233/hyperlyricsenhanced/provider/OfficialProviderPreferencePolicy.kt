@@ -61,8 +61,10 @@ internal object OfficialProviderPreferencePolicy {
             ?: return null
         val enabled = preferences.getBoolean(
             OfficialProviderCatalog.enabledKey(definition.id),
-            false,
+            definition.builtin,
         )
+        // Built-in providers live in the core APK, so they have no Pack version or file record.
+        if (definition.builtin) return enabled
         val installedVersion = preferences.getInt(
             OfficialProviderCatalog.installedVersionKey(definition.id),
             0,

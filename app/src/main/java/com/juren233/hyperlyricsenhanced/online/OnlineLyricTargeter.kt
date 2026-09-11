@@ -22,7 +22,9 @@ import kotlin.math.abs
 
 object OnlineLyricTargeter {
     private const val TIMEOUT_MS = 5000L
-    private const val PASS_SCORE = 85
+
+    /** 候选达标阈值：达到该分数且成功取到歌词即视为命中（平分时按来源优先级取先者）。 */
+    const val PASS_SCORE = 85
     private const val NEAR_MISS_MIN_SCORE = 50
     private const val STRONG_DURATION_TOLERANCE_MS = 1_500L
 
@@ -101,14 +103,21 @@ object OnlineLyricTargeter {
         originalAlbum: String? = null,
         collectSourceStatuses: Boolean = false,
     ): FetchOutcome {
+        // 搜索前净化脏标题（MV 尾缀/广告角标/重复分段），原始标题保留为原数据回退。
+        val sanitized = sanitizeLyricSearchTitle(title, artist)
+        val searchTitle = sanitized.value
+        val searchArtist = artist.trim()
+        // 仅当剥离了 MV 视频尾缀时媒体时长（视频长度）不可信，不参与计分；
+        // 仅去除歌手/专辑分段时时长仍可信，保留计分。
+        val effectiveDurationMs = if (sanitized.mvStripped) 0L else durationMs
         val outcome = performSearch(
             context = context,
             pkgName = pkgName,
-            title = title,
-            artist = artist,
-            durationMs = durationMs,
-            originalTitle = originalTitle,
-            originalArtist = originalArtist,
+            title = searchTitle,
+            artist = searchArtist,
+            durationMs = effectiveDurationMs,
+            originalTitle = originalTitle ?: title.takeIf { it != searchTitle },
+            originalArtist = originalArtist ?: artist.takeIf { it != searchArtist },
             preferOriginalMetadata = preferOriginalMetadata,
             preferredSource = preferredSource,
             requireTranslation = requireTranslation,
@@ -204,6 +213,7 @@ object OnlineLyricTargeter {
             Source.QM to qm,
             Source.KUWO to LyricApiProvider.kuwoSource,
             Source.KUGOU to LyricApiProvider.kugouSource,
+            Source.LRCLIB to LyricApiProvider.lrclibSource,
         )
         val resolvedSourceOrder = sourceOrder?.distinct().orEmpty().ifEmpty {
             resolveSourceOrder(
@@ -213,6 +223,15 @@ object OnlineLyricTargeter {
             )
         }
         val sources = resolvedSourceOrder.mapNotNull(sourcesByType::get)
+            .let { list ->
+                // LRCLIB 作为内置兜底歌词源（仅歌词、无翻译）固定殿后：
+                // 四库全部未命中时提供歌词，缺失的翻译由补翻译链路向四源补齐。
+                if (list.none { it.sourceType == Source.LRCLIB }) {
+                    list + LyricApiProvider.lrclibSource
+                } else {
+                    list
+                }
+            }
         val searchedSourceTypes = resolvedSourceOrder.toSet()
         val statusOnlySources = statusSourceOrder
             ?.distinct()
@@ -869,6 +888,7 @@ object OnlineLyricTargeter {
             Source.QM -> listOf(Source.QM, Source.NE)
             Source.KUWO -> listOf(Source.KUWO, Source.NE, Source.QM)
             Source.KUGOU -> listOf(Source.KUGOU, Source.NE, Source.QM)
+            Source.LRCLIB -> listOf(Source.LRCLIB, Source.NE, Source.QM)
             Source.LB -> listOf(Source.LB)
             null -> when (pkgName) {
                 "com.netease.cloudmusic" -> listOf(Source.NE, Source.QM)
@@ -930,11 +950,29 @@ object OnlineLyricTargeter {
 
         if (localDurationMs > 0 && song.duration > 0) {
             score += durationScore(localDurationMs, song.duration)
+        } else {
+            // 时长缺失（如 MV 视频版本时长不可信被跳过）时给中性分而非 0：
+            // 时长未知 ≠ 时长不匹配，标题+歌手双命中已足够身份确认，
+            // 否则 MV 歌即使全对也只有 80 分、永远差 5 分达不到阈值。
+            score += 10
         }
 
         val cleanSongTitle = cleanString(context, song.title)
 
-        if (cleanLocalTitle == cleanSongTitle || cleanSongTitle.contains(cleanLocalTitle) || cleanLocalTitle.contains(cleanSongTitle)) {
+        // 标题比对额外接受紧凑形式（忽略全部空格）：K-pop/J-pop 歌名常见
+        // 驼式写法（SleeplessNight）与曲库分词写法（Sleepless Night）的等价场景。
+        val compactLocalTitle = compactWhitespace(cleanLocalTitle)
+        val compactSongTitle = compactWhitespace(cleanSongTitle)
+        if (
+            cleanLocalTitle == cleanSongTitle ||
+            cleanSongTitle.contains(cleanLocalTitle) ||
+            cleanLocalTitle.contains(cleanSongTitle) ||
+            (compactLocalTitle.isNotEmpty() && (
+                compactSongTitle == compactLocalTitle ||
+                    compactSongTitle.contains(compactLocalTitle) ||
+                    compactLocalTitle.contains(compactSongTitle)
+                ))
+        ) {
             score += 50
         }
 
@@ -1063,6 +1101,147 @@ object OnlineLyricTargeter {
 
     internal fun compactWhitespace(value: String): String = value.replace(Regex("\\s+"), "")
 
+    // ---- 脏标题净化：仅影响搜索关键词与评分，不改变岛上展示的原始标题 ----
+    private val adBadgeRegex =
+        Regex("(?:\\(\\s*)?(?:TME\\s*)?黑胶\\s*VIP(?:\\s*\\))?", RegexOption.IGNORE_CASE)
+    private val mvQuotedTitleRegex = Regex(
+        "^.*?['‘“]([^'’”]{1,120})['’”]\\s*(?:(?:official\\s+)?(?:mv|music\\s*video|lyric\\s*video|m/v))?\\s*$",
+        RegexOption.IGNORE_CASE,
+    )
+    private val mvSuffixRegex = Regex(
+        "\\s*[(（\\[【]?\\s*(?:(?:official\\s+)?(?:mv|music\\s*video|lyric\\s*video|visualizer|m/v))\\s*[])）】】]?\\s*$",
+        RegexOption.IGNORE_CASE,
+    )
+    private val segmentSeparatorRegex = Regex("\\s*[-–—|·]\\s*")
+
+    /**
+     * 清洗播放器侧常见的脏标题后再用于搜索/评分：
+     * - 广告角标：`TME黑胶VIP`、`黑胶VIP`（Spotify 站内活动角标）；
+     * - MV 类尾缀：`'Song' MV`、`(Official MV)`、`Song MV` 等（YTM 音乐视频标题）；
+     * - 分段去重：`INFINITY - INFINITY` 压成 `INFINITY`，并剔除与歌手重复的尾段。
+     */
+    internal data class SanitizedTitle(
+        val value: String,
+        /** 是否剥离了 MV 视频类尾缀：此时媒体时长（视频长度）不可信，不应参与计分。 */
+        val mvStripped: Boolean,
+    )
+
+    internal fun sanitizeLyricSearchTitle(title: String, artist: String?): SanitizedTitle {
+        val raw = title.trim()
+        if (raw.isEmpty()) return SanitizedTitle(raw, mvStripped = false)
+        var value = raw.replace(adBadgeRegex, " ").trim()
+        mvQuotedTitleRegex.find(value)?.let { match ->
+            return SanitizedTitle(match.groupValues[1].trim(), mvStripped = true)
+        }
+        val mvBefore = value
+        value = value.replace(mvSuffixRegex, " ").trim()
+        val mvStripped = value != mvBefore
+        val artistCompact = compactWhitespace(artist.orEmpty())
+        val segments = value.split(segmentSeparatorRegex)
+            .map(::compactWhitespace)
+            .filter(String::isNotEmpty)
+        if (segments.isEmpty()) return SanitizedTitle(raw, mvStripped)
+        val kept = mutableListOf<String>()
+        for (segment in segments) {
+            if (artistCompact.isNotEmpty() && segment.equals(artistCompact, ignoreCase = true)) {
+                continue
+            }
+            if (kept.lastOrNull()?.equals(segment, ignoreCase = true) == true) continue
+            kept += segment
+        }
+        return SanitizedTitle(kept.joinToString(" ").ifEmpty { raw }, mvStripped)
+    }
+
+    /**
+     * 针对某一首歌，逐个平台来源跑一次匹配评分，用于设置页展示“匹配率 / 搜索失败”。
+     * 与 [fetchBestLyric] 共用 [scoreSource] 的评分逻辑，但只采集每个来源的评分与结果，
+     * 不挑选最优来源、不返回歌词，也不影响 AIDL 跨进程的状态模型。
+     */
+    suspend fun diagnoseSourceMatches(
+        context: Context,
+        title: String,
+        artist: String,
+        album: String,
+        durationMs: Long,
+        sourceOrder: List<Source>,
+    ): List<SourceMatchDiagnostic> {
+        val ne = LyricApiProvider.getNeSource(context)
+        val qm = LyricApiProvider.qmSource
+        val sourcesByType = mapOf(
+            Source.NE to ne,
+            Source.QM to qm,
+            Source.KUWO to LyricApiProvider.kuwoSource,
+            Source.KUGOU to LyricApiProvider.kugouSource,
+            Source.LRCLIB to LyricApiProvider.lrclibSource,
+        )
+        val sources = sourceOrder.mapNotNull(sourcesByType::get)
+            .let { list ->
+                // 诊断附带 LRCLIB（内置兜底歌词源），便于页面展示其实际命中情况。
+                if (list.none { it.sourceType == Source.LRCLIB }) {
+                    list + LyricApiProvider.lrclibSource
+                } else {
+                    list
+                }
+            }
+        if (sources.isEmpty() || title.isBlank()) return emptyList()
+        val sanitized = sanitizeLyricSearchTitle(title, artist)
+        val searchTitle = sanitized.value
+        val searchArtist = artist.trim()
+        // 仅 MV 视频尾缀剥离时时长不可信；分段净化不影响时长可信度。
+        val effectiveDurationMs = if (sanitized.mvStripped) 0L else durationMs
+        val cleanLocalTitle = cleanString(context, searchTitle)
+        val localArtists = splitArtists(searchArtist).map { cleanString(context, it) }
+        val multiCredit = isMultiCreditArtist(localArtists)
+        val cleanLocalAlbum = normalizeAlbum(context, album)
+        val featureKeywords = listOf("live", "remastered", "翻唱", "cover")
+        val localFeatures = featureKeywords.filter { searchTitle.lowercase().contains(it) }
+        return sources.map { source ->
+            try {
+                val attempt = scoreSource(
+                    context = context,
+                    source = source,
+                    keyword = "$searchTitle $searchArtist",
+                    durationMs = effectiveDurationMs,
+                    requireTranslation = false,
+                    metadataLabel = "诊断",
+                    cleanLocalTitle = cleanLocalTitle,
+                    localArtists = localArtists,
+                    localFeatures = localFeatures,
+                    cleanLocalAlbum = cleanLocalAlbum,
+                )
+                // 与 fetchBestLyric 一致：仅“评分未达阈值”的候选才可能走近失兜底；
+                // 达标但取词失败属于取词异常，不算近失候选。
+                val nearMissEligible = attempt.song != null && attempt.lines == null &&
+                    attempt.score < PASS_SCORE && (
+                    isNearMissEligible(attempt.score, attempt.titleMatched, attempt.durationClose) ||
+                        isLyricFallbackEligible(
+                            titleMatched = attempt.titleMatched,
+                            multiCredit = multiCredit,
+                            durationClose = attempt.durationClose,
+                        )
+                    )
+                SourceMatchDiagnostic(
+                    source = source.sourceType,
+                    searched = true,
+                    score = attempt.score,
+                    found = attempt.lines != null,
+                    lineCount = attempt.lines?.size ?: 0,
+                    nearMissEligible = nearMissEligible,
+                    durationMs = attempt.song?.duration ?: 0L,
+                )
+            } catch (e: Exception) {
+                SourceMatchDiagnostic(
+                    source = source.sourceType,
+                    searched = false,
+                    score = -1,
+                    found = false,
+                    lineCount = 0,
+                    errorMessage = e.message,
+                )
+            }
+        }
+    }
+
     private fun splitArtists(value: String): List<String> =
         value.split("&", ",", "，", "、", "/", "／")
 
@@ -1073,3 +1252,20 @@ object OnlineLyricTargeter {
     )
 
 }
+
+/** 设置页“平台来源”针对某一首歌的诊断结果。 */
+data class SourceMatchDiagnostic(
+    val source: Source,
+    /** 该来源是否发起了搜索（含结果或异常）。 */
+    val searched: Boolean,
+    /** 候选最高评分，范围约 -1（未搜到候选/异常）~ 100。 */
+    val score: Int,
+    /** 评分达标且成功取到歌词。 */
+    val found: Boolean,
+    val lineCount: Int,
+    val errorMessage: String? = null,
+    /** 未达标但满足近失条件（标题精确+时长吻合等），实际抓词会被近失兜底通道采用。 */
+    val nearMissEligible: Boolean = false,
+    /** 最优候选的时长（毫秒），0 表示未知。 */
+    val durationMs: Long = 0L,
+)

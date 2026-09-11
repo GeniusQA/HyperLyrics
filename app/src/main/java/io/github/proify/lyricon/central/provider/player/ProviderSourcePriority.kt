@@ -26,6 +26,9 @@ internal object ProviderSourcePriorityResolver {
         providerPackageName == OfficialProviderCatalog.CORE_PACKAGE_NAME &&
             playerPackageName == OfficialProviderCatalog.APPLE_MUSIC_PACKAGE_NAME ->
             ProviderSourcePriority.BUILT_IN
+        providerPackageName == OfficialProviderCatalog.CORE_PACKAGE_NAME &&
+            playerPackageName == OfficialProviderCatalog.YOUTUBE_MUSIC_PACKAGE_NAME ->
+            ProviderSourcePriority.BUILT_IN
         providerPackageName == OfficialProviderCatalog.SALT_PLAYER_PACKAGE_NAME &&
             playerPackageName == OfficialProviderCatalog.SALT_PLAYER_PACKAGE_NAME ->
             ProviderSourcePriority.BUILT_IN

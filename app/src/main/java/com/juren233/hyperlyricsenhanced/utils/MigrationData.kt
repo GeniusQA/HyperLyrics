@@ -31,7 +31,7 @@ object MigrationData {
             items = listOf(
                 MigrationItem(
                     text = "Lyricon歌词源已升级至插件体系",
-                    summary = "\n现在 HyperLyrics Enhanced 已将 Lyricon 的词幕服务模块与主流音乐平台的 Provider 模块整合在一起，作为插件功能，实现无需额外模块，还能满足各取所需的需求。\n\n更多详情请在“歌词设置”-“Lyricon配置”查看。",
+                    summary = "\n现在 HyperLyrics 已将 Lyricon 的词幕服务模块与主流音乐平台的 Provider 模块整合在一起，作为插件功能，实现无需额外模块，还能满足各取所需的需求。\n\n更多详情请在“歌词设置”-“Lyricon配置”查看。",
                 ),
             ),
         ),
@@ -59,7 +59,7 @@ object MigrationData {
             scope = MigrationScope.LegacyExactBuild,
             items = listOf(
                 MigrationItem(
-                    text = "再一次温馨提示，HyperLyrics Enhanced v6.0 往后需要额外安装 lyricon central 才可继续使用 lyricon 歌词源",
+                    text = "再一次温馨提示，HyperLyrics v6.0 往后需要额外安装 lyricon central 才可继续使用 lyricon 歌词源",
                     summary = "点我跳转下载 lyricon central 模块",
                     url = "https://github.com/tomakino/lyricon/releases/tag/core"
                 )
@@ -80,7 +80,7 @@ object MigrationData {
             scope = MigrationScope.LegacyExactBuild,
             items = listOf(
                 MigrationItem(
-                    text = "HyperLyrics Enhanced v6.0 往后，需要Lyricon central才可继续使用Lyricon 歌词源",
+                    text = "HyperLyrics v6.0 往后，需要Lyricon central才可继续使用Lyricon 歌词源",
                     summary = "点击跳转下载 Lyricon central 模块",
                     url = "https://github.com/tomakino/lyricon/releases/tag/core"
                 )

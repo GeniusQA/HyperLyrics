@@ -36,5 +36,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HyperLyrics Enhanced"
+rootProject.name = "HyperLyrics"
 include(":app")

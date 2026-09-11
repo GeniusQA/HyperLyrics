@@ -38,7 +38,7 @@ class LyricSplitter(
      * 执行分割逻辑
      */
     fun split(title: String, config: Config): SplitResult {
-        if (title.isBlank()) return SplitResult("", "HyperLyrics Enhanced", "", "HyperLyrics Enhanced")
+        if (title.isBlank()) return SplitResult("", "HyperLyrics", "", "HyperLyrics")
 
         val totalWidth = paint.measureText(title)
         

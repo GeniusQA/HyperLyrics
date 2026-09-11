@@ -6,9 +6,20 @@
 
 package com.juren233.hyperlyricsenhanced.ui.page.hooksettings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.Settings
 import android.graphics.drawable.Drawable
+import android.media.MediaMetadata
+import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
+import android.os.Handler
+import android.os.Looper
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.expandVertically
@@ -19,6 +30,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,9 +47,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -59,13 +73,19 @@ import androidx.compose.ui.zIndex
 import com.juren233.hyperlyricsenhanced.R
 import com.juren233.hyperlyricsenhanced.common.RootConstants
 import com.juren233.hyperlyricsenhanced.online.OnlineTranslationSourcePreferences
+import com.juren233.hyperlyricsenhanced.online.OnlineLyricTargeter
+import com.juren233.hyperlyricsenhanced.online.SourceMatchDiagnostic
 import com.juren233.hyperlyricsenhanced.online.model.Source
+import com.juren233.hyperlyricsenhanced.service.LiveLyricService
 import com.juren233.hyperlyricsenhanced.ui.page.hooksettings.lyrics.common.XposedLyricSettingPage
 import com.juren233.hyperlyricsenhanced.ui.page.hooksettings.lyrics.common.rememberHookConfigSaver
 import com.juren233.hyperlyricsenhanced.ui.page.hooksettings.lyrics.common.rememberHookPrefs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -73,7 +93,10 @@ import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
+import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Music
+import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -126,6 +149,7 @@ fun OnlineTranslationSourcesPage() {
         )
     }
     var pendingSwap by remember { mutableStateOf<SourceSwap?>(null) }
+    var showHelpDialog by remember { mutableStateOf(false) }
     val swapProgress = remember { Animatable(0f) }
     val sourceRowHeightPx = with(LocalDensity.current) { SOURCE_ROW_HEIGHT.toPx() }
     val appEnabled = remember {
@@ -139,6 +163,119 @@ fun OnlineTranslationSourcesPage() {
         }
     }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // App 进程内通过 MediaSessionManager 读取当前媒体会话（依赖 LiveLyricService 通知监听权限）。
+    var currentTrack by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var currentAlbum by remember { mutableStateOf("") }
+    var currentDurationMs by remember { mutableStateOf(0L) }
+    var currentPackage by remember { mutableStateOf<String?>(null) }
+    var listenerEnabled by remember { mutableStateOf<Boolean?>(null) }
+    val sourceDiagnostics = remember { mutableStateMapOf<Source, SourceMatchDiagnostic?>() }
+    var diagnosing by remember { mutableStateOf(false) }
+    // 当前播放 App 已在“启用 App”中开启时才展示在线源匹配信息；关闭则走原生歌词，隐藏匹配数据。
+    val currentAppOnlineEnabled = currentPackage != null && appEnabled[currentPackage] == true
+
+    fun isNotificationListenerEnabled(): Boolean =
+        runCatching {
+            Settings.Secure.getString(
+                context.contentResolver,
+                "enabled_notification_listeners",
+            )?.contains(context.packageName) == true
+        }.getOrDefault(false)
+
+    fun queryCurrentTrack(): Boolean {
+        val manager = context.getSystemService(MediaSessionManager::class.java) ?: return false
+        val componentName = ComponentName(context, LiveLyricService::class.java)
+        val controllers = runCatching { manager.getActiveSessions(componentName) }
+            .getOrDefault(emptyList())
+        // 仅认“正在播放”的会话：暂停/残留会话不代表当前在放歌，不应展示为当前歌曲。
+        val active = controllers.firstOrNull {
+            it.playbackState?.state == PlaybackState.STATE_PLAYING
+        }
+        currentPackage = active?.packageName
+        if (active == null) {
+            listenerEnabled = isNotificationListenerEnabled()
+            return false
+        }
+        val metadata = active?.metadata ?: run {
+            listenerEnabled = isNotificationListenerEnabled()
+            return false
+        }
+        val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty().trim()
+        if (title.isEmpty()) {
+            listenerEnabled = isNotificationListenerEnabled()
+            return false
+        }
+        val artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
+            ?.takeIf { it.isNotBlank() }
+            ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST).orEmpty().trim()
+        currentTrack = title to artist
+        currentAlbum = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty().trim()
+        currentDurationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
+        listenerEnabled = true
+        return true
+    }
+
+    var lastDiagnosisAtMs by remember { mutableStateOf(0L) }
+
+    fun runSourceDiagnosis(force: Boolean = false) {
+        val (title, artist) = currentTrack ?: return
+        if (!currentAppOnlineEnabled) return
+        val order = sourceOrder.filter { sourceEnabled[it] == true }
+        if (order.isEmpty()) return
+        // 冷却节流：诊断会真实请求各在线源，高频重复会触发 LRCLIB 等源的限流（返回空），
+        // 连累 Provider 抓词同 IP 被限。自动触发受 5 秒冷却，手动刷新按钮不受限。
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!force && now - lastDiagnosisAtMs < 5_000L) return
+        lastDiagnosisAtMs = now
+        diagnosing = true
+        scope.launch {
+            runCatching {
+                val result = OnlineLyricTargeter.diagnoseSourceMatches(
+                    context = context,
+                    title = title,
+                    artist = artist,
+                    album = currentAlbum,
+                    durationMs = currentDurationMs,
+                    sourceOrder = order,
+                )
+                sourceDiagnostics.clear()
+                result.forEach { sourceDiagnostics[it.source] = it }
+            }
+            diagnosing = false
+        }
+    }
+
+    LaunchedEffect(currentTrack) {
+        if (currentTrack != null) {
+            delay(800)
+            runSourceDiagnosis()
+        }
+    }
+
+    LaunchedEffect(currentAppOnlineEnabled) {
+        // App 被禁用后清空残留匹配数据，页面只呈现原生歌词状态。
+        if (!currentAppOnlineEnabled) sourceDiagnostics.clear()
+    }
+
+    DisposableEffect(Unit) {
+        queryCurrentTrack()
+        val manager = context.getSystemService(MediaSessionManager::class.java)
+        val componentName = ComponentName(context, LiveLyricService::class.java)
+        val listener = MediaSessionManager.OnActiveSessionsChangedListener {
+            val previous = currentTrack
+            if (queryCurrentTrack() && currentTrack != previous) {
+                sourceDiagnostics.clear()
+            }
+        }
+        runCatching {
+            manager?.addOnActiveSessionsChangedListener(listener, componentName, Handler(Looper.getMainLooper()))
+        }
+        onDispose {
+            runCatching { manager?.removeOnActiveSessionsChangedListener(listener) }
+        }
+    }
+
     var installedApps by remember { mutableStateOf<List<InstalledTranslationApp>?>(null) }
     LaunchedEffect(Unit) {
         if (configuredEnabledSources.isEmpty()) {
@@ -218,9 +355,178 @@ fun OnlineTranslationSourcesPage() {
         }
     }
 
-    XposedLyricSettingPage(title = stringResource(R.string.title_online_translation_sources)) {
+    XposedLyricSettingPage(
+        title = stringResource(R.string.title_online_translation_sources),
+        actions = {
+            IconButton(onClick = { showHelpDialog = true }) {
+                Icon(
+                    imageVector = MiuixIcons.Info,
+                    contentDescription = stringResource(R.string.online_translation_help),
+                )
+            }
+        },
+    ) {
         item(key = "platform_sources_title") {
-            SmallTitle(text = stringResource(R.string.title_online_translation_platform_sources))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.title_online_translation_platform_sources),
+                    modifier = Modifier.weight(1f),
+                    fontSize = MiuixTheme.textStyles.title4.fontSize,
+                    color = MiuixTheme.colorScheme.onBackground,
+                )
+                IconButton(onClick = {
+                    queryCurrentTrack()
+                    runSourceDiagnosis(force = true)
+                }) {
+                    Icon(
+                        imageVector = MiuixIcons.Refresh,
+                        contentDescription = stringResource(R.string.online_translation_diagnose_refresh),
+                        tint = MiuixTheme.colorScheme.onBackground,
+                    )
+                }
+            }
+        }
+        item(key = "platform_sources_current_track") {
+            val track = currentTrack
+            val needsListenerAccess = track == null && listenerEnabled == false
+            // 与 fetchBestLyric 同规则：按排序优先级取第一个评分达标且取到歌词的来源；
+            // 四库全部未命中时回退展示内置兜底源 LRCLIB（仅歌词）的实际命中。
+            val matchedDiagnostic = sourceOrder
+                .filter { sourceEnabled[it] == true }
+                .firstNotNullOfOrNull { source ->
+                    sourceDiagnostics[source]?.takeIf {
+                        it.found && it.score >= OnlineLyricTargeter.PASS_SCORE
+                    }
+                }
+                ?: sourceDiagnostics[Source.LRCLIB]?.takeIf {
+                    it.found && it.score >= OnlineLyricTargeter.PASS_SCORE
+                }
+            // 近失兜底：未达标但标题精确+时长吻合的候选，实际抓词会被近失通道采用。
+            val nearMissDiagnostic = sourceOrder
+                .filter { sourceEnabled[it] == true }
+                .firstNotNullOfOrNull { source ->
+                    sourceDiagnostics[source]?.takeIf {
+                        !it.found && it.nearMissEligible
+                    }
+                }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 8.dp),
+            ) {
+                Text(
+                    text = when {
+                        track != null -> stringResource(
+                            R.string.online_translation_current_track_format,
+                            track.first,
+                            track.second,
+                        ).let { base ->
+                            // 展示为 歌名 - 歌手 - 专辑（专辑缺失时保持原格式）
+                            if (currentAlbum.isNotBlank()) "$base - $currentAlbum" else base
+                        }
+                        needsListenerAccess -> stringResource(
+                            R.string.online_translation_notification_access_needed,
+                        )
+                        else -> stringResource(R.string.online_translation_no_current_track)
+                    },
+                    modifier = Modifier.then(
+                        when {
+                            needsListenerAccess -> Modifier.clickable {
+                                LiveLyricService.ensureListenerBound(context)
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+                                    )
+                                }
+                            }
+                            track != null -> Modifier.clickable {
+                                // 复制完整歌曲信息（歌名/歌手/专辑），便于手动到各平台搜索核对。
+                                val info = buildString {
+                                    append(track.first)
+                                    append(" - ")
+                                    append(track.second)
+                                    if (currentAlbum.isNotBlank()) {
+                                        append(" - ")
+                                        append(currentAlbum)
+                                    }
+                                }
+                                runCatching {
+                                    context.getSystemService(ClipboardManager::class.java)
+                                        ?.setPrimaryClip(ClipData.newPlainText("song", info))
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.toast_song_info_copied),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            }
+                            else -> Modifier
+                        },
+                    ),
+                    fontSize = MiuixTheme.textStyles.body2.fontSize,
+                    color = when {
+                        track != null -> MiuixTheme.colorScheme.onBackground
+                        needsListenerAccess -> MiuixTheme.colorScheme.primary
+                        else -> MiuixTheme.colorScheme.onSurfaceVariantActions
+                    },
+                )
+                if (track != null && currentAppOnlineEnabled) {
+                    // 歌词来源：与 hook 侧管线决策一致——原生曲库 App 直读；
+                    // 非原生 App 命中在线源时展示实际命中的在线来源，
+                    // 未命中（或尚未诊断）时才展示“原生优先/兜底”策略。
+                    var originRes = lyricOriginRes(currentPackage)
+                    if (originRes != R.string.lyric_origin_native &&
+                        (matchedDiagnostic != null || nearMissDiagnostic != null)
+                    ) {
+                        originRes = R.string.lyric_origin_online
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = stringResource(originRes),
+                        fontSize = MiuixTheme.textStyles.body2.fontSize,
+                        color = MiuixTheme.colorScheme.onBackground,
+                    )
+                    if (originRes != R.string.lyric_origin_native) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = when {
+                                diagnosing -> stringResource(
+                                    R.string.online_translation_matched_platform_diagnosing,
+                                )
+                                matchedDiagnostic != null -> stringResource(
+                                    R.string.online_translation_matched_platform_format,
+                                    matchedDiagnostic.source.displayName(),
+                                    matchedDiagnostic.score,
+                                    matchedDiagnostic.lineCount,
+                                )
+                                nearMissDiagnostic != null -> stringResource(
+                                    R.string.online_translation_matched_platform_nearmiss,
+                                    nearMissDiagnostic.source.displayName(),
+                                    nearMissDiagnostic.score,
+                                )
+                                sourceDiagnostics.isEmpty() -> stringResource(
+                                    R.string.online_translation_matched_platform_diagnosing,
+                                )
+                                else -> stringResource(
+                                    R.string.online_translation_matched_platform_none,
+                                )
+                            },
+                            fontSize = MiuixTheme.textStyles.body2.fontSize,
+                            color = if (matchedDiagnostic != null || nearMissDiagnostic != null) {
+                                MiuixTheme.colorScheme.onBackground
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                            },
+                        )
+                    }
+                }
+            }
         }
         item(key = "platform_sources") {
             Card(
@@ -272,6 +578,11 @@ fun OnlineTranslationSourcesPage() {
                                 },
                                 onMoveUp = { requestSourceMove(source, -1) },
                                 onMoveDown = { requestSourceMove(source, 1) },
+                                diagnostic = if (currentAppOnlineEnabled) {
+                                    sourceDiagnostics[source]
+                                } else {
+                                    null
+                                },
                             )
                         }
                     }
@@ -328,6 +639,115 @@ fun OnlineTranslationSourcesPage() {
                 )
             },
         )
+    }
+
+    WindowDialog(
+        title = stringResource(R.string.title_online_translation_help_dialog),
+        show = showHelpDialog,
+        onDismissRequest = { showHelpDialog = false },
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = stringResource(R.string.summary_online_translation_help_dialog),
+                fontSize = MiuixTheme.textStyles.body1.fontSize,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            HelpDialogTable()
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.summary_online_translation_help_note),
+                fontSize = MiuixTheme.textStyles.body1.fontSize,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HelpDialogTable() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = stringResource(R.string.title_online_translation_help_table_app),
+                modifier = Modifier.weight(1.2f),
+                fontSize = MiuixTheme.textStyles.body1.fontSize,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(R.string.title_online_translation_help_table_content),
+                modifier = Modifier.weight(2f),
+                fontSize = MiuixTheme.textStyles.body1.fontSize,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onSurface,
+            )
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HelpDialogTableRow(
+            "Apple Music",
+            stringResource(R.string.summary_online_translation_app_lyrics_translation),
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HelpDialogTableRow(
+            "椒盐音乐",
+            stringResource(R.string.summary_online_translation_app_lyrics_translation),
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HelpDialogTableRow(
+            "YouTube Music",
+            stringResource(R.string.summary_online_translation_app_lyrics_translation),
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HelpDialogTableRow(
+            "汽水音乐",
+            stringResource(R.string.summary_online_translation_app_translation),
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HelpDialogTableRow(
+            "Spotify",
+            stringResource(R.string.summary_online_translation_app_lyrics_translation),
+        )
+    }
+}
+
+@Composable
+private fun HelpDialogTableRow(app: String, content: String) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = app,
+            modifier = Modifier.weight(1.2f),
+            fontSize = MiuixTheme.textStyles.body1.fontSize,
+            color = MiuixTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = content,
+            modifier = Modifier.weight(2f),
+            fontSize = MiuixTheme.textStyles.body1.fontSize,
+            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+        )
+    }
+}
+
+private fun sourceDiagnosticSummary(diagnostic: SourceMatchDiagnostic): String {
+    return when {
+        !diagnostic.searched || diagnostic.errorMessage != null -> "搜索失败"
+        diagnostic.score < 0 -> "未搜到该歌曲"
+        else -> buildString {
+            append("匹配分 ${diagnostic.score}")
+            if (!diagnostic.found) {
+                // 达标但取词失败 ≠ 未达标：区分两种失败原因
+                if (diagnostic.score >= OnlineLyricTargeter.PASS_SCORE) {
+                    append("（达标但取词失败）")
+                } else {
+                    append("（未达标）")
+                    if (diagnostic.nearMissEligible) append(" · 近失候选")
+                }
+            }
+            if (diagnostic.lineCount > 0) append(" · ${diagnostic.lineCount}行")
+            if (diagnostic.durationMs > 0) append(" · ${formatDuration(diagnostic.durationMs)}")
+            if (diagnostic.found && diagnostic.source == Source.LRCLIB) append(" · 仅歌词无翻译")
+        }
     }
 }
 
@@ -432,6 +852,7 @@ private fun SourceOrderPreference(
     isMovingForward: Boolean,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
+    diagnostic: SourceMatchDiagnostic? = null,
     onCheckedChange: (Boolean) -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
@@ -488,13 +909,25 @@ private fun SourceOrderPreference(
                 SourcePriorityBadge(priority)
             }
         }
-        Text(
-            text = source.displayName(),
-            modifier = Modifier.weight(1f),
-            fontSize = MiuixTheme.textStyles.headline1.fontSize,
-            fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onBackground,
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = source.displayName(),
+                fontSize = MiuixTheme.textStyles.headline1.fontSize,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onBackground,
+            )
+            diagnostic?.let { diag ->
+                Text(
+                    text = sourceDiagnosticSummary(diag),
+                    fontSize = MiuixTheme.textStyles.body2.fontSize,
+                    color = if (diag.searched && diag.score >= 0) {
+                        MiuixTheme.colorScheme.onSurfaceVariantActions
+                    } else {
+                        MiuixTheme.colorScheme.error
+                    },
+                )
+            }
+        }
         // The switch always has the same measured height and remains on the
         // row's center line even while the move-button slot is entering/leaving.
         Switch(
@@ -631,6 +1064,14 @@ private fun AppIcon(icon: Drawable?) {
     }
 }
 
+/** 候选时长展示格式：分:秒（如 4:19）。 */
+private fun formatDuration(durationMs: Long): String {
+    val totalSeconds = durationMs / 1_000L
+    val minutes = totalSeconds / 60L
+    val seconds = totalSeconds % 60L
+    return "$minutes:${seconds.toString().padStart(2, '0')}"
+}
+
 @Composable
 private fun Source.displayName(): String = when (this) {
     Source.NE -> stringResource(R.string.source_netease_music)
@@ -638,6 +1079,7 @@ private fun Source.displayName(): String = when (this) {
     Source.KUWO -> stringResource(R.string.source_kuwo_music)
     Source.KUGOU -> stringResource(R.string.source_kugou_music)
     Source.LB -> "LunaBeat TTML"
+    Source.LRCLIB -> "LRCLIB"
 }
 
 private data class TranslationApp(
@@ -654,6 +1096,33 @@ private data class SourceSwap(
     val direction: Int,
 )
 
+/** 自带曲库歌词+翻译、由 provider 直读的播放器包名（含其在用变体）。 */
+private val NATIVE_LYRIC_PACKAGES = setOf(
+    "com.netease.cloudmusic",
+    "com.tencent.qqmusic",
+    "com.tencent.qqmusicpad",
+    "cn.kuwo.player",
+    "com.kugou.android",
+    "com.kugou.android.lite",
+    "com.luna.music",
+    "cn.wenyu.bodian",
+    "com.miui.player",
+    "cmccwm.mobilemusic",
+    "com.xuncorp.qinalt.music",
+)
+
+/** 按播放器类型推断当前歌词/翻译的实际来源（与 hook 侧管线决策一致）。 */
+private fun lyricOriginRes(packageName: String?): Int = when (packageName) {
+    OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE -> R.string.lyric_origin_spotify
+    OnlineTranslationSourcePreferences.YOUTUBE_MUSIC_PACKAGE -> R.string.lyric_origin_ytm
+    OnlineTranslationSourcePreferences.SALT_PACKAGE -> R.string.lyric_origin_salt
+    OnlineTranslationSourcePreferences.APPLE_MUSIC_PACKAGE,
+    OnlineTranslationSourcePreferences.QISHUI_PACKAGE,
+    -> R.string.lyric_origin_native
+    in NATIVE_LYRIC_PACKAGES -> R.string.lyric_origin_native
+    else -> R.string.lyric_origin_online
+}
+
 private val ENABLED_APPS = listOf(
     TranslationApp(
         OnlineTranslationSourcePreferences.APPLE_MUSIC_PACKAGE,
@@ -668,11 +1137,16 @@ private val ENABLED_APPS = listOf(
     TranslationApp(
         OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE,
         "Spotify",
-        R.string.summary_online_translation_app_translation,
+        R.string.summary_online_translation_app_lyrics_translation,
     ),
     TranslationApp(
         OnlineTranslationSourcePreferences.SALT_PACKAGE,
         "椒盐音乐",
+        R.string.summary_online_translation_app_lyrics_translation,
+    ),
+    TranslationApp(
+        OnlineTranslationSourcePreferences.YOUTUBE_MUSIC_PACKAGE,
+        "YouTube Music",
         R.string.summary_online_translation_app_lyrics_translation,
     ),
 )

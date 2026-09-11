@@ -34,11 +34,32 @@ object OfficialProviderRuntime {
             val preferences = module.getRemotePreferences(UIConstants.PREF_NAME)
             val enabled = preferences.getBoolean(
                 OfficialProviderCatalog.enabledKey(definition.id),
-                false,
+                definition.builtin,
             )
             if (!enabled) {
                 return logUnavailable(module, definition.id, packageName, "disabled")
             }
+
+            // Built-in providers are compiled into the core APK: no Pack download, no
+            // installation record and no signature verification.
+            OfficialProviderCatalog.builtinPlugin(definition.id)?.let { plugin ->
+                val host = OfficialProviderHookHost(
+                    module = module,
+                    targetClassLoader = targetClassLoader,
+                    packageName = packageName,
+                    processName = processName,
+                )
+                plugin.install(host)
+                host.logInstalled(definition.id)
+                loadedPackages += packageName
+                module.log(
+                    Log.INFO,
+                    TAG,
+                    "内置官方 Provider 已加载: id=${definition.id} package=$packageName",
+                )
+                return true
+            }
+
             val installedVersion = preferences.getInt(
                 OfficialProviderCatalog.installedVersionKey(definition.id),
                 0,

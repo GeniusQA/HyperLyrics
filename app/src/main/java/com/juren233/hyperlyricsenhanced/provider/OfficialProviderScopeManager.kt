@@ -76,7 +76,7 @@ object OfficialProviderScopeManager {
         if (desiredScopes.isEmpty()) return
         val currentScopes = runCatching { service.scope.toSet() }
             .onFailure { error ->
-                Log.e(TAG, "读取 HyperLyrics Enhanced 作用域失败", error)
+                Log.e(TAG, "读取 HyperLyrics 作用域失败", error)
             }
             .getOrNull() ?: return
         val missing = missingScopes(desiredScopes, currentScopes)

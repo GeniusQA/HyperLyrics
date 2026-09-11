@@ -11,7 +11,6 @@ import com.juren233.hyperlyricsenhanced.online.OnlineTranslationSourcePreference
 import com.juren233.hyperlyricsenhanced.root.island.IslandSlotContentAssembler
 import com.juren233.hyperlyricsenhanced.root.island.renderer.IslandRenderer
 import com.juren233.hyperlyricsenhanced.root.mediacard.island.IslandExpandedLyricHooker
-import com.juren233.hyperlyricsenhanced.root.mediacard.notification.KeyguardFullScreenLyricHooker
 import com.juren233.hyperlyricsenhanced.root.mediacard.notification.NotificationMediaAodLyricHooker
 import com.juren233.hyperlyricsenhanced.root.aitrans.AITranslator
 import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
@@ -130,8 +129,7 @@ class RootLyricSink(
             LyriconDataBridge.updateLyricLine(line)
             renderer.updateLyricLine()
             NotificationMediaAodLyricHooker.onLyricChanged()
-            IslandExpandedLyricHooker.refresh()
-            KeyguardFullScreenLyricHooker.refresh()
+        IslandExpandedLyricHooker.refresh()
             IslandExpandedLyricHooker.refresh()
             MediaCardDiagnosticLogger.log(
                 stage = "root_sink",
@@ -158,7 +156,6 @@ class RootLyricSink(
         renderer.updateLyricLine()
         NotificationMediaAodLyricHooker.onLyricChanged()
         IslandExpandedLyricHooker.refresh()
-        KeyguardFullScreenLyricHooker.refresh()
     }
 
     override fun onStop() {
@@ -177,7 +174,6 @@ class RootLyricSink(
         LyriconDataBridge.clearState()
         NotificationMediaAodLyricHooker.onLyricChanged()
         IslandExpandedLyricHooker.refresh()
-        KeyguardFullScreenLyricHooker.refresh()
         MediaCardDiagnosticLogger.log(
             stage = "root_sink",
             event = "stop_complete",
@@ -210,7 +206,6 @@ class RootLyricSink(
         renderer.onPlaybackStateChanged(isPlaying)
         NotificationMediaAodLyricHooker.onPlaybackStateChanged(isPlaying)
         IslandExpandedLyricHooker.onPlaybackStateChanged()
-        KeyguardFullScreenLyricHooker.refresh()
         MediaCardDiagnosticLogger.log(
             stage = "root_sink",
             event = "playback_state_dispatched",
@@ -237,8 +232,7 @@ class RootLyricSink(
         if (lyricChanged) {
             renderer.updateLyricLine()
             NotificationMediaAodLyricHooker.onLyricChanged()
-            IslandExpandedLyricHooker.refresh()
-            KeyguardFullScreenLyricHooker.refresh()
+        IslandExpandedLyricHooker.refresh()
             IslandExpandedLyricHooker.refresh()
         }
         MediaCardDiagnosticLogger.log(
@@ -279,8 +273,7 @@ class RootLyricSink(
         if (lyricChanged) {
             renderer.updateLyricLine()
             NotificationMediaAodLyricHooker.onLyricChanged()
-            IslandExpandedLyricHooker.refresh()
-            KeyguardFullScreenLyricHooker.refresh()
+        IslandExpandedLyricHooker.refresh()
             IslandExpandedLyricHooker.refresh()
         }
         renderer.seekTo(position)

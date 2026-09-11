@@ -19,7 +19,7 @@ class LyricTileService : TileService() {
         val isEnabled = prefs.getBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND)
         
         val tile = qsTile ?: return
-        tile.label = "HyperLyrics Enhanced 媒体信息监听"
+        tile.label = "HyperLyrics 媒体信息监听"
         if (isEnabled) {
             tile.state = Tile.STATE_ACTIVE
         } else {

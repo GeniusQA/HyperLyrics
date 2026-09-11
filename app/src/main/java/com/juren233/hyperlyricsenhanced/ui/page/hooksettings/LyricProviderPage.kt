@@ -662,6 +662,44 @@ private fun LazyListScope.providerSections(
         SmallTitle(text = stringResource(R.string.title_official_provider_plugins))
     }
 
+    item(key = "builtin_lrclib") {
+        val expandKey = "lrclib"
+        val isExpanded = expandedStates[expandKey] ?: false
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp)
+                .fillMaxWidth(),
+            onClick = { expandedStates[expandKey] = !isExpanded },
+        ) {
+            Column {
+                ProComponent(
+                    title = "LRCLIB",
+                    summary = stringResource(R.string.summary_builtin_lrclib_provider),
+                    onClick = { expandedStates[expandKey] = !isExpanded },
+                    endActions = {
+                        Text(
+                            text = stringResource(R.string.provider_status_builtin),
+                            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            fontSize = 14.sp,
+                        )
+                    },
+                    showIndication = false,
+                )
+                AnimatedVisibility(visible = isExpanded) {
+                    Text(
+                        text = stringResource(R.string.detail_builtin_lrclib_provider),
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 12.dp),
+                        fontSize = 14.sp,
+                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    )
+                }
+            }
+        }
+    }
+
     item(key = "builtin_apple_music") {
         val packageName = OfficialProviderCatalog.CORE_PACKAGE_NAME
         val isExpanded = expandedStates[packageName] ?: false
@@ -676,6 +714,40 @@ private fun LazyListScope.providerSections(
                 ProComponent(
                     title = "Apple Music",
                     summary = stringResource(R.string.summary_builtin_apple_provider),
+                    onClick = { expandedStates[packageName] = !isExpanded },
+                    endActions = {
+                        Text(
+                            text = stringResource(R.string.provider_status_builtin),
+                            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            fontSize = 14.sp,
+                        )
+                    },
+                    showIndication = false,
+                )
+                AnimatedVisibility(visible = isExpanded) {
+                    ProviderDelayEditor(
+                        delayKey = RootConstants.KEY_HOOK_LYRICON_PROVIDER_DELAY_PREFIX + packageName,
+                        onRemove = null,
+                    )
+                }
+            }
+        }
+    }
+
+    item(key = "builtin_youtube_music") {
+        val packageName = OfficialProviderCatalog.YOUTUBE_MUSIC_PACKAGE_NAME
+        val isExpanded = expandedStates[packageName] ?: false
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp)
+                .fillMaxWidth(),
+            onClick = { expandedStates[packageName] = !isExpanded },
+        ) {
+            Column {
+                ProComponent(
+                    title = "YouTube Music",
+                    summary = stringResource(R.string.summary_builtin_youtube_music_provider),
                     onClick = { expandedStates[packageName] = !isExpanded },
                     endActions = {
                         Text(

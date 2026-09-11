@@ -135,11 +135,39 @@ object OfficialProviderRepository {
         require(entriesById.size == document.providers.size) {
             "Provider 目录包含重复插件"
         }
-        require(entriesById.keys == OfficialProviderCatalog.definitions.map { it.id }.toSet()) {
+        // Built-in providers (e.g. youtube-music) ship inside the core APK and are not
+        // published to the remote catalog, so they must be excluded from the id-set parity check.
+        val catalogExpectedIds =
+            OfficialProviderCatalog.definitions.filter { !it.builtin }.map { it.id }.toSet()
+        require(entriesById.keys == catalogExpectedIds) {
             "Provider 目录与内置允许列表不一致"
         }
 
-        return OfficialProviderCatalog.definitions.map { definition ->
+        return OfficialProviderCatalog.definitions.mapNotNull { definition ->
+            if (definition.builtin) {
+                // Built-in providers have no remote catalog entry: build their item purely
+                // from the local definition so the download list stays consistent.
+                return@mapNotNull OfficialProviderItem(
+                    catalog = ProviderCatalogEntry(
+                        id = definition.id,
+                        displayName = definition.displayName,
+                        targetPackages = definition.targetPackages.toList(),
+                        available = false,
+                    ),
+                    installedVersionCode = PrefsBridge.getInt(
+                        OfficialProviderCatalog.installedVersionKey(definition.id),
+                        0,
+                    ),
+                    installedVersionName = PrefsBridge.getString(
+                        OfficialProviderCatalog.installedVersionNameKey(definition.id),
+                    ),
+                    enabled = PrefsBridge.getBoolean(
+                        OfficialProviderCatalog.enabledKey(definition.id),
+                        true,
+                    ),
+                    needsRepair = false,
+                )
+            }
             val entry = requireNotNull(entriesById[definition.id]).copy(
                 displayName = definition.displayName,
             )

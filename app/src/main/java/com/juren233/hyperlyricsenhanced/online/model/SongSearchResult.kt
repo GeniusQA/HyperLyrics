@@ -9,6 +9,7 @@ enum class Source {
     KUWO,
     KUGOU,
     LB,
+    LRCLIB,
 }
 
 @Parcelize
