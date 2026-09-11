@@ -92,7 +92,7 @@ jobs:
             ./gradlew --no-daemon --max-workers=4 assembleDebug assembleRelease \
               --build-cache -PciVersionName="$FULL_NAME"
           elif [[ "$CHANNEL" == "canary" ]]; then
-            ./gradlew --no-daemon --max-workers=4 assembleRelease \
+            ./gradlew --no-daemon --max-workers=4 assembleDebug \
               --build-cache -PciVersionName="$FULL_NAME"
           else
             ./gradlew --no-daemon --max-workers=4 assembleDebug \
@@ -130,7 +130,7 @@ jobs:
           ZA="$BTDIR/zipalign"
           AS="$BTDIR/apksigner"
 
-          # 签名 release 产物（stable / canary 会产出）
+          # 签名 release 产物（stable 会产出）
           RELEASE_IN=$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit || true)
           if [[ -n "$RELEASE_IN" ]]; then
             $ZA -f -v -p 4 "$RELEASE_IN" release-aligned.apk
@@ -143,7 +143,7 @@ jobs:
               release-aligned.apk
           fi
 
-          # 签名 debug 产物（stable / beta 会产出）
+          # 签名 debug 产物（canary / stable / beta 会产出）
           DEBUG_IN=$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*-debug.apk' -print -quit || true)
           if [[ -n "$DEBUG_IN" ]]; then
             $ZA -f -v -p 4 "$DEBUG_IN" debug-aligned.apk
@@ -160,8 +160,8 @@ jobs:
         if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel == 'canary'
         uses: actions/upload-artifact@v7
         with:
-          name: canary-release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
-          path: HyperLyrics-release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
+          name: canary-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
+          path: HyperLyrics-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
           if-no-files-found: error
           compression-level: 0
 
