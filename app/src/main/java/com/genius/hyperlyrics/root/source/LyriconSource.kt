@@ -1822,9 +1822,10 @@ class LyriconSource : LyricSource {
                                 lrclibSong == null -> null
 
                                 orderedSources.isNotEmpty() &&
-                                    needsOnlineEnrichment(lrclibSong) ->
-                                    // LRCLIB 命中但缺翻译：四平台补翻译后合并到 LRCLIB 歌词
-                                    fetchThirdPartyLyrics(
+                                    needsOnlineEnrichment(lrclibSong) -> {
+                                    // LRCLIB 命中但缺翻译：四平台补翻译后合并到 LRCLIB 歌词；
+                                    // 四平台也补不到翻译时，直接提示未命中歌词翻译。
+                                    val translationLines = fetchThirdPartyLyrics(
                                         application = application,
                                         playerPackage = playerPackage,
                                         baseSong = baseSong,
@@ -1832,10 +1833,22 @@ class LyriconSource : LyricSource {
                                         order = orderedSources,
                                         requireTranslation = true,
                                     )
-                                        ?.let {
-                                            OnlineTranslationMatcher.apply(lrclibSong, it).song
-                                        }
-                                        ?: lrclibSong
+                                    if (translationLines == null) {
+                                        diagnostic(
+                                            "MetaData未命中歌词翻译: title=${baseSong.name}"
+                                        )
+                                        HookLogger.w(
+                                            TAG,
+                                            "MetaData未命中歌词翻译: title=${baseSong.name}, " +
+                                                "player=$playerPackage",
+                                        )
+                                        lrclibSong
+                                    } else {
+                                        OnlineTranslationMatcher
+                                            .apply(lrclibSong, translationLines)
+                                            .song
+                                    }
+                                }
 
                                 else -> lrclibSong
                             }
