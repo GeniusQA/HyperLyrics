@@ -30,6 +30,14 @@ private data class GitHubReleaseAsset(
 )
 
 object UpdateData {
+    /**
+     * 更新检查开关：包名独立（com.genius.hyperlyrics）后不再跟随上游仓库
+     * （juren233/HyperLyrics-Enhanced）的版本发布线——上游的 v7.5.1-151021
+     * 与本分支 1.0.0 属于不同发布线，比较没有意义。
+     * 迁移到自己的发布仓库后，将此开关置 true 并把 LATEST_RELEASE_API
+     * 改为自有仓库的 releases/latest 地址。
+     */
+    private const val UPDATE_CHECK_ENABLED = false
     private const val LATEST_RELEASE_API =
         "https://api.github.com/repos/juren233/HyperLyrics-Enhanced/releases/latest"
     private val json = Json { ignoreUnknownKeys = true }
@@ -41,6 +49,10 @@ object UpdateData {
         currentVersionName: String,
         currentVersionCode: Long,
     ) {
+        if (!UPDATE_CHECK_ENABLED) {
+            _availableUpdate.value = null
+            return
+        }
         runCatching {
             fetchLatestRelease()?.takeIf { latest ->
                 isUpdateAvailable(

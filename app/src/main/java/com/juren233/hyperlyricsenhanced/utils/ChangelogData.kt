@@ -30,8 +30,6 @@ private data class GitHubRelease(
 )
 
 object ChangelogData {
-    const val ORIGINAL_REPOSITORY_URL = "https://github.com/limczhh/HyperLyric"
-
     private const val RELEASES_API =
         "https://api.github.com/repos/juren233/HyperLyrics-Enhanced/releases"
     private const val PAGE_SIZE = 100

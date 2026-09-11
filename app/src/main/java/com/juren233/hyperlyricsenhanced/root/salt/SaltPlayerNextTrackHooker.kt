@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal object SaltPlayerNextTrackHooker {
     private const val TAG = "SaltPlayerNextTrack"
     private const val PLAYER_PACKAGE = "com.salt.music"
-    private const val BUILT_IN_PROVIDER_PACKAGE = "com.juren233.hyperlyricsenhanced"
+    private const val BUILT_IN_PROVIDER_PACKAGE = "com.genius.hyperlyrics"
     private const val POLL_INTERVAL_MS = 1_500L
     private const val HEARTBEAT_MS = 5_000L
 

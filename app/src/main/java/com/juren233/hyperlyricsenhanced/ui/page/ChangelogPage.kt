@@ -125,14 +125,6 @@ fun ChangelogPage() {
                 changelogPageSections(
                     state = uiState,
                     onRetry = { reloadKey++ },
-                    onOpenOriginalRepository = {
-                        context.startActivity(
-                            Intent(
-                                Intent.ACTION_VIEW,
-                                ChangelogData.ORIGINAL_REPOSITORY_URL.toUri()
-                            )
-                        )
-                    }
                 )
             }
             VerticalScrollBar(
@@ -147,7 +139,6 @@ fun ChangelogPage() {
 private fun LazyListScope.changelogPageSections(
     state: ChangelogUiState,
     onRetry: () -> Unit,
-    onOpenOriginalRepository: () -> Unit
 ) {
     when (state) {
         ChangelogUiState.Loading -> {
@@ -215,15 +206,6 @@ private fun LazyListScope.changelogPageSections(
                     }
                 }
             }
-        }
-    }
-
-    item(key = "original_repository_banner") {
-        Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp).fillMaxWidth()) {
-            ArrowPreference(
-                title = stringResource(R.string.changelog_original_repository),
-                onClick = onOpenOriginalRepository
-            )
         }
     }
 }

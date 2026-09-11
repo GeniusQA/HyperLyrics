@@ -72,7 +72,7 @@ class NotificationPresenter(
     // ─── 播控广播接收器 ───────────────────────────────────
     private val playbackToggleReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
-            if (intent?.action == "com.juren233.hyperlyricsenhanced.ACTION_TOGGLE_PLAYBACK") {
+            if (intent?.action == "com.genius.hyperlyrics.ACTION_TOGGLE_PLAYBACK") {
                 val audioManager = ctx?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 val eventTime = android.os.SystemClock.uptimeMillis()
                 val downEvent = KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 0)
@@ -94,7 +94,7 @@ class NotificationPresenter(
     // ─── 生命周期 ─────────────────────────────────────────
 
     fun register() {
-        val filter = IntentFilter("com.juren233.hyperlyricsenhanced.ACTION_TOGGLE_PLAYBACK")
+        val filter = IntentFilter("com.genius.hyperlyrics.ACTION_TOGGLE_PLAYBACK")
         context.registerReceiver(playbackToggleReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         val screenFilter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -396,7 +396,7 @@ class NotificationPresenter(
             songInfo.isNotBlank()
         LogManager.i(
             "NotificationPresenter",
-            "经典AOD歌曲信息: displayStyle=$displayStyle, format=$format, " +
+            "自定义AOD歌曲信息: displayStyle=$displayStyle, format=$format, " +
                 "title=$title, artist=$artist, " +
                 "interactive=${isScreenInteractive()}, fullscreenAod=$fullScreenAodActive, " +
                 "shouldShow=$shouldShow"
@@ -419,6 +419,24 @@ class NotificationPresenter(
             return
         }
 
+        // 自定义 AOD 焦点通知卡片：接入「显示进度」开关与真实播放进度，
+        // 专辑封面优先用真实封面（无则回退应用图标）。
+        val showProgressSetting = prefs.getBoolean(
+            ServiceConstants.KEY_NOTIFICATION_SHOW_PROGRESS,
+            ServiceConstants.DEFAULT_NOTIFICATION_SHOW_PROGRESS,
+        )
+        val safeDuration = if (state.duration > 0) state.duration else 100L
+        val currentPos = with(DynamicLyricData) {
+            state.getCurrentPosition()
+        }.coerceIn(0, safeDuration)
+        val progressPercent =
+            if (safeDuration > 1000) {
+                ((currentPos.toDouble() / safeDuration.toDouble()) * 100)
+                    .roundToInt()
+                    .coerceIn(0, 100)
+            } else {
+                0
+            }
         val notification = NotificationBuilder.buildFocusNotification(
             context = context,
             uiState = NotificationBuilder.UiState(
@@ -428,15 +446,17 @@ class NotificationPresenter(
                 notificationTitleLeft = songInfo,
                 color = 0,
                 colorEnd = 0,
-                progress = 0,
+                progress = progressPercent,
                 isPlaying = state.isPlaying,
-                notificationAlbumBitmap = sourceApplicationIcon(state.targetPackageName),
+                notificationAlbumBitmap = state.notificationAlbumBitmap
+                    ?.takeIf { !it.isRecycled }
+                    ?: sourceApplicationIcon(state.targetPackageName),
                 islandLeftIconStyle = 1,
                 disableLyricSplit = true,
                 showAlbumArt = true,
                 focusShowNotification = true,
             ),
-            showProgress = false,
+            showProgress = showProgressSetting,
         )
         val notificationId = ClassicAodFocusNotificationPolicy.nextNotificationId(
             activeNotificationId = activeClassicAodNotificationId,
@@ -456,7 +476,7 @@ class NotificationPresenter(
         )
         LogManager.i(
             "NotificationPresenter",
-            "经典AOD歌曲信息焦点通知已重新发布: id=$notificationId, song=$songInfo"
+            "自定义AOD歌曲信息焦点通知已重新发布: id=$notificationId, song=$songInfo"
         )
     }
 
@@ -491,14 +511,14 @@ class NotificationPresenter(
             }.onFailure {
                 LogManager.w(
                     "NotificationPresenter",
-                    "检查经典AOD焦点通知状态失败: id=$notificationId",
+                    "检查自定义AOD焦点通知状态失败: id=$notificationId",
                     it
                 )
             }.getOrDefault(true)
             if (stillActive) {
                 LogManager.i(
                     "NotificationPresenter",
-                    "经典AOD焦点通知状态确认正常: id=$notificationId, song=$songInfo"
+                    "自定义AOD焦点通知状态确认正常: id=$notificationId, song=$songInfo"
                 )
                 return@launch
             }
@@ -515,7 +535,7 @@ class NotificationPresenter(
             activeClassicAodNotificationId = retryId
             LogManager.w(
                 "NotificationPresenter",
-                "经典AOD焦点通知被系统移除，已自动重发: oldId=$notificationId, " +
+                "自定义AOD焦点通知被系统移除，已自动重发: oldId=$notificationId, " +
                     "newId=$retryId, song=$songInfo"
             )
         }
