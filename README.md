@@ -70,7 +70,7 @@ HyperLyrics 是一个为小米 HyperOS 设备打造的 Android 模块与独立�
 
 | 模式 | 适合人群 | 主要能力 | 依赖 |
 | :--- | :--- | :--- | :--- |
-| **Xposed / LSPosed 模式** | 已 Root、希望使用原生超级岛/系统界面注入 | HyperOS 超级岛、SystemUI 媒体卡片、Apple Music 深度适配、AOD 与系统白名单增强、主流播放器官方插件注入 | LSPosed v2.0+；HyperOS 3 相关功能需要对应 SystemUI |
+| **Xposed / LSPosed 模式** | 已 Root、希望使用原生超级岛/系统界面注入 | HyperOS 超级岛、SystemUI 媒体卡片、Apple Music 深度适配、AOD 与系统白名单增强、主流播放器官方插件注入 | LSPosed v2.0+；HyperOS 3/HyperOS 4 相关功能需要对应 SystemUI |
 | **通知歌词模式** | 未 Root 或不使用 Xposed 的设备 | 实时通知/焦点通知歌词、通知型灵动岛、基础媒体信息展示 | 通知发送权限、通知使用权；部分功能可选 Shizuku |
 
 两种模式可以分别配置。Apple Music 内置 Provider、官方 Provider 插件与体验优化功能均属于 Xposed 侧能力；通知模式则依赖播放器提供媒体信息或歌词通知数据。
@@ -115,12 +115,12 @@ HyperLyrics 是一个为小米 HyperOS 设备打造的 Android 模块与独立�
 
 | 功能 | 当前目标环境 | 备注 |
 | :--- | :--- | :--- |
-| HyperOS 超级岛歌词与 SystemUI 注入 | Android 15+ / HyperOS 3 | 需要 LSPosed v2.0+ 以及 miui.systemui.plugin |
+| HyperOS 超级岛歌词与 SystemUI 注入 | Android 15+ / HyperOS 3/HyperOS 4 | 需要 LSPosed v2.0+ 以及 miui.systemui.plugin |
 | Apple Music 内置 Provider 与深度适配 | Android 13+，配合 LSPosed | 作用于 com.apple.android.music；Apple Music 版本变化可能影响兼容性 |
 | 主流播放器官方 Provider 插件 | Android 13+，配合 LSPosed | 需勾选对应音乐 App 作用域并在应用内下载启用插件 |
 | 锁屏 AOD / 经典 AOD | 米系 Android 13+ | 取决于设备的 AOD 实现和对应作用域 |
 | 通知型灵动岛歌词 | Android 13+ | 需要通知发送权限、通知使用权和播放器数据 |
-| 小米焦点通知增强 | HyperOS 2 / HyperOS 3 | 可能需要移除焦点通知白名单 |
+| 小米焦点通知增强 | HyperOS 2 / HyperOS 3 / HyperOS 4 | 可能需要移除焦点通知白名单 |
 | 下拉小窗白名单增强 | Android 16 / HyperOS 3.0.300+ | 依赖对应系统版本 |
 | Android 实时通知 | Android 16；部分 HyperOS 3 / ColorOS 16 | 是否显示为系统级实时通知由系统决定 |
 

@@ -1081,6 +1081,9 @@ class LyriconSource : LyricSource {
         // 后续歌曲从订阅回调进来时 universalFallback 可能为 false，这里统一按「无 Provider」判定，
         // 保证始终走 LRCLIB 兜底取词而不是四平台整首取词。
         val universal = universalFallback || activeProviderPackageName == null
+        // 通用兜底（无 Provider 播放器）必须把歌词归属注册到桥，否则岛渲染器
+        // 依赖 currentLyricPackageName 匹配岛时拿到空值而直接跳过，兜底歌词无法上岛。
+        if (universal) LyriconDataBridge.updateLyricPackage(activeCentralPlayerPackageName)
         // 通用兜底绕过单 App 在线开关：该场景下播放器已无任何歌词来源。
         if (!universal && !isThirdPartyOnlineEnabledFor(playerPackage)) return
         // 单行「歌名 - 歌手」占位歌词（无歌词曲目下发或本地生成）不算真实歌词，
