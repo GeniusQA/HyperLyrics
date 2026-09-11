@@ -58,7 +58,7 @@ fun LogItem(
         onClick = { expanded = !expanded },
         onLongPress = {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = ClipData.newPlainText("HyperLyrics Enhanced Log", entry.rawLog)
+            val clip = ClipData.newPlainText("HyperLyrics Log", entry.rawLog)
             clipboard.setPrimaryClip(clip)
             scope.launch {
                 snackbarHostState.showSnackbar(

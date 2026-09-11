@@ -1,5 +1,5 @@
 name: 缺陷反馈 (Bug Report)
-description: 提交 HyperLyrics Enhanced 在使用过程中遇到的 Bug 反馈 / Submit bug reports for HyperLyrics Enhanced
+description: 提交 HyperLyrics 在使用过程中遇到的 Bug 反馈 / Submit bug reports for HyperLyrics
 title: "[BUG] <简短描述您遇到的问题 / Short description of the issue>"
 labels: ["bug"]
 assignees: ["juren233"]
@@ -76,10 +76,10 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: LSPosed 日志或 HyperLyrics Enhanced 日志 / LSPosed Logs or HyperLyrics Enhanced Logs
+      label: LSPosed 日志或 HyperLyrics 日志 / LSPosed Logs or HyperLyrics Logs
       description: |
-        请上传从 LSPosed 管理器导出的日志文件，或应用内导出的 HyperLyrics Enhanced 日志文件。此处不接受日志截图或日志录屏，截图形式无法定位问题所在；日志请以文件形式提供，或直接粘贴网盘分享链接。
-        Please upload the log file exported from LSPosed Manager or HyperLyrics Enhanced. Log screenshots or screen recordings are not accepted because they cannot provide enough information to locate the issue; provide logs as files or paste a cloud-drive sharing link directly.
+        请上传从 LSPosed 管理器导出的日志文件，或应用内导出的 HyperLyrics 日志文件。此处不接受日志截图或日志录屏，截图形式无法定位问题所在；日志请以文件形式提供，或直接粘贴网盘分享链接。
+        Please upload the log file exported from LSPosed Manager or HyperLyrics. Log screenshots or screen recordings are not accepted because they cannot provide enough information to locate the issue; provide logs as files or paste a cloud-drive sharing link directly.
       placeholder: 拖拽上传文件，或在此直接粘贴网盘分享链接 (Drag & drop files here, or paste cloud drive link directly)
     validations:
       required: true

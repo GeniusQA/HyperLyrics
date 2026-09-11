@@ -8,7 +8,7 @@ import com.juren233.hyperlyricsenhanced.common.LogLevelPolicy
 import com.juren233.hyperlyricsenhanced.common.UIConstants
 import io.github.libxposed.api.XposedModule
 
-private const val TAG = "HyperLyrics Enhanced"
+private const val TAG = "HyperLyrics"
 
 object HookLogger : HyperLogger {
     @Volatile

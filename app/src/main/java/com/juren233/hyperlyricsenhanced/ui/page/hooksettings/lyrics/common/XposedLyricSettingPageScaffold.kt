@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -68,6 +69,7 @@ internal fun XposedLyricSettingPage(
     subtitle: String = "",
     outerPadding: PaddingValues = PaddingValues(),
     showNavigationIcon: Boolean = true,
+    actions: @Composable RowScope.() -> Unit = {},
     content: LazyListScope.() -> Unit
 ) {
     val navigator = LocalNavigator.current
@@ -93,7 +95,8 @@ internal fun XposedLyricSettingPage(
                                 )
                             }
                         }
-                    }
+                    },
+                    actions = actions,
                 )
             }
         }

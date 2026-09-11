@@ -56,7 +56,7 @@ open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
             _model.width
         }
 
-    // ---- Metadata marquee overrides (called from HyperLyrics Enhanced) ----
+    // ---- Metadata marquee overrides (called from HyperLyrics) ----
     fun setMarqueeSpeed(speed: Float) { scrollRenderer.scrollSpeed = speed }
     fun setMarqueeInitialDelay(ms: Int) { scrollRenderer.initialDelayMs = ms }
     fun setMarqueeLoopDelay(ms: Int) { scrollRenderer.loopDelayMs = ms }

@@ -1,4 +1,4 @@
-// Copyright 2026, HyperLyrics Enhanced contributors
+// Copyright 2026, HyperLyrics contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package com.juren233.hyperlyricsenhanced.ui.component

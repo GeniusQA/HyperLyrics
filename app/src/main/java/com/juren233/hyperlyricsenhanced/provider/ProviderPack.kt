@@ -79,7 +79,7 @@ object ProviderPackVerifier {
             "Provider 插件 API 不兼容"
         }
         require(manifest.minCoreVersionCode <= coreVersionCode) {
-            "Provider 需要更新版本的 HyperLyrics Enhanced"
+            "Provider 需要更新版本的 HyperLyrics"
         }
         require(manifest.pluginId.matches(Regex("[a-z0-9][a-z0-9-]{1,47}"))) {
             "Provider 插件 ID 无效"

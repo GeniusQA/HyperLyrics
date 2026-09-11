@@ -36,7 +36,7 @@ data class PlaybackAnchor(
 
 data class LyricState(
     val islandTitleLeft: String = "等待播放...",
-    val islandTitleRight: String = "HyperLyrics Enhanced",
+    val islandTitleRight: String = "HyperLyrics",
     val notificationTitleLeft: String = "",
     val notificationTitleRight: String = "",
     val songLyric: String = "",

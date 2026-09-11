@@ -30,38 +30,42 @@ internal interface DozeTickRunnableFactory {
         const val CAPTURED_RECEIVER_FIELD = "f\$0"
 
         fun resolve(tickRunnableClass: Class<*>, hostClass: Class<*>): DozeTickRunnableFactory {
-            val legacy = runCatching {
-                tickRunnableClass.getDeclaredConstructor(hostClass)
-            }.getOrNull()
+            val constructors = tickRunnableClass.declaredConstructors
+            val signatures = constructors.joinToString(prefix = "[", separator = ", ", postfix = "]") {
+                it.toString()
+            }
+            // 形态一：单参构造器捕获 receiver。参数类型允许是 host 的基类/接口，
+            // 因为不同 ROM 的脱糖结果捕获的可能是 DozeServiceHost 的父类型。
+            val legacy = constructors.firstOrNull { ctor ->
+                ctor.parameterTypes.size == 1 && ctor.parameterTypes[0].isAssignableFrom(hostClass)
+            }
             if (legacy != null) {
                 legacy.isAccessible = true
                 return LegacyConstructor(legacy)
             }
-            val noArg = runCatching {
-                tickRunnableClass.getDeclaredConstructor()
-            }.getOrElse {
-                throw IllegalStateException(
-                    "脱糖 Runnable ${tickRunnableClass.name} 既无 " +
-                        "(${hostClass.name}) 构造器也无默认构造器",
-                    it,
-                )
+            // 形态二：无参构造器 + 捕获字段（优先 f$0，退而接受任何兼容类型的实例字段）。
+            val noArg = constructors.firstOrNull { it.parameterTypes.isEmpty() }
+            if (noArg != null) {
+                val captured = tickRunnableClass.declaredFields
+                    .firstOrNull { it.name == CAPTURED_RECEIVER_FIELD }
+                    ?: tickRunnableClass.declaredFields.firstOrNull { field ->
+                        !java.lang.reflect.Modifier.isStatic(field.modifiers) &&
+                            field.type.isAssignableFrom(hostClass)
+                    }
+                    ?: throw IllegalStateException(
+                        "脱糖 Runnable ${tickRunnableClass.name} 无 $CAPTURED_RECEIVER_FIELD " +
+                            "兼容捕获字段: constructors=$signatures",
+                    )
+                require(captured.type.isAssignableFrom(hostClass)) {
+                    "脱糖 Runnable 的捕获字段类型 ${captured.type.name} 与 ${hostClass.name} 不兼容"
+                }
+                noArg.isAccessible = true
+                captured.isAccessible = true
+                return CapturedField(noArg, captured)
             }
-            val captured = runCatching {
-                tickRunnableClass.getDeclaredField(CAPTURED_RECEIVER_FIELD)
-            }.getOrElse {
-                throw IllegalStateException(
-                    "脱糖 Runnable ${tickRunnableClass.name} 既无 " +
-                        "(${hostClass.name}) 构造器也无 $CAPTURED_RECEIVER_FIELD 捕获字段",
-                    it,
-                )
-            }
-            require(captured.type.isAssignableFrom(hostClass)) {
-                "脱糖 Runnable 的 $CAPTURED_RECEIVER_FIELD 字段类型 " +
-                    "${captured.type.name} 与 ${hostClass.name} 不兼容"
-            }
-            noArg.isAccessible = true
-            captured.isAccessible = true
-            return CapturedField(noArg, captured)
+            throw IllegalStateException(
+                "脱糖 Runnable ${tickRunnableClass.name} 无可用构造器: constructors=$signatures",
+            )
         }
     }
 

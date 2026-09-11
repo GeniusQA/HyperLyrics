@@ -50,6 +50,7 @@ internal fun sourceMenuLabel(
         "QM" -> "QQ"
         "KUWO" -> "酷我"
         "KUGOU" -> "酷狗"
+        "LRCLIB" -> "LRCLIB"
         "LB" -> "LB"
         "APPLE" -> "Apple Music原生"
         else -> "网易"

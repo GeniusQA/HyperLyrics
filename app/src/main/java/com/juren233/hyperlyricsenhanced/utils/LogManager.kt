@@ -183,7 +183,7 @@ object LogManager : HyperLogger {
                                 level = level,
                                 tag = tag,
                                 message = truncate(msg, MAX_DISPLAY_ENTRY_CHARS),
-                                source = "HyperLyrics Enhanced",
+                                source = "HyperLyrics",
                                 rawLog = truncate(line, MAX_DISPLAY_ENTRY_CHARS)
                             )
                         )
@@ -336,10 +336,10 @@ object LogManager : HyperLogger {
                     val source: String
                     val messageStart: Int
                     if (moduleTagMatcher.find()) {
-                        source = moduleTagMatcher.group(1) ?: "HyperLyrics Enhanced"
+                        source = moduleTagMatcher.group(1) ?: "HyperLyrics"
                         messageStart = moduleTagMatcher.end()
                     } else {
-                        source = "HyperLyrics Enhanced"
+                        source = "HyperLyrics"
                         val lastBracket = firstLine.lastIndexOf(']')
                         messageStart = if (lastBracket != -1) lastBracket + 1 else 0
                     }

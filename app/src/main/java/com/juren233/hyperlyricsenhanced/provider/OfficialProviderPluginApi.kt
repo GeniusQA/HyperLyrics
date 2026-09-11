@@ -123,6 +123,14 @@ interface OfficialProviderHost {
      * Pack 应相应提高 manifest 的 minCoreVersionCode，避免在旧主模块上静默降级。
      */
     fun getBooleanPreference(key: String, default: Boolean): Boolean = default
+
+    /**
+     * 读取主模块远端 Hook 配置中的字符串键。
+     *
+     * Provider 用它读取平台来源顺序等列表型配置，保证抓词来源与设置页实时一致；
+     * 默认实现返回 [default]，保持旧 Provider Pack 的二进制兼容。
+     */
+    fun getStringPreference(key: String, default: String): String = default
 }
 
 /**

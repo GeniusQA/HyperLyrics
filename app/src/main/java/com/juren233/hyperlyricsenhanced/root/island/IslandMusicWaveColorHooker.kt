@@ -300,7 +300,7 @@ internal object IslandMusicWaveColorHooker {
 
     private fun newColorExecutor(): ExecutorService {
         return Executors.newSingleThreadExecutor { task ->
-            Thread(task, "HyperLyrics Enhanced-MusicWaveColor").apply { isDaemon = true }
+            Thread(task, "HyperLyrics-MusicWaveColor").apply { isDaemon = true }
         }
     }
 
