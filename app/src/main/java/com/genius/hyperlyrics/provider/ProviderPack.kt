@@ -84,7 +84,7 @@ object ProviderPackVerifier {
         require(manifest.pluginId.matches(Regex("[a-z0-9][a-z0-9-]{1,47}"))) {
             "Provider 插件 ID 无效"
         }
-        require(manifest.entryClass.startsWith("com.juren233.hle.providers.")) {
+        require(manifest.entryClass.startsWith("com.genius.hyperlyrics.providers.")) {
             "Provider 入口类不在允许命名空间"
         }
         require(
