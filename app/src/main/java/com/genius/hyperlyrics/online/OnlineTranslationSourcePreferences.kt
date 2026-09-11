@@ -108,7 +108,7 @@ object OnlineTranslationSourcePreferences {
         SPOTIFY_PACKAGE -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SPOTIFY
         SALT_PACKAGE -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SALT
         YOUTUBE_MUSIC_PACKAGE -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC
-        else -> null
+        else -> RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_PREFIX + packageName
     }
 
     fun appDefaultEnabled(packageName: String): Boolean = when (packageName) {
@@ -117,7 +117,8 @@ object OnlineTranslationSourcePreferences {
         SPOTIFY_PACKAGE -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_APP_SPOTIFY
         SALT_PACKAGE -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_APP_SALT
         YOUTUBE_MUSIC_PACKAGE -> RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC
-        else -> false
+        // 通用播放器（无官方 Provider）默认开启在线翻译，可在设置页单独关闭。
+        else -> true
     }
 
     fun isAppEnabled(prefs: SharedPreferences?, packageName: String?): Boolean {
@@ -137,11 +138,14 @@ object OnlineTranslationSourcePreferences {
         RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_LRCLIB,
     )
 
-    fun isAppPreference(key: String?): Boolean = key in setOf(
-        RootConstants.KEY_HOOK_APPLE_MUSIC_MATCH_ONLINE_TRANSLATION,
-        RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_QISHUI,
-        RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SPOTIFY,
-        RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SALT,
-        RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC,
-    )
+    fun isAppPreference(key: String?): Boolean {
+        if (key == null) return false
+        return key in setOf(
+            RootConstants.KEY_HOOK_APPLE_MUSIC_MATCH_ONLINE_TRANSLATION,
+            RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_QISHUI,
+            RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SPOTIFY,
+            RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_SALT,
+            RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC,
+        ) || key.startsWith(RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_PREFIX)
+    }
 }
