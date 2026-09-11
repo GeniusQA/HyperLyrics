@@ -784,8 +784,8 @@ object RootConstants {
     const val DEFAULT_HOOK_AI_TRANS_SKIP_EXISTING_TRANSLATION = false
     const val DEFAULT_HOOK_AI_TRANS_FORCE_OVERRIDE = false
     const val DEFAULT_HOOK_AI_TRANS_TARGET_LANG = "中文"
-    const val DEFAULT_HOOK_AI_TRANS_MODEL = "mimo-v2-flash"
-    const val DEFAULT_HOOK_AI_TRANS_BASE_URL = "https://api.xiaomimimo.com/v1/"
+    const val DEFAULT_HOOK_AI_TRANS_MODEL = "gpt-4o-mini"
+    const val DEFAULT_HOOK_AI_TRANS_BASE_URL = "https://api.openai.com/v1/"
     const val DEFAULT_HOOK_AI_TRANS_PROMPT = """你是一个歌词翻译专家，遵循"信雅达"原则进行创作。
 
 ## 核心：信雅达 (Cultural Transcreation)
