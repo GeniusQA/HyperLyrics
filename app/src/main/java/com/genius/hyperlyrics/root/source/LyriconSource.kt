@@ -1870,7 +1870,7 @@ class LyriconSource : LyricSource {
                                 generation = generation,
                                 baseSong = baseSong,
                                 fallbackSong = fallbackSong,
-                                universalFallback = universal,
+                                universalFallback = universalFallback,
                             )
                         }
                     }
