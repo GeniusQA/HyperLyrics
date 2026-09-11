@@ -2,6 +2,16 @@ name: Android Build & Release
 
 on:
   workflow_dispatch:
+    inputs:
+      channel:
+        description: '构建渠道 (canary=仅产物 / beta=预发布 / stable=正式发布)'
+        required: true
+        type: choice
+        options:
+          - canary
+          - beta
+          - stable
+        default: canary
 
 concurrency:
   group: android-build-${{ github.ref }}
@@ -25,6 +35,7 @@ jobs:
         id: gate
         env:
           EVENT_NAME: ${{ github.event_name }}
+          CHANNEL: ${{ github.event.inputs.channel }}
         run: |
           set -euo pipefail
 

@@ -46,7 +46,7 @@ android {
         // versionCode 必须保持单调递增：Provider 插件包内含 minCoreVersionCode 校验，
         // 低于插件要求时添加插件会报「插件与当前版本不兼容，请更新 HyperLyrics」
         versionCode = 151022
-        versionName = ciVersionName ?: "1.0.0-canary"
+        versionName = ciVersionName ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
