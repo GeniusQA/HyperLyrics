@@ -375,7 +375,7 @@ internal object IslandExpandedMediaBackgroundController {
         val request = targetState.request.incrementAndGet()
         val classLoader = binder.javaClass.classLoader ?: return
 
-        executor.execute {
+        requireExecutor().execute {
             val renderer = runCatching { MediaBackgroundRendererPool.get(classLoader) }
                 .onFailure { error ->
                 HookLogger.e(TAG, "初始化展开态媒体背景渲染器失败", error)
@@ -723,6 +723,16 @@ internal object IslandExpandedMediaBackgroundController {
 
     private fun Int.withAlpha(alpha: Int): Int {
         return this and 0x00ffffff or (alpha.coerceIn(0, 255) shl 24)
+    }
+
+    /** releaseAll() 会 shutdownNow 执行器；再次提交时若已终止则重建，避免 RejectedExecutionException。 */
+    private fun requireExecutor(): ExecutorService {
+        val current = executor
+        if (!current.isShutdown) return current
+        return synchronized(this) {
+            if (executor.isShutdown) executor = newExecutor()
+            executor
+        }
     }
 
     private fun newExecutor(): ExecutorService = Executors.newSingleThreadExecutor { task ->

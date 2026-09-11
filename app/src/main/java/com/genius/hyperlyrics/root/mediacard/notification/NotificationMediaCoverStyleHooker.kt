@@ -481,9 +481,26 @@ object NotificationMediaCoverStyleHooker {
         private val setVisibilityMethod: Method,
         private val setGoneMarginMethod: Method
     ) {
-        fun getHolder(controller: Any): Any? = holderField.get(controller)
+        /**
+         * 布局回调的 receiver 在部分新 HyperOS（如 OS4.0.0.25）上是布局控制器
+         * `MiuiMediaNotificationControllerImpl`，并不继承视图控制器
+         * `MiuiMediaViewControllerImpl`；直接用视图控制器声明的字段反射会抛
+         * IllegalArgumentException: Expected receiver of type ...。
+         *
+         * 这里先判断字段声明类是否与 receiver 兼容，不兼容时返回 null 交给调用方降级
+         * （视图级隐藏仍可由视图控制器回调的 applyStyle 完成），避免每帧刷屏报错。
+         */
+        fun getHolder(controller: Any): Any? {
+            val field = holderField
+            if (!field.declaringClass.isInstance(controller)) return null
+            return runCatching { field.get(controller) }.getOrNull()
+        }
 
-        fun getMediaData(controller: Any): Any? = controllerMediaDataField.get(controller)
+        fun getMediaData(controller: Any): Any? {
+            val field = controllerMediaDataField
+            if (!field.declaringClass.isInstance(controller)) return null
+            return runCatching { field.get(controller) }.getOrNull()
+        }
 
         fun getAlbumView(holder: Any): View = albumViewField.get(holder) as View
 
