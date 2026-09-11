@@ -320,9 +320,17 @@ object OnlineLyricTargeter {
         statusSources: List<SearchSource> = emptyList(),
     ): SearchOutcome {
 
-        val keyword = "$title $artist"
-        val albumKeyword = originalAlbum?.trim()?.takeIf(String::isNotEmpty)
-        val fallbackKeyword = if (albumKeyword == null) title else "$title $albumKeyword"
+        // 统一匹配格式：取歌词/翻译都优先「歌名 歌手 专辑」，
+        // 专辑匹配不到时再降级为「歌名 歌手」重试。
+        val titleArtistKeyword = "$title $artist"
+        val albumForKeyword = album?.trim()?.takeIf(String::isNotEmpty)
+            ?: originalAlbum?.trim()?.takeIf(String::isNotEmpty)
+        val keyword = if (albumForKeyword == null) {
+            titleArtistKeyword
+        } else {
+            "$title $artist $albumForKeyword"
+        }
+        val fallbackKeyword = titleArtistKeyword
         LogManager.d(
             "OnlineTargeter",
             "正在搜索: 类型=$metadataLabel, 关键词=\"$keyword\", " +
@@ -367,6 +375,7 @@ object OnlineLyricTargeter {
                             localFeatures = localFeatures,
                             cleanLocalAlbum = cleanLocalAlbum,
                             multiCredit = multiCredit,
+                            albumForKeyword = albumForKeyword,
                             allowFallbackRetry = allowFallbackRetry,
                         )
                     }
@@ -418,6 +427,7 @@ object OnlineLyricTargeter {
                     localFeatures = localFeatures,
                     cleanLocalAlbum = cleanLocalAlbum,
                     multiCredit = multiCredit,
+                    albumForKeyword = albumForKeyword,
                     allowFallbackRetry = true,
                 )
             }
@@ -493,10 +503,14 @@ object OnlineLyricTargeter {
         localFeatures: List<String>,
         cleanLocalAlbum: String,
         multiCredit: Boolean,
+        albumForKeyword: String?,
         allowFallbackRetry: Boolean,
     ): SourceEvaluation {
         val sourceKeyword = if (source.sourceType == Source.KUGOU && artist.isNotBlank()) {
-            "$artist - $title"
+            buildString {
+                append(artist).append(" - ").append(title)
+                albumForKeyword?.let { append(' ').append(it) }
+            }
         } else {
             keyword
         }
@@ -514,15 +528,18 @@ object OnlineLyricTargeter {
             cleanLocalAlbum = cleanLocalAlbum,
         )
         statuses += attempt.status
-        if (
-            allowFallbackRetry &&
-            multiCredit &&
-            !attempt.passAttempted &&
-            (attempt.song == null || !attempt.artistMatched)
-        ) {
+        // 优先「歌名 歌手 专辑」；专辑（或多人署名）没匹配到歌词时，降级为「歌名 歌手」重试。
+        val albumKeywordIncluded = keyword != fallbackKeyword
+        val shouldRetry = allowFallbackRetry && fallbackKeyword.isNotBlank() &&
+            attempt.lines == null &&
+            (
+                albumKeywordIncluded ||
+                    (multiCredit && (attempt.song == null || !attempt.artistMatched))
+                )
+        if (shouldRetry) {
             LogManager.d(
                 "OnlineTargeter",
-                "多人署名候选无歌手交集，使用歌曲名+原名专辑降级重试: " +
+                "专辑/署名未匹配，降级为「歌名 歌手」重试: " +
                     "源=${source.javaClass.simpleName}, 关键词=\"$fallbackKeyword\"",
             )
             val retry = scoreSource(
@@ -1185,7 +1202,11 @@ object OnlineLyricTargeter {
                 val attempt = scoreSource(
                     context = context,
                     source = source,
-                    keyword = "$searchTitle $searchArtist",
+                    keyword = if (album.isBlank()) {
+                        "$searchTitle $searchArtist"
+                    } else {
+                        "$searchTitle $searchArtist ${album.trim()}"
+                    },
                     durationMs = effectiveDurationMs,
                     requireTranslation = false,
                     metadataLabel = "诊断",
