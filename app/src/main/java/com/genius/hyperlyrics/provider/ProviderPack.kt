@@ -56,7 +56,7 @@ object ProviderPackVerifier {
     }
 
     private const val PUBLIC_KEY_DER_BASE64 =
-        "MCowBQYDK2VwAyEAUQ05FgAS98xeNOtYppCBq1BUjEhwdxrChjwpK5sRgQU="
+        "MCowBQYDK2VwAyEA8QvS/qy38+thFw030+NBF/54mN2luyxLSQH2Y9cveNw="
 
     fun verify(
         packBytes: ByteArray,
