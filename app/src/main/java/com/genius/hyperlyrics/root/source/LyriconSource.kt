@@ -1079,7 +1079,7 @@ class LyriconSource : LyricSource {
         val playerPackage = activeCentralPlayerPackageName
         // 通用兜底（无 Provider 播放器）绕过单 App 在线开关：
         // 该场景下播放器已无任何歌词来源，不发起匹配则永远裸奔。
-        if (!universalFallback && !isOnlineTranslationEnabledFor(playerPackage)) return
+        if (!universalFallback && !isThirdPartyOnlineEnabledFor(playerPackage)) return
         val hasLocalLyrics = !song.lyrics.isNullOrEmpty() &&
             !(
                 playerPackage == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE &&
@@ -1089,7 +1089,11 @@ class LyriconSource : LyricSource {
             !hasLocalLyrics
         ) {
             // Spotify 原生无歌词：直接用歌名 + 歌手去已启用平台整首取词（歌词 + 翻译）。
-            scheduleThirdPartyFallback(baseSong = song, delayMs = 0L)
+            scheduleThirdPartyFallback(
+                baseSong = song,
+                delayMs = 0L,
+                universalFallback = universalFallback,
+            )
         } else if (playerPackage == OnlineTranslationSourcePreferences.SALT_PACKAGE &&
             (preferOnline || !hasLocalLyrics)
         ) {
@@ -1099,11 +1103,16 @@ class LyriconSource : LyricSource {
             scheduleThirdPartyFallback(
                 baseSong = song,
                 delayMs = if (graceNeeded) SALT_LOCAL_LYRICS_GRACE_MS else 0L,
+                universalFallback = universalFallback,
             )
         } else if (!hasLocalLyrics) {
             // 通用兜底：任何播放器的歌曲完全无歌词（且无占位行）时，
             // 同样流转到已启用在线源（含 LRCLIB）整首取词，实现“所有播放器必须匹配”。
-            scheduleThirdPartyFallback(baseSong = song, delayMs = 0L)
+            scheduleThirdPartyFallback(
+                baseSong = song,
+                delayMs = 0L,
+                universalFallback = universalFallback,
+            )
         } else if (needsOnlineEnrichment(song)) {
             scheduleOnlineTranslation(song)
         }
@@ -1733,7 +1742,7 @@ class LyriconSource : LyricSource {
     /** 偏好变化后重新决定第三方歌曲的在线策略（椒盐支持在线歌词兜底与优先在线源）。 */
     private fun reevaluateThirdPartyOnlineMatching(song: LocalSong) {
         val playerPackage = activeCentralPlayerPackageName
-        val matchingEnabled = isOnlineTranslationEnabledFor(playerPackage)
+        val matchingEnabled = isThirdPartyOnlineEnabledFor(playerPackage)
         val hasLyrics = !song.lyrics.isNullOrEmpty()
         val preferOnline = isSaltPreferOnlineEnabled()
         when {
@@ -1750,11 +1759,20 @@ class LyriconSource : LyricSource {
      * 椒盐音乐在线歌词兜底：优先使用在线源时立即取词，否则等待椒盐 Pack 的
      * 本地歌词结果，超时后在线兜底。
      */
-    private fun scheduleThirdPartyFallback(baseSong: LocalSong, delayMs: Long) {
+    private fun scheduleThirdPartyFallback(
+        baseSong: LocalSong,
+        delayMs: Long,
+        universalFallback: Boolean = false,
+    ) {
         val playerPackage = activeCentralPlayerPackageName ?: return
         if (baseSong.name.isNullOrBlank()) return
-        if (!isOnlineTranslationEnabledFor(playerPackage)) return
-        if (OnlineTranslationSourcePreferences.orderedSources(prefs).isEmpty()) return
+        // 通用兜底（无 Provider 播放器）必须绕过单 App 在线开关：
+        // 否则未装模块的未知播放器（如酷狗）既无本地歌词也无在线兜底，永远裸奔。
+        val orderedSources = OnlineTranslationSourcePreferences.orderedSources(prefs)
+        if (!universalFallback) {
+            if (!isThirdPartyOnlineEnabledFor(playerPackage)) return
+            if (orderedSources.isEmpty()) return
+        }
         thirdPartyFallbackGeneration += 1
         val generation = thirdPartyFallbackGeneration
         thirdPartyFallbackDelayRunnable?.let(mainHandler::removeCallbacks)
@@ -1789,7 +1807,8 @@ class LyriconSource : LyricSource {
                             title = baseSong.name.orEmpty(),
                             artist = baseSong.artist.orEmpty(),
                             durationMs = baseSong.duration,
-                            sourceOrder = OnlineTranslationSourcePreferences.orderedSources(prefs),
+                            // 通用兜底时即使四库全部关闭，也保留 LRCLIB 兜底歌词
+                            sourceOrder = orderedSources.ifEmpty { listOf(Source.LRCLIB) },
                             album = MediaMetadataHelper
                                 .getMediaInfo(application, playerPackage, HookLogger)
                                 .album,
@@ -1798,7 +1817,12 @@ class LyriconSource : LyricSource {
                             ?.let(::stripFullyChineseTranslations)
                             ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
                         mainHandler.post {
-                            applyThirdPartyFallbackResult(generation, baseSong, fallbackSong)
+                            applyThirdPartyFallbackResult(
+                                generation = generation,
+                                baseSong = baseSong,
+                                fallbackSong = fallbackSong,
+                                universalFallback = universalFallback,
+                            )
                         }
                     }
                 } catch (e: CancellationException) {
@@ -1824,6 +1848,7 @@ class LyriconSource : LyricSource {
         generation: Int,
         baseSong: LocalSong,
         fallbackSong: LocalSong?,
+        universalFallback: Boolean = false,
     ) {
         val playerPackage = activeCentralPlayerPackageName
         val song = currentThirdPartySong
@@ -1835,7 +1860,7 @@ class LyriconSource : LyricSource {
                     isPlaceholderLyrics(song)
                 )
         val requestStillCurrent = generation == thirdPartyFallbackGeneration &&
-            isOnlineTranslationEnabledFor(playerPackage) &&
+            (universalFallback || isOnlineTranslationEnabledFor(playerPackage)) &&
             song != null && isSameTrack(song, baseSong) &&
             (
                 (playerPackage == OnlineTranslationSourcePreferences.SALT_PACKAGE &&
@@ -1892,7 +1917,7 @@ class LyriconSource : LyricSource {
         val matchingEnabled = if (effectivePlayerPackage == APPLE_MUSIC_PACKAGE) {
             isAppleTranslationEnrichmentEnabled()
         } else {
-            isOnlineTranslationEnabledFor(effectivePlayerPackage)
+            isThirdPartyOnlineEnabledFor(effectivePlayerPackage)
         }
         val nativeLineCount = baseSong.lyrics.orEmpty().size
         val enrichmentNeeded = needsOnlineEnrichment(baseSong)
@@ -2579,7 +2604,7 @@ class LyriconSource : LyricSource {
         val matchingEnabled = if (appleRequest) {
             isAppleTranslationEnrichmentEnabled()
         } else {
-            isOnlineTranslationEnabledFor(activeCentralPlayerPackageName)
+            isThirdPartyOnlineEnabledFor(activeCentralPlayerPackageName)
         }
         val overlayPublicationEnabled = !appleRequest ||
             isOnlineTranslationEnabledFor(APPLE_MUSIC_PACKAGE)
@@ -3113,6 +3138,18 @@ class LyriconSource : LyricSource {
             packageName ?: APPLE_MUSIC_PACKAGE,
         ) &&
             configuredOnlineSources().isNotEmpty()
+
+    /**
+     * 第三方播放器是否允许走在线匹配：
+     * 当没有任何 Provider（官方插件/独立模块）接管时，视为通用兜底播放器，
+     * 始终允许走在线链路（LRCLIB 兜底歌词 + 四库补翻译）；
+     * 有 Provider 接管时仍按单 App 在线开关判定。
+     */
+    private fun isThirdPartyOnlineEnabledFor(packageName: String?): Boolean {
+        val pkg = packageName ?: return false
+        if (pkg != APPLE_MUSIC_PACKAGE && activeProviderPackageName == null) return true
+        return isOnlineTranslationEnabledFor(pkg)
+    }
 
     private fun isAppleTranslationEnrichmentEnabled(): Boolean =
         isOnlineTranslationEnabledFor(APPLE_MUSIC_PACKAGE) || isNativeOnlineTranslationEnabled()
