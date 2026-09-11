@@ -82,15 +82,15 @@ internal interface DozeTickRunnableFactory {
                 "脱糖 Runnable ${tickRunnableClass.name} 无可用构造器: constructors=$signatures",
             )
         }
-    }
 
-    /** 反射获取 sun.misc.Unsafe，避免编译期直接依赖隐藏 API。 */
-    private fun unsafeInstance(): Any? = runCatching {
-        val unsafeClass = Class.forName("sun.misc.Unsafe")
-        val field = unsafeClass.getDeclaredField("theUnsafe")
-        field.isAccessible = true
-        field.get(null)
-    }.getOrNull()
+        /** 反射获取 sun.misc.Unsafe，避免编译期直接依赖隐藏 API。 */
+        private fun unsafeInstance(): Any? = runCatching {
+            val unsafeClass = Class.forName("sun.misc.Unsafe")
+            val field = unsafeClass.getDeclaredField("theUnsafe")
+            field.isAccessible = true
+            field.get(null)
+        }.getOrNull()
+    }
 
     private class UnsafeAllocation(
         private val unsafe: Any,
