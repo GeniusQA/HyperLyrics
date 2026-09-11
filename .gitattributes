@@ -1,2 +1,3 @@
 catalog/catalog.json -text
 catalog/catalog.sig -text
+providers/** binary
