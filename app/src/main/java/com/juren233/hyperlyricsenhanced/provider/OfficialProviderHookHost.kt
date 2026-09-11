@@ -232,6 +232,9 @@ internal class OfficialProviderHookHost(
     override fun getBooleanPreference(key: String, default: Boolean): Boolean =
         module.getRemotePreferences(UIConstants.PREF_NAME).getBoolean(key, default)
 
+    override fun getStringPreference(key: String, default: String): String =
+        module.getRemotePreferences(UIConstants.PREF_NAME).getString(key, default) ?: default
+
     override fun hookMediaSession(
         playbackStateCallback: OfficialProviderPlaybackStateCallback,
         metadataCallback: OfficialProviderMetadataCallback,
@@ -1525,9 +1528,9 @@ internal class OfficialProviderHookHost(
 
     private companion object {
         const val DEX_METHOD_CACHE_PREFERENCES =
-            "com.juren233.hyperlyricsenhanced.official_provider_dex_methods"
+            "com.genius.hyperlyrics.official_provider_dex_methods"
         const val DEX_METHOD_BASELINE_PREFERENCES =
-            "com.juren233.hyperlyricsenhanced.official_provider_dex_method_baselines"
+            "com.genius.hyperlyrics.official_provider_dex_method_baselines"
         const val CLASS_COUNT_TOLERANCE = 4
         const val DEX_WATCHDOG_TIMEOUT_MS = 30_000L
         const val MAX_WATCHDOG_DETAIL_LENGTH = 256

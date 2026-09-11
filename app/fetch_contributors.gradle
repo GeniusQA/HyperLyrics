@@ -3,7 +3,7 @@ import groovy.json.JsonSlurper
 import javax.imageio.ImageIO
 
 def contributorFallback = [
-    [login: "juren233", name: "Cavan", html_url: "https://github.com/juren233", avatar_url: "https://github.com/juren233.png"],
+    [login: "QuanTum2088", name: "QuanTum2088", html_url: "https://github.com/QuanTum2088", avatar_url: "https://github.com/QuanTum2088.png"],
     [login: "limczhh", name: "lidesheng", html_url: "https://github.com/limczhh", avatar_url: "https://github.com/limczhh.png"],
     [login: "zszf114514", name: "zszf114514", html_url: "https://github.com/zszf114514", avatar_url: "https://github.com/zszf114514.png"],
 ]
@@ -39,14 +39,10 @@ tasks.register("generateContributors") {
                 def login = user["login"] as String
                 login && login in originalContributorLogins
             }
-            // Development contributors are everyone who has committed to this
-            // repository apart from the maintainer and the frozen original
-            // HyperLyric contributors.
-            def reservedLogins = (["juren233"] + originalContributorLogins) as Set
-            developmentSources = (fetchJson("${githubApiUrl}/repos/juren233/HyperLyrics-Enhanced/contributors") as List<Map<String, Object>>).findAll { user ->
-                def login = user["login"] as String
-                login && !(login in reservedLogins) && !login.endsWith("[bot]")
-            }
+            // 独立分支（com.genius.hyperlyrics）不再展示上游仓库的开发贡献者分组，
+            // developmentSources 恒为空（UI 对空列表自动隐藏该分组）。
+            def reservedLogins = (["QuanTum2088"] + originalContributorLogins) as Set
+            developmentSources = []
             maintainerSource = contributorFallback.first()
         } catch (Exception exception) {
             println("Failed to fetch contributors, using local fallback: ${exception.message}")
@@ -124,12 +120,12 @@ object ContributorsProvider {
     val maintainer = '''
         content += renderContributorEntry(maintainerSource)
         content += '''
-    val developmentContributors = listOf(
+    val developmentContributors = listOf<ContributorItem>(
 '''
         content += developmentSources.collect { "        " + renderContributorEntry(it) }.join(",\n")
         content += '''
     )
-    val originalHyperLyricContributors = listOf(
+    val originalHyperLyricContributors = listOf<ContributorItem>(
 '''
         content += originalSources.collect { "        " + renderContributorEntry(it) }.join(",\n")
         content += '''

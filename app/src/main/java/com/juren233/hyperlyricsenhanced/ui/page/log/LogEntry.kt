@@ -10,13 +10,13 @@ data class LogEntry(
     val tag: String,
     val message: String,
     val isSystemInfo: Boolean = false,
-    val source: String = "com.juren233.hyperlyricsenhanced",
+    val source: String = "com.genius.hyperlyrics",
     val rawLog: String = "",
     val id: String = ""
 ) {
     val displaySource: String
         get() = when {
-            source == "com.juren233.hyperlyricsenhanced" || source == "HyperLyrics Enhanced" -> "HyperLyrics Enhanced"
+            source == "com.genius.hyperlyrics" || source == "HyperLyrics" -> "HyperLyrics"
             else -> source
         }
     val displayLevel: String

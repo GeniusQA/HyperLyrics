@@ -113,7 +113,6 @@
     <string name="changelog_load_failed">Unable to load GitHub Releases</string>
     <string name="changelog_retry">Tap to retry</string>
     <string name="changelog_empty">No Release notes available</string>
-    <string name="changelog_original_repository">View the original HyperLyric changelog in the limczhh/HyperLyric GitHub repository</string>
     <string name="title_developer">Developer</string>
     <string name="dev_name">lidesheng</string>
     <string name="title_project">Project</string>

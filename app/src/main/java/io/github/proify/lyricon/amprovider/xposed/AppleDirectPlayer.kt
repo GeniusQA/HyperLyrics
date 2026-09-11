@@ -29,18 +29,18 @@ import kotlinx.serialization.encodeToString
 
 internal object AppleDirectBridgeContract {
     const val ACTION_REQUEST =
-        "com.juren233.hyperlyricsenhanced.applemusic.REQUEST_DIRECT_BRIDGE"
+        "com.genius.hyperlyrics.applemusic.REQUEST_DIRECT_BRIDGE"
     const val ACTION_REGISTER =
-        "com.juren233.hyperlyricsenhanced.applemusic.REGISTER_DIRECT_BRIDGE"
+        "com.genius.hyperlyrics.applemusic.REGISTER_DIRECT_BRIDGE"
     const val ACTION_RESOLVE_ORIGINAL_METADATA =
-        "com.juren233.hyperlyricsenhanced.applemusic.RESOLVE_ORIGINAL_METADATA"
+        "com.genius.hyperlyrics.applemusic.RESOLVE_ORIGINAL_METADATA"
     const val EXTRA_BINDER = "bridge"
     const val EXTRA_MEDIA_ID = "media_id"
     const val SYSTEM_UI_PACKAGE = "com.android.systemui"
     const val APPLE_MUSIC_PACKAGE = "com.apple.android.music"
 }
 
-/** Sends Apple Music data straight to HyperLyrics Enhanced in SystemUI when Central is absent. */
+/** Sends Apple Music data straight to HyperLyrics in SystemUI when Central is absent. */
 internal class AppleDirectPlayer(
     private val context: Context,
     private val onOriginalMetadataRequested: (String) -> Unit,

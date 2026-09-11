@@ -39,10 +39,13 @@ android {
     // 使用本机已完整安装的 Build-Tools 37；36.0.0 曾因下载损坏只剩空壳，已清理。
     buildToolsVersion = "37.0.0"
     defaultConfig {
-        applicationId = "com.juren233.hyperlyricsenhanced"
+        // applicationId 与上游仓库区分；namespace/源码包名保持不变（无需重构包目录）
+        applicationId = "com.genius.hyperlyrics"
         minSdk = 33
         targetSdk = 37
-        versionCode = 1
+        // versionCode 必须保持单调递增：Provider 插件包内含 minCoreVersionCode 校验，
+        // 低于插件要求时添加插件会报「插件与当前版本不兼容，请更新 HyperLyrics」
+        versionCode = 151022
         versionName = ciVersionName ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

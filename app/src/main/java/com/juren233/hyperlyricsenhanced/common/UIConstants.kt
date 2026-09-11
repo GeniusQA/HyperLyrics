@@ -1,7 +1,7 @@
 package com.juren233.hyperlyricsenhanced.common
 
 object UIConstants {
-    const val PREF_NAME = "com.juren233.hyperlyricsenhanced_preferences"
+    const val PREF_NAME = "com.genius.hyperlyrics_preferences"
 
     // ================= APP CORE KEYS =================
     const val KEY_WORK_MODE = "key_work_mode"

@@ -2,27 +2,27 @@ package com.juren233.hyperlyricsenhanced.common
 
 object RootConstants {
     const val ACTION_REMOTE_PREFERENCE_CHANGED =
-        "com.juren233.hyperlyricsenhanced.action.REMOTE_PREFERENCE_CHANGED_V2"
+        "com.genius.hyperlyrics.action.REMOTE_PREFERENCE_CHANGED_V2"
     const val EXTRA_REMOTE_PREFERENCE_GROUP =
-        "com.juren233.hyperlyricsenhanced.extra.REMOTE_PREFERENCE_GROUP"
+        "com.genius.hyperlyrics.extra.REMOTE_PREFERENCE_GROUP"
     const val EXTRA_REMOTE_PREFERENCE_KEY =
-        "com.juren233.hyperlyricsenhanced.extra.REMOTE_PREFERENCE_KEY"
+        "com.genius.hyperlyrics.extra.REMOTE_PREFERENCE_KEY"
     const val EXTRA_REMOTE_PREFERENCE_TYPE =
-        "com.juren233.hyperlyricsenhanced.extra.REMOTE_PREFERENCE_TYPE"
+        "com.genius.hyperlyrics.extra.REMOTE_PREFERENCE_TYPE"
     const val EXTRA_REMOTE_PREFERENCE_INT =
-        "com.juren233.hyperlyricsenhanced.extra.REMOTE_PREFERENCE_INT"
+        "com.genius.hyperlyrics.extra.REMOTE_PREFERENCE_INT"
     const val EXTRA_REMOTE_PREFERENCE_BOOLEAN =
-        "com.juren233.hyperlyricsenhanced.extra.REMOTE_PREFERENCE_BOOLEAN"
+        "com.genius.hyperlyrics.extra.REMOTE_PREFERENCE_BOOLEAN"
     const val EXTRA_REMOTE_PREFERENCE_LONG =
-        "com.juren233.hyperlyricsenhanced.extra.REMOTE_PREFERENCE_LONG"
+        "com.genius.hyperlyrics.extra.REMOTE_PREFERENCE_LONG"
     const val EXTRA_REMOTE_PREFERENCE_FLOAT =
-        "com.juren233.hyperlyricsenhanced.extra.REMOTE_PREFERENCE_FLOAT"
+        "com.genius.hyperlyrics.extra.REMOTE_PREFERENCE_FLOAT"
     const val EXTRA_REMOTE_PREFERENCE_STRING =
-        "com.juren233.hyperlyricsenhanced.extra.REMOTE_PREFERENCE_STRING"
+        "com.genius.hyperlyrics.extra.REMOTE_PREFERENCE_STRING"
     const val EXTRA_REMOTE_PREFERENCE_STRING_SET =
-        "com.juren233.hyperlyricsenhanced.extra.REMOTE_PREFERENCE_STRING_SET"
+        "com.genius.hyperlyrics.extra.REMOTE_PREFERENCE_STRING_SET"
     const val CLASSIC_AOD_FOCUS_REFRESH_AUTHORITY =
-        "com.juren233.hyperlyricsenhanced.classic_aod_focus_refresh"
+        "com.genius.hyperlyrics.classic_aod_focus_refresh"
     const val CLASSIC_AOD_FOCUS_REFRESH_METHOD = "refresh"
     const val DEBUG_APPLE_PRONUNCIATION_DIAGNOSTIC_METHOD =
         "debug_apple_pronunciation_diagnostic"

@@ -6,13 +6,16 @@
 
 package com.juren233.hyperlyricsenhanced.provider
 
+import com.juren233.hyperlyricsenhanced.provider.ytmusic.YoutubeMusicProviderPlugin
+
 object OfficialProviderCatalog {
     const val PLUGIN_API_VERSION = 3
-    const val CORE_PACKAGE_NAME = "com.juren233.hyperlyricsenhanced"
+    const val CORE_PACKAGE_NAME = "com.genius.hyperlyrics"
     const val APPLE_MUSIC_PACKAGE_NAME = "com.apple.android.music"
     const val SALT_PLAYER_PACKAGE_NAME = "com.salt.music"
+    const val YOUTUBE_MUSIC_PACKAGE_NAME = "com.google.android.apps.youtube.music"
     const val OFFICIAL_PROVIDER_PACKAGE_PREFIX =
-        "com.juren233.hyperlyricsenhanced.provider."
+        "com.genius.hyperlyrics.provider."
 
     data class Definition(
         val id: String,
@@ -24,6 +27,11 @@ object OfficialProviderCatalog {
         val systemMediaRuntime: Boolean = false,
         val supportsNextTrackPreview: Boolean = true,
         val showInDownloadList: Boolean = true,
+        /**
+         * Providers shipped inside the core APK. They skip the Pack download, installation
+         * record and signature verification, and are enabled by default.
+         */
+        val builtin: Boolean = false,
     ) {
         fun displayNameForPackage(packageName: String): String =
             targetDisplayNames[packageName] ?: displayName
@@ -100,6 +108,13 @@ object OfficialProviderCatalog {
             setOf("app.symfonik.music.player"),
             showInDownloadList = false,
         ),
+        Definition(
+            id = "youtube-music",
+            displayName = "YouTube Music",
+            targetPackages = setOf(YOUTUBE_MUSIC_PACKAGE_NAME),
+            showInDownloadList = false,
+            builtin = true,
+        ),
     )
 
     private val definitionsByPackage = buildMap {
@@ -116,6 +131,16 @@ object OfficialProviderCatalog {
 
     fun shouldShowInDownloadList(pluginId: String): Boolean =
         definitionForId(pluginId)?.showInDownloadList == true
+
+    /**
+     * Returns the in-APK implementation for a built-in provider, or null when the plugin has to
+     * be downloaded as a signed Provider Pack.
+     */
+    fun builtinPlugin(pluginId: String): OfficialProviderPlugin? =
+        when (pluginId) {
+            "youtube-music" -> YoutubeMusicProviderPlugin()
+            else -> null
+        }
 
     fun isOfficialProviderPair(
         providerPackageName: String,

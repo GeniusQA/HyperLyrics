@@ -237,7 +237,7 @@ object NotificationBuilder {
             notificationManager.cancel(CLASSIC_AOD_SONG_INFO_NOTIFICATION_ID)
             notificationManager.cancel(CLASSIC_AOD_SONG_INFO_NOTIFICATION_ID_SECONDARY)
         } catch (e: Exception) {
-            LogManager.e("NotificationBuilder", "取消经典 AOD 歌曲信息通知失败", e)
+            LogManager.e("NotificationBuilder", "取消自定义 AOD 歌曲信息通知失败", e)
         }
     }
 
@@ -287,7 +287,7 @@ object NotificationBuilder {
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     )
                 } else {
-                    val broadcastIntent = Intent("com.juren233.hyperlyricsenhanced.ACTION_TOGGLE_PLAYBACK")
+                    val broadcastIntent = Intent("com.genius.hyperlyrics.ACTION_TOGGLE_PLAYBACK")
                     broadcastIntent.setPackage(context.packageName)
                     PendingIntent.getBroadcast(
                         context,
@@ -298,7 +298,7 @@ object NotificationBuilder {
                 }
             }
             else -> {
-                val intent = Intent("com.juren233.hyperlyricsenhanced.ACTION_TOGGLE_PLAYBACK")
+                val intent = Intent("com.genius.hyperlyrics.ACTION_TOGGLE_PLAYBACK")
                 intent.setPackage(context.packageName)
                 PendingIntent.getBroadcast(
                     context,

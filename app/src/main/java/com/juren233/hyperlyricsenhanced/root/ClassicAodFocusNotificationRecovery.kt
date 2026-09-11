@@ -16,7 +16,7 @@ import com.juren233.hyperlyricsenhanced.root.utils.HookLogger
 
 internal object ClassicAodFocusNotificationRecovery {
     private const val TAG = "ClassicAodFocusRecovery"
-    private const val MODULE_PACKAGE = "com.juren233.hyperlyricsenhanced"
+    private const val MODULE_PACKAGE = "com.genius.hyperlyrics"
     private const val MIUI_OP_AUTO_START = 10008
     private const val REFRESH_BROADCAST_DEBOUNCE_MS = 300L
     @Volatile
@@ -85,7 +85,7 @@ internal object ClassicAodFocusNotificationRecovery {
         if (FullScreenAodSetting.isActive(context)) {
             HookLogger.d(
                 TAG,
-                "锁屏全屏AOD启用，经典AOD焦点通知已隔离，跳过刷新请求: reason=$reason"
+                "锁屏全屏AOD启用，自定义AOD焦点通知已隔离，跳过刷新请求: reason=$reason"
             )
             return
         }

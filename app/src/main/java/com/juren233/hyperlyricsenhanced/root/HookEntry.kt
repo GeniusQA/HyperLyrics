@@ -759,7 +759,7 @@ class HookEntry : XposedModule() {
                 if (intent.action != RootConstants.ACTION_REMOTE_PREFERENCE_CHANGED) return
                 val expectedUid = runCatching {
                     context.packageManager
-                        .getApplicationInfo("com.juren233.hyperlyricsenhanced", 0)
+                        .getApplicationInfo("com.genius.hyperlyrics", 0)
                         .uid
                 }.getOrDefault(-1)
                 val senderUid = if (Build.VERSION.SDK_INT >= 34) sentFromUid else -1

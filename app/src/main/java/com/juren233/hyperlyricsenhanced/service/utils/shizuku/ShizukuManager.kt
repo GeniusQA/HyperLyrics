@@ -1,4 +1,4 @@
-﻿package com.juren233.hyperlyricsenhanced.service.utils.shizuku
+package com.juren233.hyperlyricsenhanced.service.utils.shizuku
 
 import android.content.AttributionSource
 import android.content.Context
@@ -93,7 +93,7 @@ object ShizukuManager {
 
     private fun disableBypassFocusLimit(context: Context) {
         try {
-            val prefs = context.getSharedPreferences("com.juren233.hyperlyricsenhanced_preferences", Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences("com.genius.hyperlyrics_preferences", Context.MODE_PRIVATE)
             if (prefs.getBoolean("key_bypass_focus_notification_limit", false)) {
                 LogManager.i(TAG, "检测到 Shizuku 服务离线，已自动回退关闭 [key_bypass_focus_notification_limit] 选项")
                 prefs.edit { putBoolean("key_bypass_focus_notification_limit", false) }

@@ -114,7 +114,6 @@
     <string name="changelog_load_failed">无法获取 GitHub Release</string>
     <string name="changelog_retry">点击重试</string>
     <string name="changelog_empty">暂无 Release 更新日志</string>
-    <string name="changelog_original_repository">原 HyperLyric 更新日志请前往 GitHub 原仓库 limczhh/HyperLyric 查看</string>
     <string name="title_developer">开发者</string>
     <string name="dev_name">李得胜</string>
     <string name="title_project">项目地址</string>

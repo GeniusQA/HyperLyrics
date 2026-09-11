@@ -4,7 +4,10 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.media.MediaMetadata
+import android.media.session.MediaController
 import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -211,7 +214,7 @@ class LyriconSource : LyricSource {
     companion object {
         private const val TAG = "LyriconSource"
         private const val APPLE_MUSIC_PACKAGE = "com.apple.android.music"
-        private const val BUILT_IN_PROVIDER_PACKAGE = "com.juren233.hyperlyricsenhanced"
+        private const val BUILT_IN_PROVIDER_PACKAGE = "com.genius.hyperlyrics"
         private const val APPLE_LYRICS_GRACE_MS = 5_000L
         private const val SALT_LOCAL_LYRICS_GRACE_MS = 3_000L
         private const val APPLE_MEDIA_MONITOR_INTERVAL_MS = 1_000L
@@ -297,6 +300,10 @@ class LyriconSource : LyricSource {
     private var audioManager: AudioManager? = null
     private var mediaSessionManager: MediaSessionManager? = null
     private var localSessionsListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
+    private var localFallbackController: MediaController? = null
+    private var localFallbackMetadataCallback: MediaController.Callback? = null
+    @Volatile
+    private var lastLocalFallbackSongKey: String? = null
     private val activeMediaSessionGate = ActiveMediaSessionGate(
         nowElapsedMs = SystemClock::elapsedRealtime,
         nowWallClockMs = System::currentTimeMillis,
@@ -316,16 +323,12 @@ class LyriconSource : LyricSource {
         runCatching {
             val manager = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
             val listener = MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
-                onLocalActiveMediaSessionsChanged(
-                    controllers?.mapNotNull { it.packageName }?.toSet()
-                )
+                onLocalActiveMediaSessionsChanged(controllers)
             }
             manager.addOnActiveSessionsChangedListener(listener, null)
             mediaSessionManager = manager
             localSessionsListener = listener
-            onLocalActiveMediaSessionsChanged(
-                manager.getActiveSessions(null).mapNotNull { it.packageName }.toSet()
-            )
+            onLocalActiveMediaSessionsChanged(manager.getActiveSessions(null))
             HookLogger.i(TAG, "SystemUI 本地媒体会话跟踪已启动")
         }.onFailure { error ->
             mediaSessionManager = null
@@ -334,7 +337,8 @@ class LyriconSource : LyricSource {
         }
     }
 
-    private fun onLocalActiveMediaSessionsChanged(packages: Set<String>?) {
+    private fun onLocalActiveMediaSessionsChanged(controllers: List<MediaController>?) {
+        val packages = controllers?.mapNotNull { it.packageName }?.toSet()
         activeMediaSessionGate.updateLocal(packages)
         diagnostic("stage=local_media_sessions, packages=${packages?.sorted()}")
         MediaCardDiagnosticLogger.log(
@@ -343,6 +347,73 @@ class LyriconSource : LyricSource {
             details = "packages=${packages?.sorted()},activePlayer=${MediaCardDiagnosticLogger.sanitize(activeCentralPlayerPackageName)},blocked=${activeCentralPlayerPackageName?.let(activeMediaSessionGate::isBlocked)}",
         )
         evaluateActiveMediaSessionGate()
+        maybeFeedLocalFallbackSong(controllers)
+    }
+
+    /**
+     * 无 Provider 兜底（通用歌词匹配）：
+     * 正在播放的会话所属播放器没有任何活动的歌词提供器（插件关闭且无独立模块兜底）时，
+     * 从 MediaSession 读取歌曲信息喂入 handleThirdPartySong，
+     * 走既有在线匹配链路（LRCLIB 兜底歌词 + 四库补翻译）。
+     */
+    private fun maybeFeedLocalFallbackSong(controllers: List<MediaController>?) {
+        val playing = controllers?.firstOrNull {
+            it.playbackState?.state == PlaybackState.STATE_PLAYING
+        } ?: return
+        val playerPackage = playing.packageName ?: return
+        // Apple 提供器无条件注入；对应播放器已有活动提供器发布时不重复喂歌。
+        if (centralAppleProviderActive) return
+        if (activeCentralPlayerPackageName == playerPackage) return
+        val metadata = playing.metadata ?: return
+        val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
+        if (title.isEmpty()) return
+        val artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
+            ?.takeIf { it.isNotBlank() }
+            ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST).orEmpty().trim()
+        val duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
+        val songKey = "$playerPackage|$title|$artist|$duration"
+        attachLocalFallbackCallback(playing)
+        if (songKey == lastLocalFallbackSongKey) return
+        lastLocalFallbackSongKey = songKey
+        HookLogger.i(
+            TAG,
+            "无提供器播放器走通用在线匹配: player=$playerPackage, title=$title, artist=$artist",
+        )
+        mainHandler.post {
+            activeCentralPlayerPackageName = playerPackage
+            activeProviderPackageName = null
+            centralAppleProviderActive = false
+            handleThirdPartySong(
+                LocalSong(
+                    id = songKey,
+                    name = title,
+                    artist = artist,
+                    duration = duration,
+                ),
+                universalFallback = true,
+            )
+        }
+    }
+
+    private fun attachLocalFallbackCallback(controller: MediaController) {
+        if (localFallbackController == controller) return
+        localFallbackMetadataCallback?.let { callback ->
+            localFallbackController?.let { previous ->
+                runCatching { previous.unregisterCallback(callback) }
+            }
+        }
+        val callback = object : MediaController.Callback() {
+            override fun onMetadataChanged(metadata: MediaMetadata?) {
+                mainHandler.post { maybeFeedLocalFallbackSong(localFallbackController?.let(::listOf)) }
+            }
+
+            override fun onPlaybackStateChanged(state: PlaybackState?) {
+                mainHandler.post { maybeFeedLocalFallbackSong(localFallbackController?.let(::listOf)) }
+            }
+        }
+        runCatching { controller.registerCallback(callback) }
+        localFallbackMetadataCallback = callback
+        localFallbackController = controller
     }
 
     private fun unregisterLocalMediaSessionTracker() {
@@ -351,6 +422,13 @@ class LyriconSource : LyricSource {
         if (manager != null && listener != null) {
             runCatching { manager.removeOnActiveSessionsChangedListener(listener) }
         }
+        localFallbackMetadataCallback?.let { callback ->
+            localFallbackController?.let { controller ->
+                runCatching { controller.unregisterCallback(callback) }
+            }
+        }
+        localFallbackMetadataCallback = null
+        localFallbackController = null
         mediaSessionManager = null
         localSessionsListener = null
         activeMediaSessionGate.updateLocal(null)
@@ -499,7 +577,10 @@ class LyriconSource : LyricSource {
     }
 
     fun onPreferenceChanged(key: String?) {
-        val packageName = activeProviderPackageName
+        val packageName = resolveDelayPackageName(
+            activeProviderPackageName,
+            activeCentralPlayerPackageName,
+        )
         if (packageName != null && key == providerDelayKey(packageName)) {
             activeProviderDelayMs = readProviderDelay(packageName)
             return
@@ -729,6 +810,15 @@ class LyriconSource : LyricSource {
         return RootConstants.KEY_HOOK_LYRICON_PROVIDER_DELAY_PREFIX + packageName
     }
 
+    private fun resolveDelayPackageName(
+        providerPackageName: String?,
+        playerPackageName: String?,
+    ): String? = when {
+        providerPackageName == null -> playerPackageName
+        providerPackageName == BUILT_IN_PROVIDER_PACKAGE -> playerPackageName ?: providerPackageName
+        else -> providerPackageName
+    }
+
     private fun readProviderDelay(packageName: String): Int {
         return prefs?.getInt(
             providerDelayKey(packageName),
@@ -947,7 +1037,10 @@ class LyriconSource : LyricSource {
                     )
             )
 
-    private fun handleThirdPartySong(song: LocalSong?) {
+    private fun handleThirdPartySong(
+        song: LocalSong?,
+        universalFallback: Boolean = false,
+    ) {
         val previousSong = currentThirdPartySong
         val sameTrack = previousSong != null && song != null && isSameTrack(previousSong, song)
         val sameContent = sameTrack && previousSong == song
@@ -963,7 +1056,10 @@ class LyriconSource : LyricSource {
         val fallbackPending = thirdPartyFallbackDelayRunnable != null ||
             thirdPartyFallbackJob?.isActive == true || thirdPartyFallbackSongActive
         val preferOnline = isSaltPreferOnlineEnabled()
-        if (sameTrack && fallbackPending && (preferOnline || song.lyrics.isNullOrEmpty())) {
+        if (
+            sameTrack && fallbackPending &&
+            (preferOnline || song.lyrics.isNullOrEmpty() || isPlaceholderLyrics(song))
+        ) {
             // 在线兜底进行中：椒盐 Pack 重复发来的占位，或“优先使用在线源”下
             // 迟到的本地歌词，都不打断在线结果。
             currentThirdPartySong = song
@@ -981,17 +1077,33 @@ class LyriconSource : LyricSource {
         publishSong(song, restorePosition = sameTrack)
         if (song == null) return
         val playerPackage = activeCentralPlayerPackageName
-        if (!isOnlineTranslationEnabledFor(playerPackage)) return
-        if (playerPackage == OnlineTranslationSourcePreferences.SALT_PACKAGE &&
-            (preferOnline || song.lyrics.isNullOrEmpty())
+        // 通用兜底（无 Provider 播放器）绕过单 App 在线开关：
+        // 该场景下播放器已无任何歌词来源，不发起匹配则永远裸奔。
+        if (!universalFallback && !isOnlineTranslationEnabledFor(playerPackage)) return
+        val hasLocalLyrics = !song.lyrics.isNullOrEmpty() &&
+            !(
+                playerPackage == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE &&
+                    isPlaceholderLyrics(song)
+                )
+        if (playerPackage == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE &&
+            !hasLocalLyrics
+        ) {
+            // Spotify 原生无歌词：直接用歌名 + 歌手去已启用平台整首取词（歌词 + 翻译）。
+            scheduleThirdPartyFallback(baseSong = song, delayMs = 0L)
+        } else if (playerPackage == OnlineTranslationSourcePreferences.SALT_PACKAGE &&
+            (preferOnline || !hasLocalLyrics)
         ) {
             // 椒盐音乐：本地无歌词时在线兜底；“优先使用在线源”时立即在线取词。
             // 未开启优先在线源时先等本地歌词的宽限期，避免无谓的在线请求。
-            val graceNeeded = !preferOnline && song.lyrics.isNullOrEmpty()
+            val graceNeeded = !preferOnline && !hasLocalLyrics
             scheduleThirdPartyFallback(
                 baseSong = song,
                 delayMs = if (graceNeeded) SALT_LOCAL_LYRICS_GRACE_MS else 0L,
             )
+        } else if (!hasLocalLyrics) {
+            // 通用兜底：任何播放器的歌曲完全无歌词（且无占位行）时，
+            // 同样流转到已启用在线源（含 LRCLIB）整首取词，实现“所有播放器必须匹配”。
+            scheduleThirdPartyFallback(baseSong = song, delayMs = 0L)
         } else if (needsOnlineEnrichment(song)) {
             scheduleOnlineTranslation(song)
         }
@@ -1640,7 +1752,6 @@ class LyriconSource : LyricSource {
      */
     private fun scheduleThirdPartyFallback(baseSong: LocalSong, delayMs: Long) {
         val playerPackage = activeCentralPlayerPackageName ?: return
-        if (playerPackage != OnlineTranslationSourcePreferences.SALT_PACKAGE) return
         if (baseSong.name.isNullOrBlank()) return
         if (!isOnlineTranslationEnabledFor(playerPackage)) return
         if (OnlineTranslationSourcePreferences.orderedSources(prefs).isEmpty()) return
@@ -1658,7 +1769,7 @@ class LyriconSource : LyricSource {
             val application = app
             if (application == null) {
                 diagnostic(
-                    "椒盐音乐在线兜底无法启动: reason=application_unavailable, " +
+                    "在线兜底无法启动: reason=application_unavailable, " +
                         "title=${baseSong.name}"
                 )
                 return@Runnable
@@ -1668,7 +1779,7 @@ class LyriconSource : LyricSource {
                     fallbackRequestMutex.withLock {
                         if (generation != thirdPartyFallbackGeneration) return@withLock
                         diagnostic(
-                            "椒盐音乐在线兜底开始: title=${baseSong.name}, " +
+                            "在线兜底开始: title=${baseSong.name}, " +
                                 "artist=${baseSong.artist}, " +
                                 "preferOnline=${isSaltPreferOnlineEnabled()}"
                         )
@@ -1693,13 +1804,13 @@ class LyriconSource : LyricSource {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    debugError("椒盐音乐在线兜底失败: title=${baseSong.name}", e)
+                    debugError("在线兜底失败: title=${baseSong.name}", e)
                 }
             }
         }
         thirdPartyFallbackDelayRunnable = delayedSearch
         diagnostic(
-            "椒盐音乐在线兜底已调度: title=${baseSong.name}, delayMs=$delayMs, " +
+            "在线兜底已调度: title=${baseSong.name}, delayMs=$delayMs, " +
                 "generation=$generation"
         )
         if (delayMs <= 0L) {
@@ -1716,14 +1827,24 @@ class LyriconSource : LyricSource {
     ) {
         val playerPackage = activeCentralPlayerPackageName
         val song = currentThirdPartySong
+        // Spotify 的单行占位歌词（“歌名 - 歌手”）不算真实歌词，否则兜底结果会被误判过期丢弃。
+        val currentHasNoRealLyrics = song == null ||
+            song.lyrics.isNullOrEmpty() ||
+            (
+                playerPackage == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE &&
+                    isPlaceholderLyrics(song)
+                )
         val requestStillCurrent = generation == thirdPartyFallbackGeneration &&
-            playerPackage == OnlineTranslationSourcePreferences.SALT_PACKAGE &&
             isOnlineTranslationEnabledFor(playerPackage) &&
             song != null && isSameTrack(song, baseSong) &&
-            (isSaltPreferOnlineEnabled() || song.lyrics.isNullOrEmpty())
+            (
+                (playerPackage == OnlineTranslationSourcePreferences.SALT_PACKAGE &&
+                    isSaltPreferOnlineEnabled()) ||
+                currentHasNoRealLyrics
+            )
         if (!requestStillCurrent) {
             diagnostic(
-                "椒盐音乐在线兜底结果已过期: title=${baseSong.name}, " +
+                "在线兜底结果已过期: title=${baseSong.name}, " +
                     "generation=$generation, currentGeneration=$thirdPartyFallbackGeneration"
             )
             return
@@ -1731,14 +1852,14 @@ class LyriconSource : LyricSource {
         thirdPartyFallbackJob = null
         if (fallbackSong == null) {
             thirdPartyFallbackSongActive = false
-            diagnostic("椒盐音乐在线兜底未命中: title=${baseSong.name}")
+            diagnostic("在线兜底未命中: title=${baseSong.name}")
             return
         }
         thirdPartyFallbackSongActive = true
         currentPublishedThirdPartySong = fallbackSong
         HookLogger.i(
             TAG,
-            "椒盐音乐在线兜底命中: title=${baseSong.name}, " +
+            "在线兜底命中: title=${baseSong.name}, " +
                 "lines=${fallbackSong.lyrics.orEmpty().size}, " +
                 "translations=${fallbackSong.lyrics.orEmpty().count {
                     OnlineTranslationContentPolicy.isMeaningful(it.translation)
@@ -1753,7 +1874,7 @@ class LyriconSource : LyricSource {
             thirdPartyFallbackSongActive
         ) {
             diagnostic(
-                "椒盐音乐在线兜底取消: reason=$reason, " +
+                "在线兜底取消: reason=$reason, " +
                     "title=${currentThirdPartySong?.name}"
             )
         }
@@ -3030,6 +3151,29 @@ class LyriconSource : LyricSource {
         OnlineTranslationContentPolicy.isMeaningful(it.translation)
     } == true
 
+    /**
+     * Spotify 对无歌词曲目会下发一行“歌名 - 歌手”样式的占位歌词，
+     * 不能据此判定本地已有歌词而跳过整首在线取词。
+     */
+    private fun isPlaceholderLyrics(song: LocalSong): Boolean {
+        val lyrics = song.lyrics ?: return false
+        if (lyrics.size != 1) return false
+        val text = lyrics.first().text?.trim().orEmpty()
+        if (text.isEmpty()) return false
+        val compact: (String) -> String = { it.replace(Regex("\\s+"), "") }
+        val compactText = compact(text)
+        val compactTitle = compact(song.name.orEmpty())
+        val compactArtist = compact(song.artist.orEmpty())
+        if (compactTitle.isEmpty()) return false
+        if (compactText.equals(compactTitle, ignoreCase = true)) return true
+        if (compactArtist.isEmpty()) return false
+        return compactText.equals("$compactTitle-$compactArtist", ignoreCase = true) ||
+            (
+                compactText.contains(compactTitle, ignoreCase = true) &&
+                    compactText.length <= compactTitle.length + compactArtist.length + 8
+                )
+    }
+
     private fun needsOnlineEnrichment(song: LocalSong?): Boolean {
         song ?: return false
         val completeOnlinePronunciation =
@@ -3075,7 +3219,7 @@ class LyriconSource : LyricSource {
 
     /**
      * 活动播放者被门控阻断（Provider 僵尸发布、宿主已无 MediaSession）时，
-     * 主动触发一次 sink 清除，恢复超级岛与经典 AOD 原生显示。
+     * 主动触发一次 sink 清除，恢复超级岛与自定义 AOD 原生显示。
      */
     private fun evaluateActiveMediaSessionGate() {
         val player = activeCentralPlayerPackageName ?: return
@@ -3345,9 +3489,13 @@ class LyriconSource : LyricSource {
             }
             currentThirdPartySong = null
             currentPublishedThirdPartySong = null
+            // 提供器接管/切换时重置兜底 key，保证兜底与提供器之间可来回切换。
+            lastLocalFallbackSongKey = null
             activeProviderPackageName = providerInfo?.providerPackageName
-            activeProviderDelayMs = providerInfo?.providerPackageName
-                ?.let(::readProviderDelay)
+            activeProviderDelayMs = resolveDelayPackageName(
+                providerInfo?.providerPackageName,
+                providerInfo?.playerPackageName,
+            )?.let(::readProviderDelay)
                 ?: RootConstants.DEFAULT_HOOK_LYRICON_PROVIDER_DELAY
             LyriconDataBridge.updateLyricPackage(playerPackageName)
             MediaCardDiagnosticLogger.log(
@@ -3642,7 +3790,7 @@ class LyriconSource : LyricSource {
             )
         }
 
-        // 提供器只负责提供歌词内容；翻译和罗马音是否显示由 HyperLyrics Enhanced 显示端配置决定。
+        // 提供器只负责提供歌词内容；翻译和罗马音是否显示由 HyperLyrics 显示端配置决定。
         override fun onDisplayTranslationChanged(isDisplayTranslation: Boolean) = Unit
 
         override fun onDisplayRomaChanged(isDisplayRoma: Boolean) = Unit
