@@ -9,7 +9,7 @@
         "com.hihonor.cloudmusic"
       ],
       "available": true,
-      "versionName": "1.0.0",
+      "versionName": "1.0.16",
       "versionCode": 19,
       "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/netease-1.0.16.hlp",
       "sha256": "be4d150a47dd4ff68c2365937d1ffb6780ecb6554855004c7c15cf4680b3b952"
@@ -22,7 +22,7 @@
         "com.tencent.qqmusicpad"
       ],
       "available": true,
-      "versionName": "1.0.0",
+      "versionName": "1.0.11",
       "versionCode": 12,
       "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/qqmusic-1.0.11.hlp",
       "sha256": "b4bcf452e0db5dc0ea9b11e3432ee10c2417098f39b7ed5b42ec0bc7ed559e69"
@@ -35,7 +35,7 @@
         "com.kugou.android.lite"
       ],
       "available": true,
-      "versionName": "1.0.0",
+      "versionName": "1.0.13",
       "versionCode": 14,
       "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/kugou-1.0.13.hlp",
       "sha256": "a76d0e5a6367592caecbfc447b57213db415d52024363c7832ed52170034b036"
@@ -47,7 +47,7 @@
         "cn.kuwo.player"
       ],
       "available": true,
-      "versionName": "1.0.0",
+      "versionName": "1.0.9",
       "versionCode": 10,
       "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/kuwo-1.0.9.hlp",
       "sha256": "add0524981f336f9724869a2cdb9897d5128e0640caa7e0e8d3ea3934442668e"
@@ -59,7 +59,7 @@
         "com.spotify.music"
       ],
       "available": true,
-      "versionName": "1.0.0",
+      "versionName": "1.0.15",
       "versionCode": 16,
       "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/spotify-1.0.15.hlp",
       "sha256": "fd14b0073a9037ced75defe50f5641e546ca85077cec13db875fed2b3502fc88"
@@ -89,7 +89,7 @@
         "com.salt.music"
       ],
       "available": true,
-      "versionName": "1.0.0",
+      "versionName": "1.0.11",
       "versionCode": 13,
       "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/salt-player-1.0.11.hlp",
       "sha256": "2f545eedf2de7c15bdd9a3cd32f685e911528a4cef64f9425d037e3c9f5b121e"
@@ -101,7 +101,7 @@
         "com.luna.music"
       ],
       "available": true,
-      "versionName": "1.0.0",
+      "versionName": "1.0.2",
       "versionCode": 3,
       "assetUrl": "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/qishui-1.0.2.hlp",
       "sha256": "a1683dc4a3cb7e76b3952ef4303383ed0abc593fc84767ad81d42f5b10325202"
