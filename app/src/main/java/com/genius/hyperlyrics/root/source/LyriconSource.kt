@@ -375,6 +375,9 @@ class LyriconSource : LyricSource {
         attachLocalFallbackCallback(playing)
         if (songKey == lastLocalFallbackSongKey) return
         lastLocalFallbackSongKey = songKey
+        // 通用兜底（无 Provider 播放器）播放时主动上报 playing=true，
+        // 否则 AOD/锁屏/焦点通知/摘要态按 playing=false 被 pause_policy 隐藏，兜底歌词不显示。
+        sink?.onPlaybackStateChanged(true)
         HookLogger.i(
             TAG,
             "无提供器播放器走通用在线匹配: player=$playerPackage, title=$title, artist=$artist",
@@ -408,6 +411,11 @@ class LyriconSource : LyricSource {
             }
 
             override fun onPlaybackStateChanged(state: PlaybackState?) {
+                // 通用兜底（无 Provider 播放器）必须把真实播放状态上报给桥，
+                // 否则 AOD/锁屏/焦点通知/摘要态按 playing=false 被 pause_policy 隐藏。
+                if (activeCentralPlayerPackageName == controller.packageName) {
+                    sink?.onPlaybackStateChanged(state?.state == PlaybackState.STATE_PLAYING)
+                }
                 mainHandler.post { maybeFeedLocalFallbackSong(localFallbackController?.let(::listOf)) }
             }
         }
