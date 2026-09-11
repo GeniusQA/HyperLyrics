@@ -1077,14 +1077,15 @@ class LyriconSource : LyricSource {
         publishSong(song, restorePosition = sameTrack)
         if (song == null) return
         val playerPackage = activeCentralPlayerPackageName
-        // 通用兜底（无 Provider 播放器）绕过单 App 在线开关：
-        // 该场景下播放器已无任何歌词来源，不发起匹配则永远裸奔。
-        if (!universalFallback && !isThirdPartyOnlineEnabledFor(playerPackage)) return
-        val hasLocalLyrics = !song.lyrics.isNullOrEmpty() &&
-            !(
-                playerPackage == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE &&
-                    isPlaceholderLyrics(song)
-                )
+        // 无 Provider 接管（activeProviderPackageName == null）即视为通用兜底播放器：
+        // 后续歌曲从订阅回调进来时 universalFallback 可能为 false，这里统一按「无 Provider」判定，
+        // 保证始终走 LRCLIB 兜底取词而不是四平台整首取词。
+        val universal = universalFallback || activeProviderPackageName == null
+        // 通用兜底绕过单 App 在线开关：该场景下播放器已无任何歌词来源。
+        if (!universal && !isThirdPartyOnlineEnabledFor(playerPackage)) return
+        // 单行「歌名 - 歌手」占位歌词（无歌词曲目下发或本地生成）不算真实歌词，
+        // 否则会被误判为「已有本地歌词」而跳过整首兜底取词（酷狗概念版即为此类）。
+        val hasLocalLyrics = !song.lyrics.isNullOrEmpty() && !isPlaceholderLyrics(song)
         if (playerPackage == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE &&
             !hasLocalLyrics
         ) {
@@ -1092,7 +1093,7 @@ class LyriconSource : LyricSource {
             scheduleThirdPartyFallback(
                 baseSong = song,
                 delayMs = 0L,
-                universalFallback = universalFallback,
+                universalFallback = universal,
             )
         } else if (playerPackage == OnlineTranslationSourcePreferences.SALT_PACKAGE &&
             (preferOnline || !hasLocalLyrics)
@@ -1103,7 +1104,7 @@ class LyriconSource : LyricSource {
             scheduleThirdPartyFallback(
                 baseSong = song,
                 delayMs = if (graceNeeded) SALT_LOCAL_LYRICS_GRACE_MS else 0L,
-                universalFallback = universalFallback,
+                universalFallback = universal,
             )
         } else if (!hasLocalLyrics) {
             // 通用兜底：任何播放器的歌曲完全无歌词（且无占位行）时，
@@ -1111,7 +1112,7 @@ class LyriconSource : LyricSource {
             scheduleThirdPartyFallback(
                 baseSong = song,
                 delayMs = 0L,
-                universalFallback = universalFallback,
+                universalFallback = universal,
             )
         } else if (needsOnlineEnrichment(song)) {
             scheduleOnlineTranslation(song)
@@ -1869,7 +1870,7 @@ class LyriconSource : LyricSource {
                                 generation = generation,
                                 baseSong = baseSong,
                                 fallbackSong = fallbackSong,
-                                universalFallback = universalFallback,
+                                universalFallback = universal,
                             )
                         }
                     }
@@ -1919,13 +1920,10 @@ class LyriconSource : LyricSource {
     ) {
         val playerPackage = activeCentralPlayerPackageName
         val song = currentThirdPartySong
-        // Spotify 的单行占位歌词（“歌名 - 歌手”）不算真实歌词，否则兜底结果会被误判过期丢弃。
+        // 单行占位歌词（“歌名 - 歌手”）不算真实歌词，否则兜底结果会被误判过期丢弃。
         val currentHasNoRealLyrics = song == null ||
             song.lyrics.isNullOrEmpty() ||
-            (
-                playerPackage == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE &&
-                    isPlaceholderLyrics(song)
-                )
+            isPlaceholderLyrics(song)
         val requestStillCurrent = generation == thirdPartyFallbackGeneration &&
             (universalFallback || isOnlineTranslationEnabledFor(playerPackage)) &&
             song != null && isSameTrack(song, baseSong) &&
@@ -3265,8 +3263,8 @@ class LyriconSource : LyricSource {
     } == true
 
     /**
-     * Spotify 对无歌词曲目会下发一行“歌名 - 歌手”样式的占位歌词，
-     * 不能据此判定本地已有歌词而跳过整首在线取词。
+     * 无歌词曲目可能只有一行“歌名 - 歌手”样式的占位歌词（Spotify、酷狗概念版等会下发，
+     * 也可能由展示层生成），不能据此判定本地已有歌词而跳过整首兜底取词。
      */
     private fun isPlaceholderLyrics(song: LocalSong): Boolean {
         val lyrics = song.lyrics ?: return false
