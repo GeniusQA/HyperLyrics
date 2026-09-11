@@ -9,7 +9,7 @@
     <string name="app_description">在 HyperOS3 媒体超级岛与米系AOD上体验歌词，更有 Apple Music 专属体验优化</string>
     <string name="label_lyric_listener_service">获取媒体信息权限</string>
     <string name="label_lyric_enable_service">HyperLyrics 媒体信息监听</string>
-    <string name="provider_release_home">https://github.com/juren233/HLE-Providers</string>
+    <string name="provider_release_home">https://github.com/QuanTum2088/HyperLyrics-Providers</string>
 
     <string name="add">添加</string>
     <string name="github">GitHub</string>
@@ -252,7 +252,7 @@
     <string name="provider_remove_failed">插件移除失败：%1$s</string>
     <string name="provider_no_installed_plugins">暂未添加其他插件</string>
     <string name="provider_no_installed_plugins_summary">进入右上角来添加你所使用的音乐软件歌词插件</string>
-    <string name="provider_no_available_plugins">好像所有插件都被你添加完啦！有想要官方适配的音乐软件？在 GitHub 上提 issue 或酷安 App 发帖 @juren233 告诉我，或许你的愿望真的会被实现呢？</string>
+    <string name="provider_no_available_plugins">好像所有插件都被你添加完啦！有想要官方适配的音乐软件？在 GitHub 上提 issue 或酷安 App 发帖 @QuanTum2088 告诉我，或许你的愿望真的会被实现呢？</string>
     <string name="provider_add_success">插件已添加，请重启%1$s与系统界面</string>
     <string name="provider_add_success_system_ui">插件已添加，请重启系统界面</string>
     <string name="provider_update_success">插件更新成功，请重启%1$s与系统界面</string>

@@ -114,7 +114,7 @@ class ProviderPackVerifierTest {
         versionName = "1.0.0",
         versionCode = 1,
         minCoreVersionCode = 0,
-        entryClass = "com.juren233.hle.providers.kuwo.KuwoPluginEntry",
+        entryClass = "com.genius.hyperlyrics.providers.kuwo.KuwoPluginEntry",
         providerPackageName = "com.genius.hyperlyrics.provider.kuwo",
         targetPackages = listOf("cn.kuwo.player"),
         classesSha256 = "",
