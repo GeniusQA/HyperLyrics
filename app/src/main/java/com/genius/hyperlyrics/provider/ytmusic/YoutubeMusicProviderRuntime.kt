@@ -108,6 +108,7 @@ internal class YoutubeMusicProviderRuntime(
         }
 
         val duration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        val album = metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM)?.trim().orEmpty()
         val mediaId = metadata?.getString(MediaMetadata.METADATA_KEY_MEDIA_ID)
         val key = listOf(mediaId.orEmpty(), title, artist, duration).joinToString("|")
         if (key == currentTrackKey) return
@@ -131,14 +132,14 @@ internal class YoutubeMusicProviderRuntime(
         latestSong = baseSong
         // Publish the track immediately so Central sees the player, then enrich it with lyrics.
         player?.setSong(toRemoteSong(baseSong))
-        fetchJob = scope.launch { fetchLyrics(key, baseSong) }
+        fetchJob = scope.launch { fetchLyrics(key, baseSong, album) }
     }
 
     private fun isSameTrackIdentity(a: Song, b: Song): Boolean =
         a.name.orEmpty().equals(b.name.orEmpty(), ignoreCase = true) &&
             a.artist.orEmpty().equals(b.artist.orEmpty(), ignoreCase = true)
 
-    private suspend fun fetchLyrics(trackKey: String, baseSong: Song) {
+    private suspend fun fetchLyrics(trackKey: String, baseSong: Song, album: String) {
         val onlineEnabled = host.getBooleanPreference(
             RootConstants.KEY_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC,
             RootConstants.DEFAULT_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC,
@@ -179,6 +180,7 @@ internal class YoutubeMusicProviderRuntime(
                 artist = baseSong.artist.orEmpty(),
                 durationMs = baseSong.duration,
                 sourceOrder = sourceOrder,
+                album = album.takeIf { it.isNotBlank() },
             )
         }.onFailure { error ->
             Log.w(tag, "在线歌词获取失败: title=${baseSong.name}", error)
