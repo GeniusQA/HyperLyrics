@@ -1248,6 +1248,76 @@ object OnlineLyricTargeter {
         }
     }
 
+    /**
+     * 「二次匹配」：按用户输入的「歌名 + 歌手（必填）+ 专辑（可选）」在已启用来源里搜索候选。
+     */
+    suspend fun searchCandidates(
+        context: Context,
+        title: String,
+        artist: String,
+        album: String?,
+        sourceOrder: List<Source>,
+        pageSize: Int = 20,
+    ): List<SongSearchResult> {
+        val normalizedTitle = title.trim()
+        val normalizedArtist = artist.trim()
+        if (normalizedTitle.isEmpty() || normalizedArtist.isEmpty()) return emptyList()
+        val keyword = buildString {
+            append(normalizedTitle)
+            append(' ')
+            append(normalizedArtist)
+            album?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                append(' ')
+                append(it)
+            }
+        }
+        val sourcesByType = buildSearchSources(context)
+        val sources = sourceOrder.distinct().mapNotNull(sourcesByType::get)
+        if (sources.isEmpty()) return emptyList()
+        LogManager.d(
+            "OnlineTargeter",
+            "二次匹配搜索: 关键词=\"$keyword\", 源=${sources.joinToString { it.sourceType.name }}",
+        )
+        return coroutineScope {
+            sources.map { source ->
+                async {
+                    withTimeoutOrNull(TIMEOUT_MS) {
+                        runCatching {
+                            source.search(
+                                keyword = keyword,
+                                page = 1,
+                                pageSize = pageSize,
+                                durationMs = 0L,
+                            )
+                        }.getOrDefault(emptyList())
+                    }.orEmpty()
+                }
+            }.awaitAll().flatten()
+        }
+    }
+
+    /**
+     * 「二次匹配」：按用户选中的候选，从对应来源抓取歌词（含该来源自带翻译）。
+     */
+    suspend fun fetchLyricsForCandidate(
+        context: Context,
+        candidate: SongSearchResult,
+    ): List<LrcLine>? {
+        val source = buildSearchSources(context)[candidate.source] ?: return null
+        val lyricsResult = withTimeoutOrNull(TIMEOUT_MS) {
+            runCatching { source.getLyrics(candidate) }.getOrNull()
+        } ?: return null
+        return toLrcLines(lyricsResult).takeIf { it.isNotEmpty() }
+    }
+
+    private fun buildSearchSources(context: Context): Map<Source, SearchSource> = mapOf(
+        Source.NE to LyricApiProvider.getNeSource(context),
+        Source.QM to LyricApiProvider.qmSource,
+        Source.KUWO to LyricApiProvider.kuwoSource,
+        Source.KUGOU to LyricApiProvider.kugouSource,
+        Source.LRCLIB to LyricApiProvider.lrclibSource,
+    )
+
     private fun splitArtists(value: String): List<String> =
         value.split("&", ",", "，", "、", "/", "／")
 

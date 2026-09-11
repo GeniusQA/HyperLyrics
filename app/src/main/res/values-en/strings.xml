@@ -231,6 +231,17 @@
     <string name="provider_status_universal">Universal</string>
     <string name="lyric_error_no_lyrics">No lyrics found</string>
     <string name="lyric_error_no_translation">No lyric translation found</string>
+    <string name="title_manual_match">Manual rematch</string>
+    <string name="summary_manual_match">If lyrics/translation matches incorrectly, enter the correct title, artist and album to search candidates, then select one to rematch lyrics and translation</string>
+    <string name="manual_match_title">Title (required)</string>
+    <string name="manual_match_artist">Artist (required)</string>
+    <string name="manual_match_album_optional">Album (optional)</string>
+    <string name="manual_match_search">Search candidates</string>
+    <string name="manual_match_searching">Searching…</string>
+    <string name="manual_match_empty">No candidate songs found</string>
+    <string name="manual_match_search_failed">Search failed</string>
+    <string name="manual_match_required_hint">Title and artist are required</string>
+    <string name="manual_match_submitted">Rematch submitted, fetching lyrics/translation again</string>
     <string name="provider_catalog_loading">Loading the plugin catalog</string>
     <string name="provider_catalog_load_failed">Unable to load the plugin catalog</string>
     <string name="provider_status_processing">Processing…</string>

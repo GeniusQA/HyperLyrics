@@ -443,6 +443,7 @@ object RootConstants {
         "key_hook_online_translation_app_youtube_music"
     const val KEY_HOOK_ONLINE_TRANSLATION_APP_PREFIX =
         "key_hook_online_translation_app_"
+    const val KEY_HOOK_MANUAL_LYRIC_MATCH_REQUEST = "key_hook_manual_lyric_match_request"
     const val KEY_HOOK_ONLINE_TRANSLATION_SALT_PREFER_ONLINE =
         "key_hook_online_translation_salt_prefer_online"
     const val KEY_HOOK_APPLE_MUSIC_CONTENT_UI_LANGUAGE =

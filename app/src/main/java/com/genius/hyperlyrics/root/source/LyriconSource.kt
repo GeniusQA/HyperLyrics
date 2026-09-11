@@ -33,6 +33,8 @@ import com.genius.hyperlyrics.lyric.source.LyricSink
 import com.genius.hyperlyrics.lyric.source.LyricSource
 import com.genius.hyperlyrics.online.OnlineLyricTargeter
 import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
+import com.genius.hyperlyrics.online.model.ManualLyricMatchRequest
+import com.genius.hyperlyrics.online.model.SongSearchResult
 import com.genius.hyperlyrics.online.model.Source
 import com.genius.hyperlyrics.online.source.lunabeat.LunaBeatLookupResult
 import com.genius.hyperlyrics.online.source.lunabeat.LunaBeatTtmlRepository
@@ -568,6 +570,89 @@ class LyriconSource : LyricSource {
         }
         if (key == RootConstants.KEY_HOOK_APPLE_MUSIC_LUNABEAT_WORD_LYRICS) {
             mainHandler.post(::applyLunaBeatWordLyricsPreferenceChange)
+        }
+        if (key == RootConstants.KEY_HOOK_MANUAL_LYRIC_MATCH_REQUEST) {
+            mainHandler.post(::applyManualLyricMatchRequest)
+        }
+    }
+
+    /**
+     * 「二次匹配」：用户在设置页手动搜索并选中候选后，按候选的来源与歌曲 ID 重新抓词，
+     * 必要时再向四平台补翻译，最后走与在线兜底一致的发布链路。
+     */
+    private fun applyManualLyricMatchRequest() {
+        val request = ManualLyricMatchRequest.decode(
+            prefs?.getString(RootConstants.KEY_HOOK_MANUAL_LYRIC_MATCH_REQUEST, null),
+        ) ?: return
+        val source = request.sourceEnum ?: return
+        val application = app ?: return
+        val baseSong = currentPublishedThirdPartySong ?: currentThirdPartySong ?: run {
+            diagnostic("二次匹配失败: 当前无三方播放歌曲")
+            return
+        }
+        val currentTitle = normalizeIdentity(baseSong.name)
+        val requestTitle = normalizeIdentity(request.currentTitle)
+        if (requestTitle.isNotBlank() && currentTitle != requestTitle) {
+            diagnostic(
+                "二次匹配忽略: 当前歌曲已切换, request=${request.currentTitle}, " +
+                    "current=${baseSong.name}",
+            )
+            return
+        }
+        val candidate = SongSearchResult(
+            id = request.sourceSongId,
+            title = request.title,
+            artist = request.artist,
+            album = request.album,
+            duration = request.durationMs,
+            source = source,
+        )
+        val playerPackage = activeCentralPlayerPackageName.orEmpty()
+        diagnostic(
+            "二次匹配开始: source=${source.name}, id=${request.sourceSongId}, " +
+                "title=${request.title}, artist=${request.artist}, " +
+                "album=${request.album.ifBlank { "无" }}",
+        )
+        fallbackScope.launch {
+            try {
+                val lines = OnlineLyricTargeter.fetchLyricsForCandidate(application, candidate)
+                if (lines == null) {
+                    diagnostic("二次匹配未取到歌词: source=${source.name}, id=${request.sourceSongId}")
+                    return@launch
+                }
+                var matched = OnlineFallbackSongMapper.map(baseSong, lines) ?: return@launch
+                val orderedSources = configuredOnlineSources()
+                if (orderedSources.isNotEmpty() && needsOnlineEnrichment(matched)) {
+                    val translationLines = fetchThirdPartyLyrics(
+                        application = application,
+                        playerPackage = playerPackage,
+                        baseSong = baseSong,
+                        album = request.album.takeIf { it.isNotBlank() },
+                        order = orderedSources,
+                        requireTranslation = true,
+                    )
+                    if (translationLines != null) {
+                        matched = OnlineTranslationMatcher.apply(matched, translationLines).song
+                    }
+                }
+                val result = matched
+                mainHandler.post {
+                    currentPublishedThirdPartySong = result
+                    thirdPartyFallbackSongActive = false
+                    publishSong(result, restorePosition = true)
+                    diagnostic(
+                        "二次匹配完成: source=${source.name}, " +
+                            "lines=${result.lyrics.orEmpty().size}, " +
+                            "translations=${result.lyrics.orEmpty().count {
+                                OnlineTranslationContentPolicy.isMeaningful(it.translation)
+                            }}",
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                diagnostic("二次匹配异常: ${e.javaClass.simpleName}:${e.message}")
+            }
         }
     }
 
