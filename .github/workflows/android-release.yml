@@ -95,6 +95,9 @@ jobs:
           if [[ "$CHANNEL" == "stable" ]]; then
             ./gradlew --no-daemon --max-workers=2 assembleDebug assembleRelease \
               --build-cache -PciVersionName="$FULL_NAME"
+          elif [[ "$CHANNEL" == "canary" ]]; then
+            ./gradlew --no-daemon --max-workers=2 assembleRelease \
+              --build-cache -PciVersionName="$FULL_NAME"
           else
             ./gradlew --no-daemon --max-workers=2 assembleDebug \
               --build-cache -PciVersionName="$FULL_NAME"
@@ -109,13 +112,13 @@ jobs:
           if-no-files-found: error
 
       - name: 解码签名密钥 Decode Keystore
-        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel != 'canary'
+        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false'
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: echo "$SIGNING_KEY" | base64 -d > release.jks
 
-      - name: 签名 Debug APK Sign Debug APK
-        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel != 'canary'
+      - name: 签名 APK Sign APK
+        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false'
         env:
           STORE_PASS: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASS: ${{ secrets.KEY_PASSWORD }}
@@ -130,21 +133,9 @@ jobs:
           ZA="$BTDIR/zipalign"
           AS="$BTDIR/apksigner"
 
-          DEBUG_IN=$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*-debug.apk' -print -quit)
-          test -n "$DEBUG_IN"
-
-          $ZA -f -v -p 4 "$DEBUG_IN" debug-aligned.apk
-          $AS sign \
-            --ks release.jks \
-            --ks-pass env:STORE_PASS \
-            --ks-key-alias "$KEY_ALIAS" \
-            --key-pass env:KEY_PASS \
-            --out "HyperLyrics-debug-v${V_NAME}-${V_CODE}.apk" \
-            debug-aligned.apk
-
-          if [[ "$CHANNEL" == "stable" ]]; then
-            RELEASE_IN=$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)
-            test -n "$RELEASE_IN"
+          # 签名 release 产物（stable / canary 会产出）
+          RELEASE_IN=$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit || true)
+          if [[ -n "$RELEASE_IN" ]]; then
             $ZA -f -v -p 4 "$RELEASE_IN" release-aligned.apk
             $AS sign \
               --ks release.jks \
@@ -155,12 +146,25 @@ jobs:
               release-aligned.apk
           fi
 
+          # 签名 debug 产物（stable / beta 会产出）
+          DEBUG_IN=$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*-debug.apk' -print -quit || true)
+          if [[ -n "$DEBUG_IN" ]]; then
+            $ZA -f -v -p 4 "$DEBUG_IN" debug-aligned.apk
+            $AS sign \
+              --ks release.jks \
+              --ks-pass env:STORE_PASS \
+              --ks-key-alias "$KEY_ALIAS" \
+              --key-pass env:KEY_PASS \
+              --out "HyperLyrics-debug-v${V_NAME}-${V_CODE}.apk" \
+              debug-aligned.apk
+          fi
+
       - name: 上传 Canary 构建产物 Upload Canary Artifact
         if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel == 'canary'
         uses: actions/upload-artifact@v7
         with:
-          name: canary-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
-          path: app/build/outputs/apk/debug/*.apk
+          name: canary-release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
+          path: HyperLyrics-release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
           if-no-files-found: error
 
       - name: 生成发布说明 Generate Release Body
