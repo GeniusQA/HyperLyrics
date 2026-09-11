@@ -63,9 +63,46 @@ internal interface DozeTickRunnableFactory {
                 captured.isAccessible = true
                 return CapturedField(noArg, captured)
             }
+            // 形态三：部分 ROM 的合成类反射拿不到任何构造器（declaredConstructors 为空），
+            // 退化为 Unsafe 分配实例 + 写捕获字段，运行行为与形态二一致。
+            val capturedForUnsafe = tickRunnableClass.declaredFields
+                .firstOrNull { it.name == CAPTURED_RECEIVER_FIELD }
+                ?: tickRunnableClass.declaredFields.firstOrNull { field ->
+                    !java.lang.reflect.Modifier.isStatic(field.modifiers) &&
+                        field.type.isAssignableFrom(hostClass)
+                }
+            val unsafe = unsafeInstance()
+            if (unsafe != null && capturedForUnsafe != null &&
+                capturedForUnsafe.type.isAssignableFrom(hostClass)
+            ) {
+                capturedForUnsafe.isAccessible = true
+                return UnsafeAllocation(unsafe, tickRunnableClass, capturedForUnsafe)
+            }
             throw IllegalStateException(
                 "脱糖 Runnable ${tickRunnableClass.name} 无可用构造器: constructors=$signatures",
             )
+        }
+    }
+
+    /** 反射获取 sun.misc.Unsafe，避免编译期直接依赖隐藏 API。 */
+    private fun unsafeInstance(): Any? = runCatching {
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val field = unsafeClass.getDeclaredField("theUnsafe")
+        field.isAccessible = true
+        field.get(null)
+    }.getOrNull()
+
+    private class UnsafeAllocation(
+        private val unsafe: Any,
+        private val tickRunnableClass: Class<*>,
+        private val field: Field,
+    ) : DozeTickRunnableFactory {
+        override fun create(host: Any): Runnable {
+            val instance = unsafe.javaClass
+                .getMethod("allocateInstance", Class::class.java)
+                .invoke(unsafe, tickRunnableClass) as Runnable
+            field.set(instance, host)
+            return instance
         }
     }
 

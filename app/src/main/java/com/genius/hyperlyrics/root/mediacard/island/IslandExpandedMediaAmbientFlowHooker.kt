@@ -50,6 +50,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.Collections
 import java.util.WeakHashMap
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -94,8 +95,21 @@ object IslandExpandedMediaAmbientFlowHooker {
     )
     private val restoringNativeForeground = ThreadLocal<Boolean>()
     private val bindingBinder = ThreadLocal<Any?>()
-    private val colorExecutor = Executors.newSingleThreadExecutor { task ->
+    @Volatile
+    private var colorExecutor: ExecutorService = newColorExecutor()
+
+    private fun newColorExecutor(): ExecutorService = Executors.newSingleThreadExecutor { task ->
         Thread(task, "HyperLyrics-IslandMediaColor").apply { isDaemon = true }
+    }
+
+    /** 清理流程会 shutdown 执行器；再次取色时若已终止则重建，避免 RejectedExecutionException。 */
+    private fun activeColorExecutor(): ExecutorService {
+        val current = colorExecutor
+        if (!current.isShutdown) return current
+        return synchronized(this) {
+            if (colorExecutor.isShutdown) colorExecutor = newColorExecutor()
+            colorExecutor
+        }
     }
     // 封面图标（setFixIcon）先于 binder 的 artWorkDrawable 刷新到达（真机日志：图标 T+0、
     // binder 滞后 0.6~0.7s，且滞后那跳并不保证出现）。流光封面色必须以图标更新为触发源，
@@ -1070,7 +1084,7 @@ object IslandExpandedMediaAmbientFlowHooker {
         // Keep the displayed artwork while the next request is prepared.
         val request = state.request.incrementAndGet()
         runCatching {
-            colorExecutor.execute {
+            activeColorExecutor().execute {
                 if (binderStates[binder] !== state || state.request.get() != request) {
                     bitmap.recycle()
                     return@execute
@@ -1143,7 +1157,7 @@ object IslandExpandedMediaAmbientFlowHooker {
         val request = state.request.incrementAndGet()
 
         runCatching {
-            colorExecutor.execute {
+            activeColorExecutor().execute {
                 if (binderStates[binder] !== state || state.request.get() != request) {
                     bitmap.recycle()
                     return@execute
@@ -1204,7 +1218,7 @@ object IslandExpandedMediaAmbientFlowHooker {
             HookLogger.d(TAG, "流光取色(图标): 调度 token=$token bitmap=${bitmap.width}x${bitmap.height}")
         }
         runCatching {
-            colorExecutor.execute {
+            activeColorExecutor().execute {
                 val palette = runCatching {
                     MediaAmbientFlowPaletteExtractor.extractCoverMainColor(bitmap)
                         ?.let { nativeApi?.createPalette(it) }
