@@ -441,6 +441,8 @@ object RootConstants {
         "key_hook_online_translation_app_salt"
     const val KEY_HOOK_ONLINE_TRANSLATION_APP_YOUTUBE_MUSIC =
         "key_hook_online_translation_app_youtube_music"
+    const val KEY_HOOK_ONLINE_TRANSLATION_APP_PREFIX =
+        "key_hook_online_translation_app_"
     const val KEY_HOOK_ONLINE_TRANSLATION_SALT_PREFER_ONLINE =
         "key_hook_online_translation_salt_prefer_online"
     const val KEY_HOOK_APPLE_MUSIC_CONTENT_UI_LANGUAGE =

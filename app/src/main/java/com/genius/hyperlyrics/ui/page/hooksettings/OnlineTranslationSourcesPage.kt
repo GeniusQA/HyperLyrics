@@ -308,6 +308,34 @@ fun OnlineTranslationSourcesPage() {
         }
     }
 
+    // 当前正在播放但不在固定启用列表里的播放器（通用歌词源场景），
+    // 动态加入“启用 App”列表，让用户能开关在线翻译并查看匹配诊断。
+    val dynamicCurrentApp = remember(currentPackage) {
+        currentPackage?.takeIf { pkg ->
+            pkg !in NATIVE_LYRIC_PACKAGES && ENABLED_APPS.none { it.packageName == pkg }
+        }?.let { pkg ->
+            runCatching {
+                val pm = context.packageManager
+                val info = pm.getApplicationInfo(pkg, 0)
+                InstalledTranslationApp(
+                    app = TranslationApp(
+                        packageName = pkg,
+                        displayName = info.loadLabel(pm).toString(),
+                        summaryRes = R.string.summary_online_translation_app_lyrics_translation,
+                    ),
+                    icon = info.loadIcon(pm),
+                )
+            }.getOrNull()
+        }
+    }
+    LaunchedEffect(currentPackage) {
+        currentPackage?.let { pkg ->
+            if (pkg !in appEnabled) {
+                appEnabled[pkg] = OnlineTranslationSourcePreferences.isAppEnabled(prefs, pkg)
+            }
+        }
+    }
+
     /** 请求相邻来源互换，动画期间拒绝新的排序操作。 */
     fun requestSourceMove(source: Source, direction: Int) {
         if (pendingSwap != null || swapProgress.value != 0f) return
@@ -616,7 +644,7 @@ fun OnlineTranslationSourcesPage() {
             }
         }
         enabledAppsSection(
-            installedApps = installedApps,
+            installedApps = installedApps.orEmpty() + listOfNotNull(dynamicCurrentApp),
             appEnabled = appEnabled,
             onCheckedChange = { packageName, checked ->
                 appEnabled[packageName] = checked

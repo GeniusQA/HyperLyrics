@@ -3182,13 +3182,11 @@ class LyriconSource : LyricSource {
 
     /**
      * 第三方播放器是否允许走在线匹配：
-     * 当没有任何 Provider（官方插件/独立模块）接管时，视为通用兜底播放器，
-     * 始终允许走在线链路（LRCLIB 兜底歌词 + 四库补翻译）；
-     * 有 Provider 接管时仍按单 App 在线开关判定。
+     * 统一按 App 在线翻译开关判定。通用播放器（无官方 Provider）默认开启，
+     * 用户可在“在线翻译源”页面对当前播放 App 关闭；有 Provider 接管时同样遵守该开关。
      */
     private fun isThirdPartyOnlineEnabledFor(packageName: String?): Boolean {
         val pkg = packageName ?: return false
-        if (pkg != APPLE_MUSIC_PACKAGE && activeProviderPackageName == null) return true
         return isOnlineTranslationEnabledFor(pkg)
     }
 
