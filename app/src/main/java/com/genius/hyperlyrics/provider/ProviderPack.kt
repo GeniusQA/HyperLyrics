@@ -85,16 +85,13 @@ object ProviderPackVerifier {
             "Provider 插件 ID 无效"
         }
         require(
-            manifest.entryClass.startsWith("com.genius.hyperlyrics.providers.") ||
-                manifest.entryClass.startsWith("com.juren233.hle.providers.")
+            manifest.entryClass.startsWith(OfficialProviderCatalog.OFFICIAL_PROVIDER_ENTRY_PREFIX)
         ) {
             "Provider 入口类不在允许命名空间"
         }
         require(
             manifest.providerPackageName ==
-                OfficialProviderCatalog.OFFICIAL_PROVIDER_PACKAGE_PREFIX + manifest.pluginId ||
-                manifest.providerPackageName ==
-                OfficialProviderCatalog.LEGACY_PROVIDER_PACKAGE_PREFIX + manifest.pluginId
+                OfficialProviderCatalog.OFFICIAL_PROVIDER_PACKAGE_PREFIX + manifest.pluginId
         ) { "Provider 来源标识无效" }
 
         val definition = requireNotNull(
