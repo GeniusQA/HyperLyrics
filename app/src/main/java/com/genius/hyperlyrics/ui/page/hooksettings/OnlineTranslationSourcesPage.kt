@@ -603,7 +603,11 @@ fun OnlineTranslationSourcesPage() {
                         fontSize = MiuixTheme.textStyles.body2.fontSize,
                         color = MiuixTheme.colorScheme.onBackground,
                     )
-                    if (originRes != R.string.lyric_origin_native) {
+                    // 匹配平台信息不再受“原生来源”限制：只要诊断有数据就展示，
+                    // 便于确认当前曲目在四平台/通用源的实际匹配情况。
+                    if (matchedDiagnostic != null || nearMissDiagnostic != null ||
+                        diagnosing || sourceDiagnostics.isNotEmpty()
+                    ) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = when {

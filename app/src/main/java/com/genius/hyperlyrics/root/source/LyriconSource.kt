@@ -267,6 +267,9 @@ class LyriconSource : LyricSource {
     private var thirdPartyFallbackDelayRunnable: Runnable? = null
     private var thirdPartyFallbackGeneration = 0
     private var thirdPartyFallbackSongActive = false
+
+    /** 当前曲目匹配失败后展示报错占位；同一首歌的重复占位回调不应覆盖报错。 */
+    private var thirdPartyMatchFailedIdentity: String? = null
     private var onlineTranslationGeneration = 0
     private var onlineTranslationAttemptKey: String? = null
     private var originalMetadataRequestKey: String? = null
@@ -639,6 +642,7 @@ class LyriconSource : LyricSource {
                 mainHandler.post {
                     currentPublishedThirdPartySong = result
                     thirdPartyFallbackSongActive = false
+                    thirdPartyMatchFailedIdentity = null
                     publishSong(result, restorePosition = true)
                     diagnostic(
                         "二次匹配完成: source=${source.name}, " +
@@ -1116,6 +1120,16 @@ class LyriconSource : LyricSource {
             clearMatched = true,
             reason = "third_party_song_updated",
         )
+        // 匹配失败已展示报错占位时，同一首歌的重复占位回调（Provider 重新发布基础歌曲）
+        // 不再覆盖报错，直到切歌或偏好变化触发重新匹配。
+        if (song != null &&
+            thirdPartyMatchFailedIdentity == songIdentity(song) &&
+            song.lyrics.isNullOrEmpty()
+        ) {
+            currentThirdPartySong = song
+            debug("忽略同曲重复占位（匹配失败报错展示中）: title=${song.name}")
+            return
+        }
         currentThirdPartySong = song
         currentPublishedThirdPartySong = song
         publishSong(song, restorePosition = sameTrack)
@@ -1795,6 +1809,8 @@ class LyriconSource : LyricSource {
 
     /** 偏好变化后重新决定第三方歌曲的在线策略（椒盐支持在线歌词兜底与优先在线源）。 */
     private fun reevaluateThirdPartyOnlineMatching(song: LocalSong) {
+        // 偏好变化允许对失败曲目重新匹配，清除报错占位的粘性状态。
+        thirdPartyMatchFailedIdentity = null
         val playerPackage = activeCentralPlayerPackageName
         val matchingEnabled = isThirdPartyOnlineEnabledFor(playerPackage)
         val hasLyrics = !song.lyrics.isNullOrEmpty()
@@ -1865,10 +1881,37 @@ class LyriconSource : LyricSource {
                             "在线兜底专辑: album=${album.ifBlank { "无" }}, " +
                                 "title=${baseSong.name}, artist=${baseSong.artist}"
                         )
-                        val fallbackSong = if (universalFallback) {
-                            // 通用歌词源 Provider = LRCLIB：仅用 歌名/歌手/专辑 匹配 LRCLIB 歌词。
-                            // 插件与在线源（四平台）是两套独立逻辑：LRCLIB 未命中即结束，
-                            // 不再退回四平台取词；LRCLIB 只有歌词没有翻译，缺翻译时才补翻译。
+                        // 是否存在专用插件（内置插件/独立模块）在场：
+                        // 自有通用兜底 Provider 与控制通道（BUILT_IN）不算专用插件。
+                        val dedicatedProviderActive = activeProviderPackageName != null &&
+                            activeProviderPackageName != UNIVERSAL_FALLBACK_PROVIDER_PACKAGE &&
+                            activeProviderPackageName != BUILT_IN_PROVIDER_PACKAGE
+                        val fallbackSong: LocalSong? = if (dedicatedProviderActive) {
+                            // 规则 1：专用插件未命中 → 通用插件（LRCLIB）兜底 →
+                            // 仍未命中直接报错「通用插件歌词匹配失败」，不再走四平台取词。
+                            fetchThirdPartyLyrics(
+                                application = application,
+                                playerPackage = playerPackage,
+                                baseSong = baseSong,
+                                album = album,
+                                order = listOf(Source.LRCLIB),
+                                requireTranslation = false,
+                            )
+                                ?.let(::stripFullyChineseTranslations)
+                                ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
+                                ?.let { lrclibSong ->
+                                    enrichWithOnlineTranslations(
+                                        application = application,
+                                        playerPackage = playerPackage,
+                                        baseSong = baseSong,
+                                        album = album,
+                                        lrclibSong = lrclibSong,
+                                        orderedSources = orderedSources,
+                                    )
+                                }
+                        } else {
+                            // 规则 2：没有任何专用插件 → 通用插件（LRCLIB）未命中时，
+                            // 允许继续走四平台在线源整首匹配歌词+翻译。
                             val lrclibSong = fetchThirdPartyLyrics(
                                 application = application,
                                 playerPackage = playerPackage,
@@ -1880,60 +1923,28 @@ class LyriconSource : LyricSource {
                                 ?.let(::stripFullyChineseTranslations)
                                 ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
                             when {
-                                lrclibSong == null -> null
+                                lrclibSong != null -> enrichWithOnlineTranslations(
+                                    application = application,
+                                    playerPackage = playerPackage,
+                                    baseSong = baseSong,
+                                    album = album,
+                                    lrclibSong = lrclibSong,
+                                    orderedSources = orderedSources,
+                                )
 
-                                orderedSources.isNotEmpty() &&
-                                    needsOnlineEnrichment(lrclibSong) -> {
-                                    // LRCLIB 命中但缺翻译：四平台补翻译后合并到 LRCLIB 歌词；
-                                    // 四平台也补不到翻译时，直接提示未命中歌词翻译。
-                                    val translationLines = fetchThirdPartyLyrics(
-                                        application = application,
-                                        playerPackage = playerPackage,
-                                        baseSong = baseSong,
-                                        album = album,
-                                        order = orderedSources,
-                                        requireTranslation = true,
-                                    )
-                                    if (translationLines == null) {
-                                        diagnostic(
-                                            "MetaData未命中歌词翻译: title=${baseSong.name}"
-                                        )
-                                        HookLogger.w(
-                                            TAG,
-                                            "MetaData未命中歌词翻译: title=${baseSong.name}, " +
-                                                "player=$playerPackage",
-                                        )
-                                        // 命中歌词但四库补不到翻译：用报错占位替代歌词展示，
-                                        // 避免用户误以为翻译源工作正常。
-                                        lrclibSong.copy(
-                                            lyrics = null,
-                                            metadata = lyricMetadataOf(
-                                                LyricMetadataKeys.LYRIC_ERROR_MESSAGE to
-                                                    application.getString(
-                                                        R.string.lyric_error_no_translation,
-                                                    ),
-                                            ),
-                                        )
-                                    } else {
-                                        OnlineTranslationMatcher
-                                            .apply(lrclibSong, translationLines)
-                                            .song
-                                    }
-                                }
+                                orderedSources.isNotEmpty() -> fetchThirdPartyLyrics(
+                                    application = application,
+                                    playerPackage = playerPackage,
+                                    baseSong = baseSong,
+                                    album = album,
+                                    order = orderedSources,
+                                    requireTranslation = false,
+                                )
+                                    ?.let(::stripFullyChineseTranslations)
+                                    ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
 
-                                else -> lrclibSong
+                                else -> null
                             }
-                        } else {
-                            fetchThirdPartyLyrics(
-                                application = application,
-                                playerPackage = playerPackage,
-                                baseSong = baseSong,
-                                album = album,
-                                order = orderedSources.ifEmpty { listOf(Source.LRCLIB) },
-                                requireTranslation = false,
-                            )
-                                ?.let(::stripFullyChineseTranslations)
-                                ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
                         }
                         mainHandler.post {
                             applyThirdPartyFallbackResult(
@@ -1982,6 +1993,44 @@ class LyriconSource : LyricSource {
         album = album,
     )
 
+    /**
+     * LRCLIB 命中歌词但缺翻译时，用四平台补翻译后合并；
+     * 四平台也补不到翻译时，直接用「未命中歌词翻译」报错占位替代歌词展示。
+     */
+    private suspend fun enrichWithOnlineTranslations(
+        application: Application,
+        playerPackage: String,
+        baseSong: LocalSong,
+        album: String?,
+        lrclibSong: LocalSong,
+        orderedSources: List<Source>,
+    ): LocalSong {
+        if (orderedSources.isEmpty() || !needsOnlineEnrichment(lrclibSong)) return lrclibSong
+        val translationLines = fetchThirdPartyLyrics(
+            application = application,
+            playerPackage = playerPackage,
+            baseSong = baseSong,
+            album = album,
+            order = orderedSources,
+            requireTranslation = true,
+        )
+        if (translationLines == null) {
+            diagnostic("MetaData未命中歌词翻译: title=${baseSong.name}")
+            HookLogger.w(
+                TAG,
+                "MetaData未命中歌词翻译: title=${baseSong.name}, player=$playerPackage",
+            )
+            return lrclibSong.copy(
+                lyrics = null,
+                metadata = lyricMetadataOf(
+                    LyricMetadataKeys.LYRIC_ERROR_MESSAGE to
+                        application.getString(R.string.lyric_error_no_translation),
+                ),
+            )
+        }
+        return OnlineTranslationMatcher.apply(lrclibSong, translationLines).song
+    }
+
     private fun applyThirdPartyFallbackResult(
         generation: Int,
         baseSong: LocalSong,
@@ -2013,9 +2062,9 @@ class LyriconSource : LyricSource {
         if (fallbackSong == null) {
             thirdPartyFallbackSongActive = false
             val missMessage = if (universalFallback) {
-                "通用歌词源 LRCLIB 未命中歌词: title=${baseSong.name}"
+                "通用插件 LRCLIB 未命中歌词: title=${baseSong.name}"
             } else {
-                "在线兜底未命中: title=${baseSong.name}"
+                "专用插件与通用插件 LRCLIB 均未命中歌词: title=${baseSong.name}"
             }
             diagnostic(missMessage)
             HookLogger.w(
@@ -2023,18 +2072,21 @@ class LyriconSource : LyricSource {
                 "$missMessage, player=$activeCentralPlayerPackageName",
             )
             // 未命中任何歌词：把报错信息写入歌曲区域占位，替代“歌名 - 歌手”。
-            val errorText = app?.getString(R.string.lyric_error_no_lyrics) ?: "未命中歌词"
+            val errorText = app?.getString(R.string.lyric_error_no_lyrics)
+                ?: "通用插件歌词匹配失败"
             val errorSong = baseSong.copy(
                 lyrics = null,
                 metadata = lyricMetadataOf(
                     LyricMetadataKeys.LYRIC_ERROR_MESSAGE to errorText,
                 ),
             )
+            thirdPartyMatchFailedIdentity = songIdentity(baseSong)
             currentPublishedThirdPartySong = errorSong
             publishSong(errorSong, restorePosition = true)
             return
         }
         thirdPartyFallbackSongActive = true
+        thirdPartyMatchFailedIdentity = null
         currentPublishedThirdPartySong = fallbackSong
         HookLogger.i(
             TAG,

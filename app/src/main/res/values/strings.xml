@@ -234,8 +234,8 @@
     <string name="legacy_provider_release_home">https://github.com/tomakino/LyricProvider/releases</string>
     <string name="provider_status_builtin">内置</string>
     <string name="provider_status_universal">通用</string>
-    <string name="lyric_error_no_lyrics">未命中歌词</string>
-    <string name="lyric_error_no_translation">未命中歌词翻译</string>
+    <string name="lyric_error_no_lyrics">通用插件歌词匹配失败</string>
+    <string name="lyric_error_no_translation">通用插件翻译匹配失败</string>
     <string name="title_manual_match">手动二次匹配</string>
     <string name="summary_manual_match">歌词/翻译匹配不准时，手动输入正确的歌名、歌手与专辑搜索候选，选中后重新匹配歌词与翻译</string>
     <string name="manual_match_title">歌名（必填）</string>
