@@ -1,6 +1,6 @@
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys
+import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import io.github.proify.extensions.deflate
 import io.github.proify.extensions.inflate
 import io.github.proify.extensions.json
@@ -44,7 +44,7 @@ class AppleDirectPayloadTest {
         assertEquals(source, restored)
         assertEquals("Backing vocal", restored.lyrics.orEmpty().single().secondary)
 
-        val localSong = json.decodeFromString<com.juren233.hyperlyricsenhanced.lyric.model.Song>(
+        val localSong = json.decodeFromString<com.genius.hyperlyrics.lyric.model.Song>(
             json.encodeToString(restored)
         )
         assertEquals(

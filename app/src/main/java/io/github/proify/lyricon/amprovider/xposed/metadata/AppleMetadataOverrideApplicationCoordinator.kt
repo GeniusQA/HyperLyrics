@@ -6,7 +6,7 @@
 
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import io.github.proify.lyricon.amprovider.xposed.hooks.AppleFrameworkMetadataHooks
 import java.util.concurrent.atomic.AtomicLong
 

@@ -10,8 +10,8 @@ import android.media.AudioRouting
 import android.media.AudioTrack
 import android.media.session.PlaybackState as AndroidPlaybackState
 import android.os.SystemClock
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.common.RootConstants
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.common.RootConstants
 import io.github.proify.extensions.android.ScreenStateMonitor
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicHookPoint
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicHookTarget

@@ -1,0 +1,506 @@
+/*
+ * Copyright 2026 Proify, Tomakino, juren233
+ * Licensed under the Apache License, Version 2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
+
+package com.genius.hyperlyrics.lyric.view
+
+import android.annotation.SuppressLint
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.content.Context
+import android.graphics.Canvas
+import android.view.Gravity
+import android.widget.LinearLayout
+import androidx.core.graphics.withScale
+import androidx.core.view.forEach
+import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.lyric.model.interfaces.IRichLyricLine
+import com.genius.hyperlyrics.lyric.view.line.SpaceGateLyricLineView
+
+@SuppressLint("ViewConstructor")
+class SpaceGateRichLyricLineView(
+    context: Context,
+    var displayTranslation: Boolean = true,
+    var enableRelativeProgress: Boolean = false,
+    var enableRelativeProgressHighlight: Boolean = false,
+    var displayRoma: Boolean = true
+) : LinearLayout(context), UpdatableColor {
+
+    val main = SpaceGateLyricLineView(context)
+    val secondary = SpaceGateLyricLineView(context).apply { visibleIfChanged = false }
+
+    var alwaysShowSecondary = false
+
+    /**
+     * 动态长度模式：主/次行测量宽度收缩为文字实际宽度，见 [SpaceGateLyricLineView.hugContentWidth]。
+     */
+    var hugContentWidth: Boolean
+        get() = main.hugContentWidth
+        set(value) {
+            main.hugContentWidth = value
+            secondary.hugContentWidth = value
+        }
+
+    /**
+     * 换行内容因换句/预览提升动画被延迟落地后的回调（主线程）。
+     * 动态长度模式下岛宽在内容应用返回时立即测量，延迟落地时需借此触发第二次
+     * 岛宽重算，否则岛宽恒定落后一行；回调为 null 时无任何额外行为。
+     */
+    var onDeferredContentApplied: (() -> Unit)? = null
+
+    /**
+     * 动态长度：预览提升动画期间（内容延迟落地前）让视图按目标行落定后的
+     * 内容宽度参与岛宽测量，使岛宽与提升动画同步过渡。
+     * 预判与落地实测走同一条绘制管线；内容落地时清除，实测值兜底。
+     */
+    private var pendingHugWidth: Int? = null
+
+    internal fun beginDeferredContentWidth(targetLine: IRichLyricLine?) {
+        pendingHugWidth = targetLine?.let(::predictAppliedContentWidth)
+    }
+
+    private fun predictAppliedContentWidth(targetLine: IRichLyricLine): Int {
+        val mainResult = assembler.buildMain(targetLine)
+        val secResult = assembler.buildSecondary(targetLine)
+        val mainWidth = main.measureIncomingHugWidth(mainResult.line)
+        val secondaryWidth = if (secResult.alwaysShow) {
+            secondary.measureIncomingHugWidth(secResult.line)
+        } else {
+            0
+        }
+        return maxOf(mainWidth, secondaryWidth)
+    }
+
+    var renderScale = 1.0f
+        private set
+
+    var displayMode: Int = RootConstants.DEFAULT_HOOK_TRANSLATION_PRONUNCIATION_DISPLAY
+    var fallback: Boolean = RootConstants.DEFAULT_HOOK_TRANSLATION_PRONUNCIATION_FALLBACK
+    var hideSecondaryContent: Boolean = false
+
+    private val assembler = LyricLineAssembler(
+        displayMode, fallback, hideSecondaryContent,
+        enableRelativeProgress, enableRelativeProgressHighlight
+    )
+
+    private var animationTransition = false
+    private var pendingLine: IRichLyricLine? = null
+    private var pendingPosition: Long? = null
+    private var requestMarquee = false
+    private var lastPosition: Long = Long.MIN_VALUE
+
+    var rawLine: IRichLyricLine? = null
+    private var currentMainText: String? = null
+    private var secondaryIsNextLinePreview = false
+    private var nextLineTransitionRunning = false
+    private var nextLineTransitionGeneration = 0
+    private var centerMainLine: Boolean? = null
+    private var centerSecondaryLine: Boolean? = null
+
+    internal fun willAnimateNextLinePromotion(
+        targetLine: IRichLyricLine?,
+        previousLine: IRichLyricLine? = rawLine
+    ): Boolean {
+        val nextMainText = assembler.buildMain(targetLine).line.text
+        return canAnimateNextLinePromotion(
+            wasPreview = secondaryIsNextLinePreview,
+            currentMainText = currentMainText,
+            previewText = secondary.model.text,
+            nextMainText = nextMainText,
+            lineAdvanced = hasLyricLineAdvanced(previousLine, targetLine),
+            attached = isAttachedToWindow,
+            mainHeight = main.height,
+            secondaryHeight = secondary.height
+        )
+    }
+
+    var line: IRichLyricLine?
+        get() = rawLine
+        set(value) {
+            rawLine = value
+            lastPosition = Long.MIN_VALUE
+            requestMarquee = false
+            if (animationTransition) {
+                pendingLine = value
+            } else {
+                refreshLines()
+            }
+        }
+
+    init {
+        orientation = VERTICAL
+        gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        addView(main, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(secondary, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        updateLayoutTransitionX()
+    }
+
+    fun setSpaceGateConfig(isRightSide: Boolean, sibling: SpaceGateRichLyricLineView?) {
+        main.isRightSide = isRightSide
+        main.siblingView = sibling?.main
+        secondary.isRightSide = isRightSide
+        secondary.siblingView = sibling?.secondary
+    }
+
+    fun reset() {
+        cancelNextLinePromotion()
+        line = null
+        renderScale = 1.0f
+        animationTransition = false
+        pendingLine = null
+        pendingPosition = null
+        pendingHugWidth = null
+        lastPosition = Long.MIN_VALUE
+        currentMainText = null
+        secondaryIsNextLinePreview = false
+        alwaysShowSecondary = false
+        refreshLines()
+    }
+
+    fun beginAnimationTransition() {
+        cancelNextLinePromotion()
+        animationTransition = true
+    }
+
+    fun endAnimationTransition() {
+        animationTransition = false
+        if (pendingLine != null) {
+            pendingHugWidth = null
+            refreshLines()
+            pendingPosition?.let { setPosition(it) }
+            onDeferredContentApplied?.invoke()
+        }
+        pendingLine = null
+        pendingPosition = null
+    }
+
+    fun setTransitionConfig(config: String?) {
+        updateLayoutTransitionX(config)
+    }
+
+    fun notifyLineChanged() = refreshLines()
+
+    fun setDisplayOptions(
+        displayMode: Int,
+        fallback: Boolean,
+        hideSecondaryContent: Boolean = false
+    ) {
+        this.displayMode = displayMode
+        this.fallback = fallback
+        this.hideSecondaryContent = hideSecondaryContent
+        this.displayTranslation = displayMode == RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_TRANSLATION
+        this.displayRoma = displayMode == RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_PRONUNCIATION
+        assembler.updateFlags(
+            displayMode,
+            fallback,
+            hideSecondaryContent,
+            enableRelativeProgress,
+            enableRelativeProgressHighlight
+        )
+    }
+
+    fun setDisplayOptions(showTranslation: Boolean, showRoma: Boolean) {
+        val mode = when {
+            showTranslation -> RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_TRANSLATION
+            showRoma -> RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_PRONUNCIATION
+            else -> RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_OFF
+        }
+        setDisplayOptions(
+            displayMode = mode,
+            fallback = false,
+            hideSecondaryContent = mode == RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_OFF
+        )
+    }
+
+    fun seekTo(position: Long) {
+        if (animationTransition) {
+            pendingPosition = position; return
+        }
+        if (nextLineTransitionRunning) {
+            cancelNextLinePromotion()
+            pendingHugWidth = null
+            refreshLines(allowNextLinePromotion = false, bypassIdentityCheck = true)
+            onDeferredContentApplied?.invoke()
+        }
+        lastPosition = position
+        main.seekTo(position)
+        secondary.seekTo(position)
+    }
+
+    fun setPosition(position: Long) {
+        if (animationTransition) {
+            pendingPosition = position; return
+        }
+        if (lastPosition == position) return
+        lastPosition = position
+        main.updatePosition(position)
+        secondary.updatePosition(position)
+    }
+
+    fun setPlaybackActive(active: Boolean) {
+        main.setPlaybackActive(active)
+        secondary.setPlaybackActive(active)
+    }
+
+    fun requestStartMarquee() {
+        requestMarquee = true
+        main.requestScroll()
+        if (!secondaryIsNextLinePreview) secondary.requestScroll()
+    }
+
+    fun setMetadataMarqueeConfig(
+        speed: Float, initialDelay: Int, loopDelay: Int,
+        repeatCount: Int, stopAtEnd: Boolean
+    ) {
+        listOf(main, secondary).forEach {
+            it.setMarqueeSpeed(speed)
+            it.setMarqueeInitialDelay(initialDelay)
+            it.setMarqueeLoopDelay(loopDelay)
+            it.setMarqueeRepeatCount(repeatCount)
+            it.setMarqueeStopAtEnd(stopAtEnd)
+        }
+    }
+
+    fun setStyle(style: LyricViewStyle) {
+        assembler.updateFlags(
+            displayMode, fallback, hideSecondaryContent,
+            style.primary.relativeProgress, style.primary.relativeHighlight
+        )
+        enableRelativeProgress = style.primary.relativeProgress
+        enableRelativeProgressHighlight = style.primary.relativeHighlight
+
+        setTransitionConfig(style.transitionConfig)
+
+        applyLineStyle(
+            main,
+            style.primary,
+            style.highlight,
+            style.marquee,
+            style.gradient,
+            style.fadingEdge,
+            style.wordMotion,
+            style.centerIfPossible
+        )
+        applyLineStyle(
+            secondary,
+            style.secondary,
+            style.highlight,
+            style.marquee,
+            style.gradient,
+            style.fadingEdge,
+            style.wordMotion,
+            style.centerIfPossible
+        )
+        applyLineCentering()
+        setLineAlignmentRight(style.alignRight)
+    }
+
+    fun setLineCentering(centerMain: Boolean, centerSecondary: Boolean = centerMain) {
+        centerMainLine = centerMain
+        centerSecondaryLine = centerSecondary
+        applyLineCentering()
+    }
+
+    fun setLineAlignmentRight(
+        alignMainRight: Boolean,
+        alignSecondaryRight: Boolean = alignMainRight
+    ) {
+        main.alignRight = alignMainRight
+        secondary.alignRight = alignSecondaryRight
+    }
+
+    private fun applyLineCentering() {
+        centerMainLine?.let { main.centerIfPossible = it }
+        centerSecondaryLine?.let { secondary.centerIfPossible = it }
+    }
+
+    override fun updateColor(primary: IntArray, background: IntArray, highlight: IntArray) {
+        forEach { if (it is UpdatableColor) it.updateColor(primary, background, highlight) }
+    }
+
+    fun setMainLyricPlayListener(listener: LyricPlayListener?) {
+        main.playListener = listener
+    }
+
+    fun setSecondaryLyricPlayListener(listener: LyricPlayListener?) {
+        secondary.playListener = listener
+    }
+
+    override fun onMeasure(wSpec: Int, hSpec: Int) {
+        val pending = pendingHugWidth
+        if (pending != null) {
+            // 预览提升动画期间：按预判的落定内容宽度参与岛宽测量，
+            // 受当前可用宽度约束，与 hug 实测的 spec 收敛行为一致
+            val target = pending.coerceAtMost(MeasureSpec.getSize(wSpec))
+            super.onMeasure(MeasureSpec.makeMeasureSpec(target, MeasureSpec.EXACTLY), hSpec)
+            return
+        }
+        if (renderScale != 1.0f && renderScale > 0) {
+            val origW = MeasureSpec.getSize(wSpec)
+            val mode = MeasureSpec.getMode(wSpec)
+            val compW = (origW / renderScale).toInt()
+            super.onMeasure(MeasureSpec.makeMeasureSpec(compW, mode), hSpec)
+            setMeasuredDimension(origW, measuredHeight)
+        } else {
+            super.onMeasure(wSpec, hSpec)
+        }
+    }
+
+    override fun dispatchDraw(canvas: Canvas) {
+        if (renderScale != 1.0f) {
+            canvas.withScale(renderScale, renderScale, 0f, height / 2f) {
+                super.dispatchDraw(this)
+            }
+        } else {
+            super.dispatchDraw(canvas)
+        }
+    }
+
+    fun setRenderScale(scale: Float) {
+        if (renderScale != scale) {
+            renderScale = scale
+            invalidate()
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        reset()
+    }
+
+    private var oldLine: IRichLyricLine? = null
+
+    private fun refreshLines(allowNextLinePromotion: Boolean = true, bypassIdentityCheck: Boolean = false) {
+        if (nextLineTransitionRunning) return
+        if (!bypassIdentityCheck && oldLine === line && line.isTitleLine()) return
+        val previousLine = oldLine
+        oldLine = line
+
+        assembler.updateFlags(
+            displayMode,
+            fallback,
+            hideSecondaryContent,
+            enableRelativeProgress,
+            enableRelativeProgressHighlight
+        )
+        val mainResult = assembler.buildMain(line)
+        val secResult = assembler.buildSecondary(line)
+
+        val shouldPromote = allowNextLinePromotion &&
+            willAnimateNextLinePromotion(line, previousLine)
+        if (shouldPromote) {
+            animateNextLinePromotion()
+            return
+        }
+
+        main.setLyric(mainResult.line)
+        main.isScrollOnly = mainResult.isScrollOnly
+        currentMainText = mainResult.line.text
+
+        alwaysShowSecondary = secResult.alwaysShow
+        secondaryIsNextLinePreview = secResult.isNextLinePreview
+        secondary.visibleIfChanged = secResult.alwaysShow
+        secondary.isStaticPreview = secResult.isNextLinePreview
+        secondary.setLyric(secResult.line)
+        secondary.isScrollOnly = if (secResult.isNextLinePreview) false else secResult.isScrollOnly
+
+        if (requestMarquee) requestStartMarquee()
+    }
+
+    private fun applyLineStyle(
+        view: SpaceGateLyricLineView, text: TextLook, highlight: Highlight,
+        marquee: Marquee, gradient: Boolean, fadingEdge: Int, wordMotion: WordMotion,
+        centerIfPossible: Boolean
+    ) {
+        view.wordMotion = wordMotion
+        view.configureWith(text, highlight, marquee, gradient, fadingEdge, centerIfPossible)
+    }
+
+    private fun updateLayoutTransitionX(config: String? = LayoutTransitionX.TRANSITION_CONFIG_SMOOTH) {
+        layoutTransition = LayoutTransitionX(config).apply { setAnimateParentHierarchy(true) }
+    }
+
+    private fun animateNextLinePromotion() {
+        val generation = ++nextLineTransitionGeneration
+        nextLineTransitionRunning = true
+        val followsInterlude = main.isInterludeIndicator
+        val transitionDuration = if (followsInterlude) {
+            INTERLUDE_PROMOTION_DURATION
+        } else {
+            NEXT_LINE_PROMOTION_DURATION
+        }
+        val targetTranslationY = (main.top - secondary.top).toFloat()
+        val targetTranslationX = (main.left - secondary.left).toFloat()
+        val targetScale = (main.textSize / secondary.textSize).coerceIn(0.5f, 2f)
+
+        main.animate().cancel()
+        secondary.animate().cancel()
+        secondary.pivotX = 0f
+        secondary.pivotY = 0f
+        main.animate()
+            .alpha(0f)
+            .translationY(-main.height * 0.65f)
+            .setDuration(transitionDuration)
+            .withLayer()
+            .start()
+        secondary.animate()
+            .translationX(targetTranslationX)
+            .translationY(targetTranslationY)
+            .scaleX(targetScale)
+            .scaleY(targetScale)
+            .setDuration(transitionDuration)
+            .withLayer()
+            .setListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (generation != nextLineTransitionGeneration) return
+                    finishNextLinePromotion()
+                }
+            })
+            .start()
+    }
+
+    private fun finishNextLinePromotion() {
+        clearNextLineTransitionState()
+        nextLineTransitionRunning = false
+        pendingHugWidth = null
+        refreshLines(allowNextLinePromotion = false, bypassIdentityCheck = true)
+        onDeferredContentApplied?.invoke()
+        if (alwaysShowSecondary) {
+            secondary.alpha = 0f
+            secondary.animate()
+                .alpha(1f)
+                .setDuration(NEXT_LINE_PREVIEW_FADE_DURATION)
+                .withLayer()
+                .setListener(null)
+                .start()
+        }
+    }
+
+    private fun cancelNextLinePromotion() {
+        nextLineTransitionGeneration++
+        main.animate().setListener(null)
+        secondary.animate().setListener(null)
+        main.animate().cancel()
+        secondary.animate().cancel()
+        nextLineTransitionRunning = false
+        clearNextLineTransitionState()
+    }
+
+    private fun clearNextLineTransitionState() {
+        main.alpha = 1f
+        main.translationY = 0f
+        secondary.alpha = 1f
+        secondary.translationX = 0f
+        secondary.translationY = 0f
+        secondary.scaleX = 1f
+        secondary.scaleY = 1f
+    }
+
+    private companion object {
+        const val NEXT_LINE_PROMOTION_DURATION = 220L
+        const val INTERLUDE_PROMOTION_DURATION = 320L
+        const val NEXT_LINE_PREVIEW_FADE_DURATION = 140L
+    }
+}

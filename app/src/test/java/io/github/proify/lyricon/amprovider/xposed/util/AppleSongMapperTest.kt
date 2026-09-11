@@ -6,7 +6,7 @@
 
 package io.github.proify.lyricon.amprovider.xposed.util
 
-import com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys
+import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import io.github.proify.lyricon.amprovider.xposed.model.AppleSong
 import io.github.proify.lyricon.amprovider.xposed.model.LyricAgent
 import io.github.proify.lyricon.amprovider.xposed.model.LyricLine

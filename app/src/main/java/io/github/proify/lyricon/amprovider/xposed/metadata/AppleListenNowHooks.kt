@@ -13,7 +13,7 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import io.github.proify.lyricon.amprovider.xposed.internal.WeakIdentityMap
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field

@@ -7,7 +7,7 @@
 package io.github.proify.lyricon.amprovider.xposed
 
 import android.os.SystemClock
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 

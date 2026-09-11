@@ -8,7 +8,7 @@ package io.github.proify.lyricon.amprovider.xposed
 
 import android.os.SystemClock
 import android.view.Choreographer
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import io.github.proify.lyricon.amprovider.xposed.internal.WeakIdentityMap
 import java.lang.ref.WeakReference
 import java.lang.reflect.Modifier

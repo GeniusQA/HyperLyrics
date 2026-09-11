@@ -418,7 +418,7 @@ internal class AppleOriginalMetadataCache(
     internal companion object {
         const val MAX_ENTRIES = 20_000
         private const val MAX_ARTIST_REGION_ENTRIES = 5_000
-        private const val DATABASE_NAME = "hyperlyricsenhanced_apple_original_metadata.db"
+        private const val DATABASE_NAME = "hyperlyrics_apple_original_metadata.db"
         private const val DATABASE_VERSION = 3
         private const val TABLE_NAME = "original_metadata"
         private const val COLUMN_KEY = "cache_key"
@@ -428,7 +428,7 @@ internal class AppleOriginalMetadataCache(
         private const val COLUMN_LANGUAGE = "language"
         private const val COLUMN_UPDATED_AT = "updated_at"
         private const val ARTIST_REGION_PREFERENCES =
-            "hyperlyricsenhanced_apple_original_artist_regions_v3"
+            "hyperlyrics_apple_original_artist_regions_v3"
         private const val ARTIST_REGION_VALUE_SEPARATOR = "|"
         private val COLUMNS = arrayOf(
             COLUMN_TITLE,

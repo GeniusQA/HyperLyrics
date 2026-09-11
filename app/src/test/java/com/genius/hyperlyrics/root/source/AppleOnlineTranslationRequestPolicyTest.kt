@@ -1,0 +1,93 @@
+package com.genius.hyperlyrics.root.source
+
+import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
+import com.genius.hyperlyrics.lyric.model.Song
+import com.genius.hyperlyrics.lyric.model.lyricMetadataOf
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class AppleOnlineTranslationRequestPolicyTest {
+    @Test
+    fun `original metadata request does not block current metadata lookup`() {
+        val plan = AppleOnlineTranslationRequestPolicy.originalMetadataLookupPlan(
+            shouldRequestOriginalMetadata = true
+        )
+
+        assertTrue(plan.requestOriginalMetadata)
+        assertFalse(plan.waitForResult)
+    }
+
+    @Test
+    fun `original metadata arrival creates a new translation attempt`() {
+        val localized = song()
+        val resolved = song(
+            originalTitle = "満ちてゆく",
+            originalArtist = "藤井 風"
+        )
+
+        assertTrue(
+            AppleOnlineTranslationRequestPolicy.originalMetadataChanged(localized, resolved)
+        )
+        assertNotEquals(
+            AppleOnlineTranslationRequestPolicy.attemptKey(localized),
+            AppleOnlineTranslationRequestPolicy.attemptKey(resolved)
+        )
+    }
+
+    @Test
+    fun `unchanged original metadata keeps the same translation attempt`() {
+        val first = song("満ちてゆく", "藤井 風")
+        val second = song("満ちてゆく", "藤井 風")
+
+        assertFalse(
+            AppleOnlineTranslationRequestPolicy.originalMetadataChanged(first, second)
+        )
+        assertTrue(
+            AppleOnlineTranslationRequestPolicy.attemptKey(first) ==
+            AppleOnlineTranslationRequestPolicy.attemptKey(second)
+        )
+    }
+
+    @Test
+    fun `original album arrival creates a new translation attempt`() {
+        val withoutAlbum = song("満ちてゆく", "藤井 風")
+        val withAlbum = song(
+            originalTitle = "満ちてゆく",
+            originalArtist = "藤井 風",
+            originalAlbum = "LOVE ALL SERVE ALL"
+        )
+
+        assertTrue(
+            AppleOnlineTranslationRequestPolicy.originalMetadataChanged(
+                withoutAlbum,
+                withAlbum
+            )
+        )
+        assertNotEquals(
+            AppleOnlineTranslationRequestPolicy.attemptKey(withoutAlbum),
+            AppleOnlineTranslationRequestPolicy.attemptKey(withAlbum)
+        )
+    }
+
+    private fun song(
+        originalTitle: String? = null,
+        originalArtist: String? = null,
+        originalAlbum: String? = null
+    ): Song = Song(
+        id = "1882935962",
+        name = "Michi Teyu Ku (Overflowing)",
+        artist = "Fujii Kaze",
+        duration = 315_000,
+        metadata = if (originalTitle != null || originalArtist != null || originalAlbum != null) {
+            lyricMetadataOf(
+                LyricMetadataKeys.APPLE_ORIGINAL_TITLE to originalTitle,
+                LyricMetadataKeys.APPLE_ORIGINAL_ARTIST to originalArtist,
+                LyricMetadataKeys.APPLE_ORIGINAL_ALBUM to originalAlbum
+            )
+        } else {
+            null
+        }
+    )
+}

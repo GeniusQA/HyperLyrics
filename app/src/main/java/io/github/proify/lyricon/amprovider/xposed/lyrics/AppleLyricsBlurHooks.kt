@@ -52,15 +52,15 @@ import android.widget.ImageView
 import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.common.UIConstants
-import com.juren233.hyperlyricsenhanced.common.RootConstants
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleOriginalMetadataPolicy
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleLyricsBlurPolicy
-import com.juren233.hyperlyricsenhanced.common.lyric.ApplePronunciationVisibilityPolicy
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleSystemFontWeightPolicy
-import com.juren233.hyperlyricsenhanced.common.lyric.RomanizationPolicy
-import com.juren233.hyperlyricsenhanced.lyric.model.Song as LocalSong
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.common.UIConstants
+import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.common.lyric.AppleOriginalMetadataPolicy
+import com.genius.hyperlyrics.common.lyric.AppleLyricsBlurPolicy
+import com.genius.hyperlyrics.common.lyric.ApplePronunciationVisibilityPolicy
+import com.genius.hyperlyrics.common.lyric.AppleSystemFontWeightPolicy
+import com.genius.hyperlyrics.common.lyric.RomanizationPolicy
+import com.genius.hyperlyrics.lyric.model.Song as LocalSong
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.libxposed.api.XposedModule
 import io.github.proify.extensions.android.ScreenStateMonitor

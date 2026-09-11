@@ -10,11 +10,11 @@ import android.content.SharedPreferences
 import android.os.Handler
 import android.os.SystemClock
 import android.view.View
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.common.RootConstants
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceInfo
-import com.juren233.hyperlyricsenhanced.common.lyric.ChineseLyricsPolicy
-import com.juren233.hyperlyricsenhanced.lyric.model.Song
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceInfo
+import com.genius.hyperlyrics.common.lyric.ChineseLyricsPolicy
+import com.genius.hyperlyrics.lyric.model.Song
 import io.github.libxposed.api.XposedInterface.Chain
 import io.github.proify.lyricon.amprovider.xposed.internal.ThreadLocalStack
 import java.lang.ref.WeakReference
@@ -1109,7 +1109,7 @@ internal class AppleMissingLyricsHooks(
 
     private fun isLunaBeatSupplement(song: Song): Boolean =
         song.metadata
-            ?.getString(com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE) ==
+            ?.getString(com.genius.hyperlyrics.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE) ==
             SourceName.LUNA_BEAT
 
     private fun shouldPreferLunaBeat(songId: String?): Boolean {
@@ -1447,12 +1447,12 @@ internal class AppleMissingLyricsHooks(
             isLunaBeatEligibleForSong(
                 songId = songId,
                 sourceInfo = song.metadata?.let { metadata ->
-                    com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceMetadata.decode(
+                    com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceMetadata.decode(
                         selectedSource = metadata.getString(
-                            com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE
+                            com.genius.hyperlyrics.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE
                         ),
                         encodedStatuses = metadata.getString(
-                            com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE_STATUSES
+                            com.genius.hyperlyrics.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE_STATUSES
                         ),
                     )
                 },
@@ -1652,17 +1652,17 @@ internal class AppleMissingLyricsHooks(
         // 全中文翻译门禁同样适用于磁盘恢复：旧版本构建写入的缓存可能携带在线假翻译。
         val cached = stripFullyChineseTranslations(loaded)
         val cachedIsLunaBeat = cached.metadata
-            ?.getString(com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE) ==
+            ?.getString(com.genius.hyperlyrics.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE) ==
             SourceName.LUNA_BEAT
         val cachedLunaBeatEligible = cachedIsLunaBeat && isLunaBeatEligibleForSong(
             songId = songId,
             sourceInfo = cached.metadata?.let { metadata ->
-                com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceMetadata.decode(
+                com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceMetadata.decode(
                     selectedSource = metadata.getString(
-                        com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE
+                        com.genius.hyperlyrics.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE
                     ),
                     encodedStatuses = metadata.getString(
-                        com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE_STATUSES
+                        com.genius.hyperlyrics.common.lyric.LyricMetadataKeys.APPLE_MISSING_LYRICS_SOURCE_STATUSES
                     ),
                 )
             },

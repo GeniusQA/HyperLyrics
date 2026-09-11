@@ -18,9 +18,9 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.TextView
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceInfo
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceStatus
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceInfo
+import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceStatus
 import io.github.proify.lyricon.amprovider.xposed.ActiveOnlineSourceMenu
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicHookPoint
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicHookTarget

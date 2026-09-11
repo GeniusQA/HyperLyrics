@@ -6,7 +6,7 @@
 
 package io.github.proify.lyricon.amprovider.xposed.lyrics
 
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceStatus
+import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceStatus
 import io.github.proify.lyricon.amprovider.xposed.OnlineSourceMenuStatus
 import io.github.proify.lyricon.amprovider.xposed.currentLyricsMenuSongId
 import io.github.proify.lyricon.amprovider.xposed.isMissingLyricsSourceSelectable

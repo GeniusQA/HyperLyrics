@@ -1,0 +1,459 @@
+package com.genius.hyperlyrics.root.island
+
+import android.content.SharedPreferences
+import android.os.SystemClock
+import android.view.View
+import android.view.ViewGroup
+import com.genius.hyperlyrics.common.IslandProgressColorMode
+import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.common.media.MediaMetadataHelper
+import com.genius.hyperlyrics.root.LyriconDataBridge
+import com.genius.hyperlyrics.root.SystemUiEnhancementGate
+import com.genius.hyperlyrics.root.utils.CoverColorDiagnostics
+import com.genius.hyperlyrics.root.utils.CoverColorHelper
+import com.genius.hyperlyrics.root.utils.HookLogger
+import java.lang.ref.WeakReference
+import java.util.WeakHashMap
+
+internal object IslandProgressGlowController {
+    private const val TAG = "IslandProgressGlowController"
+    private const val BACKGROUND_VIEW_NAME = "DynamicIslandBackgroundView"
+    private const val DEFAULT_PROGRESS_COLOR = 0xFF5B8CFF.toInt()
+    private const val MIN_PROGRESS_UPDATE_INTERVAL_MS = 100L
+    private const val PLAYBACK_SAMPLE_INTERVAL_MS = 500L
+    private const val MAX_CACHED_PACKAGES = 8
+
+    private val backgroundViewsByRoot = WeakHashMap<ViewGroup, WeakReference<View>>()
+    private val diagnosticStageByRoot = WeakHashMap<ViewGroup, DiagnosticStage>()
+    private val lastUpdateByRoot = WeakHashMap<ViewGroup, Long>()
+    private val playbackProgressByPackage = HashMap<String, TimedPlaybackProgress>()
+
+    fun update(
+        rootView: ViewGroup,
+        packageName: String,
+        mediaInfo: MediaMetadataHelper.MediaInfo?,
+        prefs: SharedPreferences
+    ) {
+        runCatching {
+            updateInternal(rootView, packageName, mediaInfo, prefs)
+        }.onFailure { e ->
+            clear(rootView)
+            HookLogger.e(TAG, "更新边缘光效进度条失败", e)
+        }
+    }
+
+    private fun updateInternal(
+        rootView: ViewGroup,
+        packageName: String,
+        mediaInfo: MediaMetadataHelper.MediaInfo?,
+        prefs: SharedPreferences
+    ) {
+        if (!SystemUiEnhancementGate.isEnabled()) {
+            clear(rootView)
+            return
+        }
+        val colorMode = resolveColorMode(prefs)
+        if (!IslandProgressColorMode.isEnabled(colorMode)) {
+            logStage(rootView, DiagnosticStage.DISABLED, "边缘光效进度条已禁用")
+            clear(rootView)
+            return
+        }
+
+        if (mediaInfo == null) {
+            val now = SystemClock.uptimeMillis()
+            val previous = synchronized(lastUpdateByRoot) { lastUpdateByRoot[rootView] }
+            if (previous != null && now - previous < MIN_PROGRESS_UPDATE_INTERVAL_MS) return
+            synchronized(lastUpdateByRoot) { lastUpdateByRoot[rootView] = now }
+        } else {
+            synchronized(lastUpdateByRoot) {
+                lastUpdateByRoot[rootView] = SystemClock.uptimeMillis()
+            }
+        }
+
+        val playbackProgress = resolvePlaybackProgress(
+            rootView = rootView,
+            packageName = packageName,
+            forceRefresh = mediaInfo != null
+        )
+        if (playbackProgress.fraction < 0f) {
+            logStage(
+                rootView,
+                DiagnosticStage.INVALID_MEDIA_PROGRESS,
+                "媒体进度不可用: package=$packageName, position=${playbackProgress.position}, " +
+                    "duration=${playbackProgress.duration}, playing=${playbackProgress.isPlaying}"
+            )
+            // MediaSession can briefly publish no duration/position while switching tracks.
+            // Keep the last drawn state; subsequent position callbacks continue retrying.
+            return
+        }
+
+        val backgroundView = cachedBackgroundView(rootView) ?: findBackgroundView(rootView)?.also {
+            replaceBackgroundView(rootView, it)
+        } ?: run {
+            logStage(
+                rootView,
+                DiagnosticStage.BACKGROUND_VIEW_NOT_FOUND,
+                "未找到超级岛背景视图: root=${rootView.javaClass.name}"
+            )
+            clear(rootView)
+            return
+        }
+        val colors = resolveProgressColors(
+            prefs = prefs,
+            packageName = packageName,
+            mediaInfo = mediaInfo,
+            colorMode = colorMode,
+            backgroundView = backgroundView,
+        )
+        val progressStyle = prefs.getInt(
+            RootConstants.KEY_HOOK_ISLAND_PROGRESS_STYLE,
+            RootConstants.DEFAULT_HOOK_ISLAND_PROGRESS_STYLE
+        )
+        IslandProgressGlowHooker.setMediaProgress(
+            backgroundView,
+            playbackProgress.fraction,
+            colors.progressColors,
+            colors.track,
+            progressStyle
+        )
+        CoverColorDiagnostics.logEdgeProgress(
+            rootView = rootView,
+            packageName = packageName,
+            coverEnabled = colors.coverEnabled,
+            coverGradient = colors.coverGradient,
+            mediaKey = colors.mediaKey,
+            artworkState = colors.artworkState,
+            paletteSource = colors.paletteSource,
+            fallbackReason = colors.fallbackReason,
+            requestedKey = colors.requestedKey,
+            resolvedKey = colors.resolvedKey,
+            artworkSignature = colors.artworkSignature,
+            progressStart = colors.progressStart,
+            progressEnd = colors.progressEnd,
+            track = colors.track
+        )
+        logStage(
+            rootView,
+            DiagnosticStage.BACKGROUND_REGISTERED,
+            "边缘光效进度已更新: package=$packageName, " +
+                "progress=${playbackProgress.fraction}, " +
+                "progressStart=${colors.progressStart.toUInt().toString(16)}, " +
+                "progressEnd=${colors.progressEnd.toUInt().toString(16)}, " +
+                "trackColor=${colors.track.toUInt().toString(16)}, " +
+                "style=$progressStyle"
+        )
+    }
+
+    fun clear(rootView: ViewGroup) {
+        val backgroundView = synchronized(backgroundViewsByRoot) {
+            backgroundViewsByRoot.remove(rootView)
+        }?.get() ?: return
+        IslandProgressGlowHooker.clearMediaProgress(backgroundView)
+    }
+
+    fun clearAll() {
+        synchronized(backgroundViewsByRoot) { backgroundViewsByRoot.clear() }
+        synchronized(diagnosticStageByRoot) { diagnosticStageByRoot.clear() }
+        synchronized(lastUpdateByRoot) { lastUpdateByRoot.clear() }
+        synchronized(playbackProgressByPackage) { playbackProgressByPackage.clear() }
+        IslandProgressGlowHooker.clearAllMediaProgress()
+    }
+
+    fun onPlaybackStateChanged(isPlaying: Boolean) {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(playbackProgressByPackage) {
+            if (isPlaying) {
+                playbackProgressByPackage.clear()
+                return
+            }
+            val frozen = playbackProgressByPackage.mapValues { (_, sample) ->
+                TimedPlaybackProgress(
+                    progress = sample.estimate(now).copy(
+                        isPlaying = false,
+                        playbackSpeed = 0f
+                    ),
+                    sampledAt = now
+                )
+            }
+            playbackProgressByPackage.clear()
+            playbackProgressByPackage.putAll(frozen)
+        }
+    }
+
+    private fun resolvePlaybackProgress(
+        rootView: ViewGroup,
+        packageName: String,
+        forceRefresh: Boolean
+    ): MediaMetadataHelper.PlaybackProgress {
+        val now = SystemClock.elapsedRealtime()
+        if (!forceRefresh) {
+            val cached = synchronized(playbackProgressByPackage) {
+                playbackProgressByPackage[packageName]
+            }
+            if (cached != null && now - cached.sampledAt < PLAYBACK_SAMPLE_INTERVAL_MS) {
+                return cached.estimate(now)
+            }
+        }
+
+        val progress = MediaMetadataHelper.getPlaybackProgress(rootView.context, packageName)
+        synchronized(playbackProgressByPackage) {
+            if (progress.fraction < 0f) {
+                return playbackProgressByPackage[packageName]?.estimate(now) ?: progress
+            }
+            if (
+                playbackProgressByPackage.size >= MAX_CACHED_PACKAGES &&
+                packageName !in playbackProgressByPackage
+            ) {
+                playbackProgressByPackage.clear()
+            }
+            playbackProgressByPackage[packageName] = TimedPlaybackProgress(progress, now)
+        }
+        return progress
+    }
+
+    private fun cachedBackgroundView(rootView: ViewGroup): View? {
+        val cached = synchronized(backgroundViewsByRoot) {
+            backgroundViewsByRoot[rootView]
+        }?.get() ?: return null
+        var current: View? = rootView
+        while (current != null) {
+            if (current === cached) return cached
+            current = current.parent as? View
+        }
+        return null
+    }
+
+    private fun findBackgroundView(rootView: ViewGroup): View? {
+        (invokeNoArg(rootView, "getBackgroundView") as? View)?.let { return it }
+        var current: View? = rootView
+        while (current != null) {
+            if (current.javaClass.simpleName == BACKGROUND_VIEW_NAME) return current
+            current = current.parent as? View
+        }
+        return null
+    }
+
+    private fun invokeNoArg(target: Any, methodName: String): Any? {
+        return runCatching {
+            target.javaClass.methods.firstOrNull {
+                it.name == methodName && it.parameterTypes.isEmpty()
+            }?.invoke(target)
+        }.getOrNull()
+    }
+
+    private fun replaceBackgroundView(rootView: ViewGroup, backgroundView: View) {
+        val previous = synchronized(backgroundViewsByRoot) {
+            backgroundViewsByRoot.put(rootView, WeakReference(backgroundView))
+        }?.get()
+        if (previous != null && previous !== backgroundView) {
+            IslandProgressGlowHooker.clearMediaProgress(previous)
+        }
+    }
+
+    private fun resolveProgressColors(
+        prefs: SharedPreferences,
+        packageName: String,
+        mediaInfo: MediaMetadataHelper.MediaInfo?,
+        colorMode: Int,
+        backgroundView: View,
+    ): ProgressColors {
+        if (colorMode == RootConstants.ISLAND_PROGRESS_COLOR_MODE_SYSTEM_BLUE) {
+            return ProgressColors(
+                progressColors = intArrayOf(DEFAULT_PROGRESS_COLOR),
+                track = DEFAULT_TRACK_COLOR,
+                coverEnabled = false,
+                coverGradient = false,
+                mediaKey = CoverColorHelper.currentMediaKey(),
+                artworkState = if (mediaInfo?.albumArt != null) "present" else "missing",
+            )
+        }
+        if (colorMode == RootConstants.ISLAND_PROGRESS_COLOR_MODE_MONET) {
+            val monetColor = resolveMonetColor(backgroundView)
+            return ProgressColors(
+                progressColors = intArrayOf(monetColor),
+                track = withAlpha(monetColor, COVER_TRACK_ALPHA),
+                coverEnabled = false,
+                coverGradient = false,
+                mediaKey = CoverColorHelper.currentMediaKey(),
+                artworkState = if (mediaInfo?.albumArt != null) "present" else "missing",
+            )
+        }
+        if (colorMode == RootConstants.ISLAND_PROGRESS_COLOR_MODE_CUSTOM) {
+            val customColor = IslandRuntimePreferenceReader.getInt(
+                prefs,
+                RootConstants.KEY_HOOK_ISLAND_PROGRESS_CUSTOM_COLOR,
+                RootConstants.DEFAULT_HOOK_ISLAND_PROGRESS_CUSTOM_COLOR,
+            )
+            return ProgressColors(
+                progressColors = intArrayOf(customColor),
+                track = withScaledAlpha(customColor, COVER_TRACK_ALPHA),
+                coverEnabled = false,
+                coverGradient = false,
+                mediaKey = CoverColorHelper.currentMediaKey(),
+                artworkState = if (mediaInfo?.albumArt != null) "present" else "missing",
+            )
+        }
+
+        val useGradient = IslandProgressColorMode.usesCoverGradient(colorMode)
+
+        val lyricSong = LyriconDataBridge.currentSong
+        val stableTitle = lyricSong?.name?.takeIf { it.isNotBlank() }
+            ?: LyriconDataBridge.currentSongName?.takeIf { it.isNotBlank() }
+        val stableArtist = lyricSong?.artist?.takeIf { it.isNotBlank() }
+        val mediaColorKey = mediaInfo?.let {
+            CoverColorHelper.updateMediaSession(
+                packageName = packageName,
+                title = it.title,
+                artist = it.artist,
+                album = it.album,
+                stableTitle = stableTitle,
+                stableArtist = stableArtist,
+                diagnosticSource = "island_edge_progress"
+            )
+        } ?: CoverColorHelper.currentMediaKey()
+        val resolvedPalette = runCatching {
+            CoverColorHelper.resolveTextColors(
+                bitmap = mediaInfo?.albumArt,
+                useGradient = useGradient,
+                songKey = mediaColorKey
+            )
+        }.getOrNull()
+        val artworkFallback = mediaInfo?.albumArt?.let(CoverColorHelper::fallbackArtworkColor)
+        if (resolvedPalette == null && artworkFallback != null) {
+            return ProgressColors(
+                progressColors = intArrayOf(artworkFallback),
+                track = withAlpha(artworkFallback, COVER_TRACK_ALPHA),
+                coverEnabled = true,
+                coverGradient = useGradient,
+                mediaKey = mediaColorKey,
+                artworkState = "present",
+                paletteSource = CoverColorHelper.PaletteSource.ARTWORK_SAMPLED_FALLBACK
+            )
+        }
+        if (resolvedPalette == null) {
+            return ProgressColors(
+                progressColors = intArrayOf(DEFAULT_PROGRESS_COLOR),
+                track = DEFAULT_TRACK_COLOR,
+                coverEnabled = true,
+                coverGradient = useGradient,
+                mediaKey = mediaColorKey,
+                artworkState = if (mediaInfo?.albumArt != null) "present" else "missing",
+                fallbackReason = "NO_ARTWORK_OR_CACHE"
+            )
+        }
+        val palette = resolvedPalette.colors
+        val highlight = palette.second.firstOrNull()
+            ?: artworkFallback
+            ?: return ProgressColors(
+                progressColors = intArrayOf(DEFAULT_PROGRESS_COLOR),
+                track = DEFAULT_TRACK_COLOR,
+                coverEnabled = true,
+                coverGradient = useGradient,
+                mediaKey = mediaColorKey,
+                artworkState = if (mediaInfo?.albumArt != null) "present" else "missing",
+                paletteSource = resolvedPalette.source,
+                requestedKey = resolvedPalette.requestedKey,
+                resolvedKey = resolvedPalette.resolvedKey,
+                artworkSignature = resolvedPalette.artworkSignature,
+                fallbackReason = "EMPTY_DARK_PALETTE"
+            )
+        val progressColors = palette.second.takeIf { it.isNotEmpty() }
+            ?: intArrayOf(highlight)
+        val highlightBackground = palette.first.firstOrNull() ?: highlight
+        return ProgressColors(
+            progressColors = progressColors,
+            track = withAlpha(highlightBackground, COVER_TRACK_ALPHA),
+            coverEnabled = true,
+            coverGradient = useGradient,
+            mediaKey = mediaColorKey,
+            artworkState = if (mediaInfo?.albumArt != null) "present" else "missing",
+            paletteSource = resolvedPalette.source,
+            requestedKey = resolvedPalette.requestedKey,
+            resolvedKey = resolvedPalette.resolvedKey,
+            artworkSignature = resolvedPalette.artworkSignature
+        )
+    }
+
+    private fun resolveColorMode(prefs: SharedPreferences): Int =
+        IslandRuntimePreferenceReader.getProgressColorMode(prefs)
+
+    private fun resolveMonetColor(backgroundView: View): Int = runCatching {
+        backgroundView.context.getColor(android.R.color.system_accent1_200)
+    }.getOrDefault(DEFAULT_PROGRESS_COLOR)
+
+    private fun withAlpha(color: Int, alpha: Int): Int {
+        return (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
+    }
+
+    private fun withScaledAlpha(color: Int, alpha: Int): Int {
+        val sourceAlpha = (color ushr 24) and 0xFF
+        return withAlpha(color, sourceAlpha * alpha.coerceIn(0, 255) / 255)
+    }
+
+    private fun logStage(rootView: ViewGroup, stage: DiagnosticStage, message: String) {
+        val changed = synchronized(diagnosticStageByRoot) {
+            if (diagnosticStageByRoot[rootView] == stage) {
+                false
+            } else {
+                diagnosticStageByRoot[rootView] = stage
+                true
+            }
+        }
+        if (changed) HookLogger.d(TAG, message)
+    }
+
+    private enum class DiagnosticStage {
+        DISABLED,
+        INVALID_MEDIA_PROGRESS,
+        BACKGROUND_VIEW_NOT_FOUND,
+        BACKGROUND_REGISTERED
+    }
+
+    private data class ProgressColors(
+        val progressColors: IntArray,
+        val track: Int,
+        val coverEnabled: Boolean,
+        val coverGradient: Boolean,
+        val mediaKey: String?,
+        val artworkState: String,
+        val paletteSource: CoverColorHelper.PaletteSource? = null,
+        val requestedKey: String? = null,
+        val resolvedKey: String? = null,
+        val artworkSignature: Int? = null,
+        val fallbackReason: String? = null
+    ) {
+        val progressStart: Int
+            get() = progressColors.firstOrNull() ?: DEFAULT_PROGRESS_COLOR
+
+        val progressEnd: Int
+            get() = progressColors.lastOrNull() ?: progressStart
+    }
+
+    private data class TimedPlaybackProgress(
+        val progress: MediaMetadataHelper.PlaybackProgress,
+        val sampledAt: Long
+    ) {
+        fun estimate(now: Long): MediaMetadataHelper.PlaybackProgress {
+            if (
+                !progress.isPlaying ||
+                progress.position < 0L ||
+                progress.playbackSpeed <= 0f
+            ) {
+                return progress
+            }
+            val elapsed = (now - sampledAt).coerceAtLeast(0L)
+            val estimated = (
+                progress.position + elapsed * progress.playbackSpeed
+            ).toLong().coerceAtLeast(0L)
+            val bounded = if (progress.duration > 0L) {
+                estimated.coerceAtMost(progress.duration)
+            } else {
+                estimated
+            }
+            return progress.copy(position = bounded)
+        }
+    }
+
+    private const val DEFAULT_TRACK_COLOR = 0x66757575
+    private const val COVER_TRACK_ALPHA = 112
+}

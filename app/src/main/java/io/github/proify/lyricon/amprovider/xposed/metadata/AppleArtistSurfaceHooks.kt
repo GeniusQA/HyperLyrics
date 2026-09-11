@@ -7,7 +7,7 @@
 package io.github.proify.lyricon.amprovider.xposed
 
 import androidx.recyclerview.widget.RecyclerView
-import com.juren233.hyperlyricsenhanced.BuildConfig
+import com.genius.hyperlyrics.BuildConfig
 import io.github.proify.lyricon.amprovider.xposed.internal.WeakIdentityMap
 import java.util.Collections
 import java.util.WeakHashMap

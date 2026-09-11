@@ -14,7 +14,7 @@ import android.content.SharedPreferences
 import android.media.MediaDescription
 import android.media.MediaMetadata
 import android.media.session.MediaSession
-import com.juren233.hyperlyricsenhanced.common.RootConstants
+import com.genius.hyperlyrics.common.RootConstants
 import io.github.proify.lyricon.amprovider.xposed.AppleInternalCatalogResolver
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicHookPoint
 import io.github.proify.lyricon.amprovider.xposed.AppleMetadataOverrideStore

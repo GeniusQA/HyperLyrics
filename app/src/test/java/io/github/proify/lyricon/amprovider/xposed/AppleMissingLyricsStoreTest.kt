@@ -6,16 +6,16 @@
 
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceMetadata
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceInfo
-import com.juren233.hyperlyricsenhanced.common.lyric.AppleMissingLyricsSourceStatus
-import com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys
-import com.juren233.hyperlyricsenhanced.common.lyric.OnlineTranslationMatchStat
-import com.juren233.hyperlyricsenhanced.common.lyric.OnlineTranslationMatchStatsCodec
-import com.juren233.hyperlyricsenhanced.lyric.model.LyricWord
-import com.juren233.hyperlyricsenhanced.lyric.model.RichLyricLine
-import com.juren233.hyperlyricsenhanced.lyric.model.Song
-import com.juren233.hyperlyricsenhanced.lyric.model.lyricMetadataOf
+import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceMetadata
+import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceInfo
+import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceStatus
+import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
+import com.genius.hyperlyrics.common.lyric.OnlineTranslationMatchStat
+import com.genius.hyperlyrics.common.lyric.OnlineTranslationMatchStatsCodec
+import com.genius.hyperlyrics.lyric.model.LyricWord
+import com.genius.hyperlyrics.lyric.model.RichLyricLine
+import com.genius.hyperlyrics.lyric.model.Song
+import com.genius.hyperlyrics.lyric.model.lyricMetadataOf
 import io.github.proify.extensions.deflate
 import io.github.proify.extensions.inflate
 import io.github.proify.extensions.json

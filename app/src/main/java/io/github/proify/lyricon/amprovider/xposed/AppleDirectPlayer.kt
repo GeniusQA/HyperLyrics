@@ -17,9 +17,9 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.juren233.hyperlyricsenhanced.BuildConfig
-import com.juren233.hyperlyricsenhanced.IAppleMusicLyricBridge
-import com.juren233.hyperlyricsenhanced.IAppleMusicTranslationReceiver
+import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.IAppleMusicLyricBridge
+import com.genius.hyperlyrics.IAppleMusicTranslationReceiver
 import io.github.proify.extensions.deflate
 import io.github.proify.extensions.json
 import io.github.proify.lyricon.lyric.model.Song

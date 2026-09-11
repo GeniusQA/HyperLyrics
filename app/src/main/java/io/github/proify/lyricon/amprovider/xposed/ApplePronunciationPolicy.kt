@@ -1,6 +1,6 @@
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.common.lyric.RomanizationPolicy
+import com.genius.hyperlyrics.common.lyric.RomanizationPolicy
 
 internal object ApplePronunciationPolicy {
     fun nonNullDisplayText(text: String?): String = text.orEmpty()

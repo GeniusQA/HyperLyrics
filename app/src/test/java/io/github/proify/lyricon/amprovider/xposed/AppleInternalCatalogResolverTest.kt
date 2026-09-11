@@ -811,38 +811,38 @@ class AppleInternalCatalogResolverTest {
         assertEquals(
             "cn",
             AppleInternalCatalogResolver.storefrontForContentUiLanguage(
-                com.juren233.hyperlyricsenhanced.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_ZH_HANS_CN
+                com.genius.hyperlyrics.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_ZH_HANS_CN
             )
         )
         assertEquals(
             "us",
             AppleInternalCatalogResolver.storefrontForContentUiLanguage(
-                com.juren233.hyperlyricsenhanced.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_ZH_HANS_US
+                com.genius.hyperlyrics.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_ZH_HANS_US
             )
         )
         assertEquals(
             "kr",
             AppleInternalCatalogResolver.storefrontForContentUiLanguage(
-                com.juren233.hyperlyricsenhanced.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_KO_KR
+                com.genius.hyperlyrics.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_KO_KR
             )
         )
         assertEquals(
             "jp",
             AppleInternalCatalogResolver.storefrontForContentUiLanguage(
-                com.juren233.hyperlyricsenhanced.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_JA_JP
+                com.genius.hyperlyrics.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_JA_JP
             )
         )
         assertEquals(
             null,
             AppleInternalCatalogResolver.storefrontForContentUiLanguage(
-                com.juren233.hyperlyricsenhanced.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_NONE
+                com.genius.hyperlyrics.common.RootConstants.APPLE_MUSIC_CONTENT_UI_LANGUAGE_NONE
             )
         )
     }
 
     @Test
     fun `maps content UI language selections to Apple catalog locale tags`() {
-        val constants = com.juren233.hyperlyricsenhanced.common.RootConstants
+        val constants = com.genius.hyperlyrics.common.RootConstants
 
         assertEquals(
             "zh-CN",

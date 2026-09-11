@@ -1,11 +1,11 @@
 package io.github.proify.lyricon.amprovider.xposed
 
-import com.juren233.hyperlyricsenhanced.common.lyric.RomanizationPolicy
-import com.juren233.hyperlyricsenhanced.common.lyric.LyricMetadataKeys
-import com.juren233.hyperlyricsenhanced.common.lyric.OnlineTranslationContentPolicy
-import com.juren233.hyperlyricsenhanced.common.lyric.OnlineTranslationMatchStat
-import com.juren233.hyperlyricsenhanced.common.lyric.OnlineTranslationMatchStatsCodec
-import com.juren233.hyperlyricsenhanced.lyric.model.Song
+import com.genius.hyperlyrics.common.lyric.RomanizationPolicy
+import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
+import com.genius.hyperlyrics.common.lyric.OnlineTranslationContentPolicy
+import com.genius.hyperlyrics.common.lyric.OnlineTranslationMatchStat
+import com.genius.hyperlyrics.common.lyric.OnlineTranslationMatchStatsCodec
+import com.genius.hyperlyrics.lyric.model.Song
 
 internal class AppleNativeOnlineTranslationStore {
     private data class TimingKey(
