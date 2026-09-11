@@ -17,6 +17,10 @@ object OfficialProviderCatalog {
     const val OFFICIAL_PROVIDER_PACKAGE_PREFIX =
         "com.genius.hyperlyrics.provider."
 
+    /** 旧上游 Provider 的包名前缀，用于兼容此前发布的 .hlp 插件包。 */
+    const val LEGACY_PROVIDER_PACKAGE_PREFIX =
+        "com.juren233.hyperlyricsenhanced.provider."
+
     data class Definition(
         val id: String,
         val displayName: String,
@@ -142,12 +146,23 @@ object OfficialProviderCatalog {
             else -> null
         }
 
+    /**
+     * 从 Provider 包名解析插件 id，同时兼容新旧两种命名空间。
+     * 不属于任一官方前缀时返回 null。
+     */
+    fun providerPluginId(providerPackageName: String): String? = when {
+        providerPackageName.startsWith(OFFICIAL_PROVIDER_PACKAGE_PREFIX) ->
+            providerPackageName.removePrefix(OFFICIAL_PROVIDER_PACKAGE_PREFIX)
+        providerPackageName.startsWith(LEGACY_PROVIDER_PACKAGE_PREFIX) ->
+            providerPackageName.removePrefix(LEGACY_PROVIDER_PACKAGE_PREFIX)
+        else -> null
+    }
+
     fun isOfficialProviderPair(
         providerPackageName: String,
         playerPackageName: String,
     ): Boolean {
-        val pluginId = providerPackageName.removePrefix(OFFICIAL_PROVIDER_PACKAGE_PREFIX)
-        if (pluginId == providerPackageName) return false
+        val pluginId = providerPluginId(providerPackageName) ?: return false
         return definitionForId(pluginId)?.targetPackages?.contains(playerPackageName) == true
     }
 
