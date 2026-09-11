@@ -71,7 +71,7 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         uses: android-actions/setup-android@v4
         with:
-          packages: platform-tools platforms;android-34 build-tools;34.0.0
+          packages: platforms;android-34 build-tools;34.0.0
 
       - name: 配置 Gradle Setup Gradle
         if: steps.gate.outputs.skip != 'true'
@@ -93,13 +93,13 @@ jobs:
           set -euo pipefail
 
           if [[ "$CHANNEL" == "stable" ]]; then
-            ./gradlew --no-daemon --max-workers=2 assembleDebug assembleRelease \
+            ./gradlew --no-daemon --max-workers=4 assembleDebug assembleRelease \
               --build-cache -PciVersionName="$FULL_NAME"
           elif [[ "$CHANNEL" == "canary" ]]; then
-            ./gradlew --no-daemon --max-workers=2 assembleRelease \
+            ./gradlew --no-daemon --max-workers=4 assembleRelease \
               --build-cache -PciVersionName="$FULL_NAME"
           else
-            ./gradlew --no-daemon --max-workers=2 assembleDebug \
+            ./gradlew --no-daemon --max-workers=4 assembleDebug \
               --build-cache -PciVersionName="$FULL_NAME"
           fi
 
@@ -110,6 +110,7 @@ jobs:
           name: ${{ steps.gate.outputs.channel }}-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
+          compression-level: 0
 
       - name: 解码签名密钥 Decode Keystore
         if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false'
@@ -166,6 +167,7 @@ jobs:
           name: canary-release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
           path: HyperLyrics-release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
           if-no-files-found: error
+          compression-level: 0
 
       - name: 生成发布说明 Generate Release Body
         if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && (steps.gate.outputs.channel == 'stable' || steps.gate.outputs.channel == 'beta')
