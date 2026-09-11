@@ -1947,12 +1947,18 @@ class LyriconSource : LyricSource {
                             }
                         }
                         mainHandler.post {
-                            applyThirdPartyFallbackResult(
-                                generation = generation,
-                                baseSong = baseSong,
-                                fallbackSong = fallbackSong,
-                                universalFallback = universalFallback,
-                            )
+                            // 兜底结果回调运行在宿主 SystemUI 主线程，
+                            // 任何异常都会导致 SystemUI 崩溃循环，必须整体捕获。
+                            runCatching {
+                                applyThirdPartyFallbackResult(
+                                    generation = generation,
+                                    baseSong = baseSong,
+                                    fallbackSong = fallbackSong,
+                                    universalFallback = universalFallback,
+                                )
+                            }.onFailure { error ->
+                                debugError("在线兜底结果处理失败: title=${baseSong.name}", error)
+                            }
                         }
                     }
                 } catch (e: CancellationException) {
@@ -2024,12 +2030,29 @@ class LyriconSource : LyricSource {
                 lyrics = null,
                 metadata = lyricMetadataOf(
                     LyricMetadataKeys.LYRIC_ERROR_MESSAGE to
-                        application.getString(R.string.lyric_error_no_translation),
+                        moduleString(
+                            R.string.lyric_error_no_translation,
+                            "通用插件翻译匹配失败",
+                        ),
                 ),
             )
         }
         return OnlineTranslationMatcher.apply(lrclibSong, translationLines).song
     }
+
+    /**
+     * 读取模块自身的字符串资源。hook 侧运行在宿主（SystemUI）进程，
+     * 宿主 Application 上下文不含模块资源，直接 getString 会抛
+     * Resources$NotFoundException 并炸掉 SystemUI 主线程，
+     * 因此必须通过 createPackageContext 加载模块包资源，失败时回退到硬编码文案。
+     */
+    private fun moduleString(resId: Int, fallback: String): String = runCatching {
+        val application = app ?: return fallback
+        application.createPackageContext(
+            BuildConfig.APPLICATION_ID,
+            Context.CONTEXT_IGNORE_SECURITY,
+        ).resources.getString(resId)
+    }.getOrDefault(fallback)
 
     private fun applyThirdPartyFallbackResult(
         generation: Int,
@@ -2072,8 +2095,10 @@ class LyriconSource : LyricSource {
                 "$missMessage, player=$activeCentralPlayerPackageName",
             )
             // 未命中任何歌词：把报错信息写入歌曲区域占位，替代“歌名 - 歌手”。
-            val errorText = app?.getString(R.string.lyric_error_no_lyrics)
-                ?: "通用插件歌词匹配失败"
+            val errorText = moduleString(
+                R.string.lyric_error_no_lyrics,
+                "通用插件歌词匹配失败",
+            )
             val errorSong = baseSong.copy(
                 lyrics = null,
                 metadata = lyricMetadataOf(
