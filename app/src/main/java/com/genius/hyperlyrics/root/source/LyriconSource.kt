@@ -1805,8 +1805,9 @@ class LyriconSource : LyricSource {
                             .getMediaInfo(application, playerPackage, HookLogger)
                             .album
                         val fallbackSong = if (universalFallback) {
-                            // 兜底内置 Provider = LRCLIB：先用 歌名/歌手/专辑 匹配 LRCLIB 歌词。
-                            // LRCLIB 只有歌词没有翻译，缺翻译时再到四平台补翻译。
+                            // 兜底内置 Provider = LRCLIB：仅用 歌名/歌手/专辑 匹配 LRCLIB 歌词。
+                            // 插件与在线源（四平台）是两套独立逻辑：LRCLIB 未命中即结束，
+                            // 不再退回四平台取词；LRCLIB 只有歌词没有翻译，缺翻译时才补翻译。
                             val lrclibSong = fetchThirdPartyLyrics(
                                 application = application,
                                 playerPackage = playerPackage,
@@ -1818,20 +1819,9 @@ class LyriconSource : LyricSource {
                                 ?.let(::stripFullyChineseTranslations)
                                 ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
                             when {
-                                lrclibSong == null && orderedSources.isNotEmpty() ->
-                                    // LRCLIB 未命中：退回四平台整首取词（歌词 + 翻译）
-                                    fetchThirdPartyLyrics(
-                                        application = application,
-                                        playerPackage = playerPackage,
-                                        baseSong = baseSong,
-                                        album = album,
-                                        order = orderedSources,
-                                        requireTranslation = false,
-                                    )
-                                        ?.let(::stripFullyChineseTranslations)
-                                        ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
+                                lrclibSong == null -> null
 
-                                lrclibSong != null && orderedSources.isNotEmpty() &&
+                                orderedSources.isNotEmpty() &&
                                     needsOnlineEnrichment(lrclibSong) ->
                                     // LRCLIB 命中但缺翻译：四平台补翻译后合并到 LRCLIB 歌词
                                     fetchThirdPartyLyrics(
@@ -1941,7 +1931,16 @@ class LyriconSource : LyricSource {
         thirdPartyFallbackJob = null
         if (fallbackSong == null) {
             thirdPartyFallbackSongActive = false
-            diagnostic("在线兜底未命中: title=${baseSong.name}")
+            val missMessage = if (universalFallback) {
+                "兜底内置插件 LRCLIB 未命中歌词: title=${baseSong.name}"
+            } else {
+                "在线兜底未命中: title=${baseSong.name}"
+            }
+            diagnostic(missMessage)
+            HookLogger.w(
+                TAG,
+                "$missMessage, player=$activeCentralPlayerPackageName",
+            )
             return
         }
         thirdPartyFallbackSongActive = true
