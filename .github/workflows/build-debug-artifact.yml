@@ -1,0 +1,46 @@
+name: Build Debug APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 拉取代码 Checkout
+        uses: actions/checkout@v6
+
+      - name: 安装 JDK Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: 安装 Android SDK Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+
+      - name: 配置 Gradle Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: wrapper
+
+      - name: 授权脚本 Grant Permission
+        run: chmod +x gradlew
+
+      - name: 构建 Debug APK Build Debug APK
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --max-workers=2 :app:assembleDebug --build-cache
+
+      - name: 上传 Debug APK Upload Debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: hyperlyrics-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
