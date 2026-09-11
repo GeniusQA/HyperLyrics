@@ -236,6 +236,17 @@
     <string name="provider_status_universal">通用</string>
     <string name="lyric_error_no_lyrics">未命中歌词</string>
     <string name="lyric_error_no_translation">未命中歌词翻译</string>
+    <string name="title_manual_match">手动二次匹配</string>
+    <string name="summary_manual_match">歌词/翻译匹配不准时，手动输入正确的歌名、歌手与专辑搜索候选，选中后重新匹配歌词与翻译</string>
+    <string name="manual_match_title">歌名（必填）</string>
+    <string name="manual_match_artist">歌手（必填）</string>
+    <string name="manual_match_album_optional">专辑（选填）</string>
+    <string name="manual_match_search">搜索候选</string>
+    <string name="manual_match_searching">正在搜索…</string>
+    <string name="manual_match_empty">未搜索到候选歌曲</string>
+    <string name="manual_match_search_failed">搜索失败</string>
+    <string name="manual_match_required_hint">歌名和歌手为必填项</string>
+    <string name="manual_match_submitted">已提交二次匹配，正在重新获取歌词/翻译</string>
     <string name="provider_catalog_loading">正在加载插件目录</string>
     <string name="provider_catalog_load_failed">插件目录加载失败</string>
     <string name="provider_status_processing">处理中…</string>

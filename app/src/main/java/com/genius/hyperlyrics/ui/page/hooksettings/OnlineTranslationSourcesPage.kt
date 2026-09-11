@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
@@ -45,7 +46,10 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +71,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
@@ -75,8 +80,11 @@ import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
 import com.genius.hyperlyrics.online.OnlineLyricTargeter
 import com.genius.hyperlyrics.online.SourceMatchDiagnostic
+import com.genius.hyperlyrics.online.model.ManualLyricMatchRequest
+import com.genius.hyperlyrics.online.model.SongSearchResult
 import com.genius.hyperlyrics.online.model.Source
 import com.genius.hyperlyrics.service.LiveLyricService
+import com.genius.hyperlyrics.ui.component.ProComponent
 import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.common.XposedLyricSettingPage
 import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.common.rememberHookConfigSaver
 import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.common.rememberHookPrefs
@@ -84,6 +92,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -91,6 +100,8 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.icon.extended.Info
@@ -150,6 +161,14 @@ fun OnlineTranslationSourcesPage() {
     }
     var pendingSwap by remember { mutableStateOf<SourceSwap?>(null) }
     var showHelpDialog by remember { mutableStateOf(false) }
+    // 二次匹配：手动输入歌名/歌手/专辑，搜索候选后选中重新抓词。
+    var showManualMatchDialog by remember { mutableStateOf(false) }
+    var manualTitle by remember { mutableStateOf("") }
+    var manualArtist by remember { mutableStateOf("") }
+    var manualAlbum by remember { mutableStateOf("") }
+    var manualSearching by remember { mutableStateOf(false) }
+    var manualResults by remember { mutableStateOf<List<SongSearchResult>>(emptyList()) }
+    var manualError by remember { mutableStateOf<String?>(null) }
     val swapProgress = remember { Animatable(0f) }
     val sourceRowHeightPx = with(LocalDensity.current) { SOURCE_ROW_HEIGHT.toPx() }
     val appEnabled = remember {
@@ -244,6 +263,70 @@ fun OnlineTranslationSourcesPage() {
             }
             diagnosing = false
         }
+    }
+
+    fun openManualMatchDialog() {
+        manualTitle = currentTrack?.first ?: ""
+        manualArtist = currentTrack?.second ?: ""
+        manualAlbum = currentAlbum
+        manualResults = emptyList()
+        manualError = null
+        showManualMatchDialog = true
+    }
+
+    fun submitManualMatchSearch() {
+        if (manualTitle.isBlank() || manualArtist.isBlank()) {
+            manualError = context.getString(R.string.manual_match_required_hint)
+            return
+        }
+        val order = sourceOrder.filter { sourceEnabled[it] == true }.ifEmpty {
+            sourceOrder.filter { it != Source.LRCLIB }
+        }
+        manualSearching = true
+        manualError = null
+        scope.launch {
+            val results = runCatching {
+                OnlineLyricTargeter.searchCandidates(
+                    context = context,
+                    title = manualTitle,
+                    artist = manualArtist,
+                    album = manualAlbum.takeIf { it.isNotBlank() },
+                    sourceOrder = order,
+                )
+            }.getOrElse { error ->
+                manualError = error.message ?: context.getString(R.string.manual_match_search_failed)
+                emptyList()
+            }
+            manualResults = results
+            manualSearching = false
+            if (results.isEmpty() && manualError == null) {
+                manualError = context.getString(R.string.manual_match_empty)
+            }
+        }
+    }
+
+    fun applyManualMatch(candidate: SongSearchResult) {
+        val request = ManualLyricMatchRequest(
+            currentTitle = currentTrack?.first ?: "",
+            currentArtist = currentTrack?.second ?: "",
+            title = candidate.title,
+            artist = candidate.artist,
+            album = candidate.album,
+            source = candidate.source.name,
+            sourceSongId = candidate.id,
+            durationMs = candidate.duration,
+            requestedAtMs = System.currentTimeMillis(),
+        )
+        saveConfig(
+            RootConstants.KEY_HOOK_MANUAL_LYRIC_MATCH_REQUEST,
+            ManualLyricMatchRequest.encode(request),
+        )
+        showManualMatchDialog = false
+        Toast.makeText(
+            context,
+            context.getString(R.string.manual_match_submitted),
+            Toast.LENGTH_SHORT,
+        ).show()
     }
 
     LaunchedEffect(currentTrack) {
@@ -643,6 +726,27 @@ fun OnlineTranslationSourcesPage() {
                 )
             }
         }
+        item(key = "manual_match_entry") {
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp)
+                    .fillMaxWidth(),
+            ) {
+                ProComponent(
+                    title = stringResource(R.string.title_manual_match),
+                    summary = stringResource(R.string.summary_manual_match),
+                    onClick = { openManualMatchDialog() },
+                    endActions = {
+                        Icon(
+                            imageVector = MiuixIcons.ChevronForward,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        )
+                    },
+                )
+            }
+        }
         enabledAppsSection(
             installedApps = installedApps.orEmpty() + listOfNotNull(dynamicCurrentApp),
             appEnabled = appEnabled,
@@ -686,6 +790,119 @@ fun OnlineTranslationSourcesPage() {
             Text(
                 text = stringResource(R.string.summary_online_translation_help_note),
                 fontSize = MiuixTheme.textStyles.body1.fontSize,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
+        }
+    }
+
+    WindowDialog(
+        title = stringResource(R.string.title_manual_match),
+        show = showManualMatchDialog,
+        onDismissRequest = { showManualMatchDialog = false },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            TextField(
+                value = manualTitle,
+                onValueChange = { manualTitle = it },
+                label = stringResource(R.string.manual_match_title),
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 1,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            TextField(
+                value = manualArtist,
+                onValueChange = { manualArtist = it },
+                label = stringResource(R.string.manual_match_artist),
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 1,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            TextField(
+                value = manualAlbum,
+                onValueChange = { manualAlbum = it },
+                label = stringResource(R.string.manual_match_album_optional),
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 1,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    text = stringResource(R.string.manual_match_search),
+                    onClick = { if (!manualSearching) submitManualMatchSearch() },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+                Spacer(modifier = Modifier.width(20.dp))
+                TextButton(
+                    text = stringResource(R.string.cancel),
+                    onClick = { showManualMatchDialog = false },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            if (manualSearching) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.manual_match_searching),
+                    fontSize = MiuixTheme.textStyles.body2.fontSize,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                )
+            }
+            manualError?.let { message ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = message,
+                    fontSize = MiuixTheme.textStyles.body2.fontSize,
+                    color = MiuixTheme.colorScheme.error,
+                )
+            }
+            if (manualResults.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                manualResults.forEach { candidate ->
+                    key(candidate.source.name, candidate.id) {
+                        ManualMatchCandidateRow(
+                            candidate = candidate,
+                            onClick = { applyManualMatch(candidate) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ManualMatchCandidateRow(
+    candidate: SongSearchResult,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+    ) {
+        Text(
+            text = candidate.title,
+            fontSize = MiuixTheme.textStyles.body1.fontSize,
+            fontWeight = FontWeight.Medium,
+            color = MiuixTheme.colorScheme.onBackground,
+        )
+        val detail = listOfNotNull(
+            candidate.artist.takeIf { it.isNotBlank() },
+            candidate.album.takeIf { it.isNotBlank() },
+            candidate.source.displayName(),
+            formatDuration(candidate.duration).takeIf { candidate.duration > 0L },
+        ).joinToString(" · ")
+        if (detail.isNotBlank()) {
+            Text(
+                text = detail,
+                fontSize = MiuixTheme.textStyles.body2.fontSize,
                 color = MiuixTheme.colorScheme.onSurfaceVariantActions,
             )
         }
