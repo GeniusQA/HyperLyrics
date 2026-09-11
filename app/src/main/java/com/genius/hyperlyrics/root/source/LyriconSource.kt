@@ -1801,21 +1801,66 @@ class LyriconSource : LyricSource {
                                 "artist=${baseSong.artist}, " +
                                 "preferOnline=${isSaltPreferOnlineEnabled()}"
                         )
-                        val lines = OnlineLyricTargeter.fetchBestLyric(
-                            context = application,
-                            pkgName = playerPackage,
-                            title = baseSong.name.orEmpty(),
-                            artist = baseSong.artist.orEmpty(),
-                            durationMs = baseSong.duration,
-                            // 通用兜底时即使四库全部关闭，也保留 LRCLIB 兜底歌词
-                            sourceOrder = orderedSources.ifEmpty { listOf(Source.LRCLIB) },
-                            album = MediaMetadataHelper
-                                .getMediaInfo(application, playerPackage, HookLogger)
-                                .album,
-                        )
-                        val fallbackSong = lines
-                            ?.let(::stripFullyChineseTranslations)
-                            ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
+                        val album = MediaMetadataHelper
+                            .getMediaInfo(application, playerPackage, HookLogger)
+                            .album
+                        val fallbackSong = if (universalFallback) {
+                            // 兜底内置 Provider = LRCLIB：先用 歌名/歌手/专辑 匹配 LRCLIB 歌词。
+                            // LRCLIB 只有歌词没有翻译，缺翻译时再到四平台补翻译。
+                            val lrclibSong = fetchThirdPartyLyrics(
+                                application = application,
+                                playerPackage = playerPackage,
+                                baseSong = baseSong,
+                                album = album,
+                                order = listOf(Source.LRCLIB),
+                                requireTranslation = false,
+                            )
+                                ?.let(::stripFullyChineseTranslations)
+                                ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
+                            when {
+                                lrclibSong == null && orderedSources.isNotEmpty() ->
+                                    // LRCLIB 未命中：退回四平台整首取词（歌词 + 翻译）
+                                    fetchThirdPartyLyrics(
+                                        application = application,
+                                        playerPackage = playerPackage,
+                                        baseSong = baseSong,
+                                        album = album,
+                                        order = orderedSources,
+                                        requireTranslation = false,
+                                    )
+                                        ?.let(::stripFullyChineseTranslations)
+                                        ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
+
+                                lrclibSong != null && orderedSources.isNotEmpty() &&
+                                    needsOnlineEnrichment(lrclibSong) ->
+                                    // LRCLIB 命中但缺翻译：四平台补翻译后合并到 LRCLIB 歌词
+                                    fetchThirdPartyLyrics(
+                                        application = application,
+                                        playerPackage = playerPackage,
+                                        baseSong = baseSong,
+                                        album = album,
+                                        order = orderedSources,
+                                        requireTranslation = true,
+                                    )
+                                        ?.let {
+                                            OnlineTranslationMatcher.apply(lrclibSong, it).song
+                                        }
+                                        ?: lrclibSong
+
+                                else -> lrclibSong
+                            }
+                        } else {
+                            fetchThirdPartyLyrics(
+                                application = application,
+                                playerPackage = playerPackage,
+                                baseSong = baseSong,
+                                album = album,
+                                order = orderedSources.ifEmpty { listOf(Source.LRCLIB) },
+                                requireTranslation = false,
+                            )
+                                ?.let(::stripFullyChineseTranslations)
+                                ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
+                        }
                         mainHandler.post {
                             applyThirdPartyFallbackResult(
                                 generation = generation,
@@ -1843,6 +1888,25 @@ class LyriconSource : LyricSource {
             mainHandler.postDelayed(delayedSearch, delayMs)
         }
     }
+
+    /** 第三方播放器在线取词（可指定来源顺序与是否强制要求翻译）。 */
+    private suspend fun fetchThirdPartyLyrics(
+        application: Application,
+        playerPackage: String,
+        baseSong: LocalSong,
+        album: String?,
+        order: List<Source>,
+        requireTranslation: Boolean,
+    ): List<LrcLine>? = OnlineLyricTargeter.fetchBestLyric(
+        context = application,
+        pkgName = playerPackage,
+        title = baseSong.name.orEmpty(),
+        artist = baseSong.artist.orEmpty(),
+        durationMs = baseSong.duration,
+        sourceOrder = order,
+        requireTranslation = requireTranslation,
+        album = album,
+    )
 
     private fun applyThirdPartyFallbackResult(
         generation: Int,
