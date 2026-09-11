@@ -229,7 +229,7 @@ data class OfficialProviderDexTypeReference(
  * Declares an annotation-value constraint for a DexKit method query.
  *
  * R8 renames annotation classes on every Spotify-style rebuild (9.1.72 把
- * retrofit2.http.GET 改名为 p.thy，9.1.80 改名为 p.vsz，见 HyperLyrics-Providers
+ * retrofit2.http.GET 改名为 p.thy，9.1.80 改名为 p.vsz，见 HLE-Providers / HyperLyrics-Providers
  * SPOTIFY-LYRICS-002 取证），因此 [annotationTypeName] 与 [elementName] 都允许
  * 为空：只锚定注解元素携带的字符串常量本身。端点路径常量由 Retrofit 在运行期
  * 反射读取，R8 必须原样保留，是跨版本最稳的语义锚。
