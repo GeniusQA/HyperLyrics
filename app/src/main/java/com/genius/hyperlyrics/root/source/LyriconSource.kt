@@ -38,6 +38,7 @@ import com.genius.hyperlyrics.online.source.lunabeat.LunaBeatTtmlRepository
 import com.genius.hyperlyrics.online.utils.ChineseUtils
 import com.genius.hyperlyrics.root.LyriconDataBridge
 import com.genius.hyperlyrics.root.island.renderer.BaseIslandRenderer
+import com.genius.hyperlyrics.provider.UniversalFallbackProvider
 import com.genius.hyperlyrics.root.utils.HookLogger
 import com.genius.hyperlyrics.root.utils.MediaCardDiagnosticLogger
 import io.github.proify.lyricon.amprovider.xposed.AppleDirectBridgeContract
@@ -215,6 +216,7 @@ class LyriconSource : LyricSource {
         private const val TAG = "LyriconSource"
         private const val APPLE_MUSIC_PACKAGE = "com.apple.android.music"
         private const val BUILT_IN_PROVIDER_PACKAGE = "com.genius.hyperlyrics"
+        private const val UNIVERSAL_FALLBACK_PROVIDER_PACKAGE = "com.genius.hyperlyrics.universal"
         private const val APPLE_LYRICS_GRACE_MS = 5_000L
         private const val SALT_LOCAL_LYRICS_GRACE_MS = 3_000L
         private const val APPLE_MEDIA_MONITOR_INTERVAL_MS = 1_000L
@@ -300,10 +302,7 @@ class LyriconSource : LyricSource {
     private var audioManager: AudioManager? = null
     private var mediaSessionManager: MediaSessionManager? = null
     private var localSessionsListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
-    private var localFallbackController: MediaController? = null
-    private var localFallbackMetadataCallback: MediaController.Callback? = null
-    @Volatile
-    private var lastLocalFallbackSongKey: String? = null
+    private var universalFallbackProvider: UniversalFallbackProvider? = null
     private val activeMediaSessionGate = ActiveMediaSessionGate(
         nowElapsedMs = SystemClock::elapsedRealtime,
         nowWallClockMs = System::currentTimeMillis,
@@ -347,81 +346,10 @@ class LyriconSource : LyricSource {
             details = "packages=${packages?.sorted()},activePlayer=${MediaCardDiagnosticLogger.sanitize(activeCentralPlayerPackageName)},blocked=${activeCentralPlayerPackageName?.let(activeMediaSessionGate::isBlocked)}",
         )
         evaluateActiveMediaSessionGate()
-        maybeFeedLocalFallbackSong(controllers)
-    }
-
-    /**
-     * 无 Provider 兜底（通用歌词匹配）：
-     * 正在播放的会话所属播放器没有任何活动的歌词提供器（插件关闭且无独立模块兜底）时，
-     * 从 MediaSession 读取歌曲信息喂入 handleThirdPartySong，
-     * 走既有在线匹配链路（LRCLIB 兜底歌词 + 四库补翻译）。
-     */
-    private fun maybeFeedLocalFallbackSong(controllers: List<MediaController>?) {
-        val playing = controllers?.firstOrNull {
-            it.playbackState?.state == PlaybackState.STATE_PLAYING
-        } ?: return
-        val playerPackage = playing.packageName ?: return
-        // Apple 提供器无条件注入；对应播放器已有活动提供器发布时不重复喂歌。
-        if (centralAppleProviderActive) return
-        if (activeCentralPlayerPackageName == playerPackage) return
-        val metadata = playing.metadata ?: return
-        val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
-        if (title.isEmpty()) return
-        val artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
-            ?.takeIf { it.isNotBlank() }
-            ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST).orEmpty().trim()
-        val duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
-        val songKey = "$playerPackage|$title|$artist|$duration"
-        attachLocalFallbackCallback(playing)
-        if (songKey == lastLocalFallbackSongKey) return
-        lastLocalFallbackSongKey = songKey
-        // 通用兜底（无 Provider 播放器）播放时主动上报 playing=true，
-        // 否则 AOD/锁屏/焦点通知/摘要态按 playing=false 被 pause_policy 隐藏，兜底歌词不显示。
-        sink?.onPlaybackStateChanged(true)
-        HookLogger.i(
-            TAG,
-            "无提供器播放器走通用在线匹配: player=$playerPackage, title=$title, artist=$artist",
-        )
-        mainHandler.post {
-            activeCentralPlayerPackageName = playerPackage
-            activeProviderPackageName = null
-            centralAppleProviderActive = false
-            handleThirdPartySong(
-                LocalSong(
-                    id = songKey,
-                    name = title,
-                    artist = artist,
-                    duration = duration,
-                ),
-                universalFallback = true,
-            )
-        }
-    }
-
-    private fun attachLocalFallbackCallback(controller: MediaController) {
-        if (localFallbackController == controller) return
-        localFallbackMetadataCallback?.let { callback ->
-            localFallbackController?.let { previous ->
-                runCatching { previous.unregisterCallback(callback) }
-            }
-        }
-        val callback = object : MediaController.Callback() {
-            override fun onMetadataChanged(metadata: MediaMetadata?) {
-                mainHandler.post { maybeFeedLocalFallbackSong(localFallbackController?.let(::listOf)) }
-            }
-
-            override fun onPlaybackStateChanged(state: PlaybackState?) {
-                // 通用兜底（无 Provider 播放器）必须把真实播放状态上报给桥，
-                // 否则 AOD/锁屏/焦点通知/摘要态按 playing=false 被 pause_policy 隐藏。
-                if (activeCentralPlayerPackageName == controller.packageName) {
-                    sink?.onPlaybackStateChanged(state?.state == PlaybackState.STATE_PLAYING)
-                }
-                mainHandler.post { maybeFeedLocalFallbackSong(localFallbackController?.let(::listOf)) }
-            }
-        }
-        runCatching { controller.registerCallback(callback) }
-        localFallbackMetadataCallback = callback
-        localFallbackController = controller
+        // 通用兜底改为真正的内部 Provider：把“无专用 Provider 的播放器”经
+        // LyriconFactory.createProvider 注册，由 UniversalFallbackProvider 观察
+        // MediaSession 并把基础歌曲推给 Central，复用与内置 Provider 完全相同的发布链路。
+        universalFallbackProvider?.onSessionsChanged(controllers)
     }
 
     private fun unregisterLocalMediaSessionTracker() {
@@ -430,13 +358,6 @@ class LyriconSource : LyricSource {
         if (manager != null && listener != null) {
             runCatching { manager.removeOnActiveSessionsChangedListener(listener) }
         }
-        localFallbackMetadataCallback?.let { callback ->
-            localFallbackController?.let { controller ->
-                runCatching { controller.unregisterCallback(callback) }
-            }
-        }
-        localFallbackMetadataCallback = null
-        localFallbackController = null
         mediaSessionManager = null
         localSessionsListener = null
         activeMediaSessionGate.updateLocal(null)
@@ -513,6 +434,14 @@ class LyriconSource : LyricSource {
         directBridge = AppleMusicDirectBridge(application, this).also { it.start() }
         diagnostic("stage=direct_bridge_started")
         initializeSubscriber(application)
+        // 通用兜底 Provider：注册成真正的 Lyricon Provider，复用与内置 Provider 完全相同的发布链路，
+        // 由 UniversalFallbackProvider 观察 MediaSession 并把基础歌曲推给 Central。
+        universalFallbackProvider = UniversalFallbackProvider(
+            application = application,
+            isFallbackAllowedFor = { isFallbackAllowedFor(it) },
+            onDiagnostic = { _, msg -> diagnostic("stage=universal_fallback, $msg") },
+        ).also { it.start() }
+        universalFallbackProvider?.reconsider()
         startAppleMediaMonitor()
         HookLogger.i(TAG, "数据源已启动")
         diagnostic(
@@ -551,12 +480,33 @@ class LyriconSource : LyricSource {
             appleMediaPositionReference = null
             appleDirectPositionReference = null
             currentDirectAppleSongId = null
+            universalFallbackProvider?.release()
+            universalFallbackProvider = null
             subscriber = null
             centralPlaybackPositionWitness.reset()
             sink?.onStop()
             sink = null
         }
         HookLogger.i(TAG, "数据源已停止")
+    }
+
+    /**
+     * 判断某个播放器包是否允许走通用兜底：
+     * - Apple Music 走专属直连桥，不走兜底；
+     * - 若已有“非兜底自身”的专属 Provider 接管该包（activeProviderPackageName 指向真实
+     *   提供器而非 BUILT_IN_PROVIDER_PACKAGE），则兜底让步，避免双源重复发布；
+     * - 兜底自身（BUILT_IN_PROVIDER_PACKAGE）接管时仍允许继续兜底。
+     */
+    private fun isFallbackAllowedFor(playerPackage: String): Boolean {
+        if (playerPackage == APPLE_MUSIC_PACKAGE) return false
+        if (activeCentralPlayerPackageName == playerPackage &&
+            activeProviderPackageName != null &&
+            activeProviderPackageName != BUILT_IN_PROVIDER_PACKAGE &&
+            activeProviderPackageName != UNIVERSAL_FALLBACK_PROVIDER_PACKAGE
+        ) {
+            return false
+        }
+        return true
     }
 
     fun initialize(
@@ -1088,7 +1038,13 @@ class LyriconSource : LyricSource {
         // 无 Provider 接管（activeProviderPackageName == null）即视为通用兜底播放器：
         // 后续歌曲从订阅回调进来时 universalFallback 可能为 false，这里统一按「无 Provider」判定，
         // 保证始终走 LRCLIB 兜底取词而不是四平台整首取词。
-        val universal = universalFallback || activeProviderPackageName == null
+        // 通用兜底判定：显式 universalFallback、无 Provider 接管（activeProviderPackageName == null），
+        // 或兜底 Provider（BUILT_IN_PROVIDER_PACKAGE）发布的歌曲——三者在订阅回调里都按兜底处理，
+        // 保证始终走 LRCLIB 兜底取词且绕过单 App 在线开关。
+        val universal = universalFallback ||
+            activeProviderPackageName == null ||
+            activeProviderPackageName == BUILT_IN_PROVIDER_PACKAGE ||
+            activeProviderPackageName == UNIVERSAL_FALLBACK_PROVIDER_PACKAGE
         // 通用兜底（无 Provider 播放器）必须把歌词归属注册到桥，否则岛渲染器
         // 依赖 currentLyricPackageName 匹配岛时拿到空值而直接跳过，兜底歌词无法上岛。
         if (universal) LyriconDataBridge.updateLyricPackage(activeCentralPlayerPackageName)
@@ -3611,8 +3567,7 @@ class LyriconSource : LyricSource {
             }
             currentThirdPartySong = null
             currentPublishedThirdPartySong = null
-            // 提供器接管/切换时重置兜底 key，保证兜底与提供器之间可来回切换。
-            lastLocalFallbackSongKey = null
+            // 提供器接管/切换时重置兜底状态，并让兜底 Provider 重新评估是否仍需接管（专属 Provider 已接管则退出兜底）。
             activeProviderPackageName = providerInfo?.providerPackageName
             activeProviderDelayMs = resolveDelayPackageName(
                 providerInfo?.providerPackageName,
@@ -3620,6 +3575,8 @@ class LyriconSource : LyricSource {
             )?.let(::readProviderDelay)
                 ?: RootConstants.DEFAULT_HOOK_LYRICON_PROVIDER_DELAY
             LyriconDataBridge.updateLyricPackage(playerPackageName)
+            // 专属 Provider 接管/退出后，让通用兜底重新评估当前活跃播放器是否仍需兜底。
+            universalFallbackProvider?.reconsider()
             MediaCardDiagnosticLogger.log(
                 stage = "central",
                 event = "active_provider_changed_complete",
