@@ -679,7 +679,7 @@ private fun LazyListScope.providerSections(
                     onClick = { expandedStates[expandKey] = !isExpanded },
                     endActions = {
                         Text(
-                            text = stringResource(R.string.provider_status_builtin),
+                            text = stringResource(R.string.provider_status_universal),
                             color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             fontSize = 14.sp,
                         )

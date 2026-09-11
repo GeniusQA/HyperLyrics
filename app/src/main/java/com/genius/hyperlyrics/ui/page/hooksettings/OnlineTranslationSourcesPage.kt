@@ -395,7 +395,7 @@ fun OnlineTranslationSourcesPage() {
             val track = currentTrack
             val needsListenerAccess = track == null && listenerEnabled == false
             // 与 fetchBestLyric 同规则：按排序优先级取第一个评分达标且取到歌词的来源；
-            // 四库全部未命中时回退展示内置兜底源 LRCLIB（仅歌词）的实际命中。
+            // 四库全部未命中时回退展示通用源 LRCLIB（仅歌词）的实际命中。
             val matchedDiagnostic = sourceOrder
                 .filter { sourceEnabled[it] == true }
                 .firstNotNullOfOrNull { source ->

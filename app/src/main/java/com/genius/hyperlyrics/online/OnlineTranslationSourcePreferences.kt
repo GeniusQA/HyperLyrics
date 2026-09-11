@@ -70,7 +70,7 @@ object OnlineTranslationSourcePreferences {
             .mapNotNull { value ->
                 runCatching { Source.valueOf(value.trim()) }.getOrNull()
             }
-            // LRCLIB 已改为内置兜底歌词源（固定殿后、无需开关），不再作为可选平台来源。
+            // LRCLIB 已改为通用歌词源（固定殿后、无需开关），不再作为可选平台来源。
             .filter { it != Source.LRCLIB }
             .distinct()
         return parsed + defaultOrder.filterNot(parsed::contains)

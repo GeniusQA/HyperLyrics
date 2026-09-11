@@ -1773,7 +1773,7 @@ class LyriconSource : LyricSource {
                             .getMediaInfo(application, playerPackage, HookLogger)
                             .album
                         val fallbackSong = if (universalFallback) {
-                            // 兜底内置 Provider = LRCLIB：仅用 歌名/歌手/专辑 匹配 LRCLIB 歌词。
+                            // 通用歌词源 Provider = LRCLIB：仅用 歌名/歌手/专辑 匹配 LRCLIB 歌词。
                             // 插件与在线源（四平台）是两套独立逻辑：LRCLIB 未命中即结束，
                             // 不再退回四平台取词；LRCLIB 只有歌词没有翻译，缺翻译时才补翻译。
                             val lrclibSong = fetchThirdPartyLyrics(
@@ -1910,7 +1910,7 @@ class LyriconSource : LyricSource {
         if (fallbackSong == null) {
             thirdPartyFallbackSongActive = false
             val missMessage = if (universalFallback) {
-                "兜底内置插件 LRCLIB 未命中歌词: title=${baseSong.name}"
+                "通用歌词源 LRCLIB 未命中歌词: title=${baseSong.name}"
             } else {
                 "在线兜底未命中: title=${baseSong.name}"
             }
