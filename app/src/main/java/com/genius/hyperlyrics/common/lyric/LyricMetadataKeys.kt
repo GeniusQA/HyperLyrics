@@ -35,4 +35,7 @@ object LyricMetadataKeys {
 
     /** 歌词区域占位文案：无歌词或翻译缺失时展示给用户的报错信息。 */
     const val LYRIC_ERROR_MESSAGE = "lyricErrorMessage"
+
+    /** 通用兜底 Provider 从 MediaSession 提取的专辑名，供在线搜索优先使用。 */
+    const val MEDIA_ALBUM = "mediaAlbum"
 }

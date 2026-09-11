@@ -1770,9 +1770,16 @@ class LyriconSource : LyricSource {
                                 "artist=${baseSong.artist}, " +
                                 "preferOnline=${isSaltPreferOnlineEnabled()}"
                         )
-                        val album = MediaMetadataHelper
-                            .getMediaInfo(application, playerPackage, HookLogger)
-                            .album
+                        val album = baseSong.metadata
+                            ?.getString(LyricMetadataKeys.MEDIA_ALBUM)
+                            ?.takeIf { it.isNotBlank() }
+                            ?: MediaMetadataHelper
+                                .getMediaInfo(application, playerPackage, HookLogger)
+                                .album
+                        diagnostic(
+                            "在线兜底专辑: album=${album.ifBlank { "无" }}, " +
+                                "title=${baseSong.name}, artist=${baseSong.artist}"
+                        )
                         val fallbackSong = if (universalFallback) {
                             // 通用歌词源 Provider = LRCLIB：仅用 歌名/歌手/专辑 匹配 LRCLIB 歌词。
                             // 插件与在线源（四平台）是两套独立逻辑：LRCLIB 未命中即结束，

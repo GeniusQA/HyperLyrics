@@ -3,6 +3,7 @@ package com.genius.hyperlyrics.root.utils
 import android.os.SystemClock
 import android.view.View
 import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import com.genius.hyperlyrics.root.LyriconDataBridge
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -82,8 +83,10 @@ object MediaCardDiagnosticLogger {
     private fun bridgeSnapshot(): String {
         val song = LyriconDataBridge.currentSong
         val line = LyriconDataBridge.currentLyricLine
+        val album = song?.metadata?.getString(LyricMetadataKeys.MEDIA_ALBUM).orEmpty()
         return "songId=${sanitize(song?.id)}" +
             ",title=${sanitize(song?.name)}" +
+            ",album=${sanitize(album)}" +
             ",pkg=${sanitize(LyriconDataBridge.currentLyricPackageName ?: LyriconDataBridge.activePackageName)}" +
             ",playing=${LyriconDataBridge.currentPlaybackState}" +
             ",position=${LyriconDataBridge.currentPosition}" +

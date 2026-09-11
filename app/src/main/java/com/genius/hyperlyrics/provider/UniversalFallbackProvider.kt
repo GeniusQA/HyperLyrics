@@ -14,7 +14,9 @@ import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import com.genius.hyperlyrics.lyric.model.Song
+import com.genius.hyperlyrics.lyric.model.lyricMetadataOf
 import com.genius.hyperlyrics.provider.ytmusic.YoutubeMusicProviderConstants
 import com.genius.hyperlyrics.root.utils.HookLogger
 import io.github.proify.lyricon.lyric.model.Song as LyriconSong
@@ -154,6 +156,11 @@ internal class UniversalFallbackProvider(
             ).orEmpty().trim()
         val duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
         val mediaId = metadata.getString(MediaMetadata.METADATA_KEY_MEDIA_ID)
+        val album = (
+            metadata.getString(MediaMetadata.METADATA_KEY_ALBUM)
+                ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_DESCRIPTION)
+                ?: metadata.description?.description?.toString()
+            ).orEmpty().trim()
         val pkg = controller.packageName ?: return
         val key = listOf(mediaId.orEmpty(), title, artist, duration).joinToString("|")
         if (key == currentTrackKey) return
@@ -163,11 +170,18 @@ internal class UniversalFallbackProvider(
             name = title,
             artist = artist,
             duration = duration,
+            // 专辑名写入元数据，供后续在线搜索优先按「歌名 歌手 专辑」请求。
+            metadata = album.takeIf { it.isNotBlank() }
+                ?.let { lyricMetadataOf(LyricMetadataKeys.MEDIA_ALBUM to it) },
         )
         val p = ensureProvider(pkg) ?: return
         runCatching {
             p.player.setSong(toRemoteSong(baseSong))
-            onDiagnostic(tag, "兜底发布基础歌曲: pkg=$pkg, title=$title, artist=$artist")
+            onDiagnostic(
+                tag,
+                "兜底发布基础歌曲: pkg=$pkg, title=$title, artist=$artist, " +
+                    "album=${album.ifBlank { "无" }}",
+            )
         }.onFailure {
             HookLogger.e(tag, "兜底 setSong 失败: title=$title", it)
         }
