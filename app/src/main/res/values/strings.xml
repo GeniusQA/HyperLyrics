@@ -234,6 +234,8 @@
     <string name="legacy_provider_release_home">https://github.com/tomakino/LyricProvider/releases</string>
     <string name="provider_status_builtin">内置</string>
     <string name="provider_status_universal">通用</string>
+    <string name="lyric_error_no_lyrics">未命中歌词</string>
+    <string name="lyric_error_no_translation">未命中歌词翻译</string>
     <string name="provider_catalog_loading">正在加载插件目录</string>
     <string name="provider_catalog_load_failed">插件目录加载失败</string>
     <string name="provider_status_processing">处理中…</string>

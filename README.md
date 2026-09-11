@@ -52,6 +52,8 @@ HyperLyrics 是一个为小米 HyperOS 设备打造的 Android 模块与独立�
 - **通用兜底（独立内置 Provider，无需专用插件）**：对未安装专用 Provider 插件/独立模块的三方播放器（如酷狗概念版等任意包名播放器），复用与 YouTube Music 等内置 Provider **完全相同**的发布链路——`UniversalFallbackProvider` 在 SystemUI 内观察 MediaSession，按活跃播放器包名经 `LyriconFactory.createProvider("com.genius.hyperlyrics.universal", playerPackage)` 注册成真正的 Lyricon Provider，把基础歌曲推给 Central，由订阅回调统一驱动 `currentLyricPackageName`/`currentPlaybackState`，从而彻底消除此前手写桥在 AOD/锁屏/通知上的 `pause_policy`、`packageMatches` 竞态。歌词/翻译抓取仍复用既有在线兜底（LRCLIB 兜底 + 四平台补翻译）。
 - **通用兜底触发与约束**：播放器没有任何活动专属 Provider 时即走通用兜底，绕过单 App 在线开关，保证「所有播放器都能匹配歌词」；前提是播放器通过 MediaSession 暴露非空 TITLE 元数据，否则兜底无法启动。若某包已接入专属 Provider，通用兜底自动让位，避免双源重复发布。
 - **切歌与同包多曲**：通用兜底以「歌曲身份（包名|标题|歌手|时长）」去重，同一播放器切歌后自动重新走 LRCLIB 兜底取词，不再像旧手写桥那样因包名未变被错误跳过。
+- **通用播放器在线翻译开关与诊断**：“在线翻译源”页面会把当前正在播放、但不在固定列表里的任意播放器动态加入“启用 App”，默认开启在线翻译；通用播放器也能查看匹配分、匹配平台、近失候选等诊断，并可按 App 单独关闭。
+- **缺失歌词/翻译的报错占位**：通用歌词源未命中歌词，或命中歌词但四平台补不到翻译时，歌曲区域直接显示“未命中歌词 / 未命中歌词翻译”报错文案，不再回退展示“歌名 - 歌手”。
 
 ### 4. 翻译优先级更明确，也更可控
 
