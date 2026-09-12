@@ -17,6 +17,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextUtils
@@ -76,6 +77,8 @@ internal data class AodLyricContent(
     val overlappingAlignment: AodLyricAlignment,
     val overlappingBackingAlignment: AodLyricAlignment,
     val nextAlignment: AodLyricAlignment,
+    /** 等待歌词匹配中：主行用动态圆点占位（与摘要态一致）。 */
+    val waitingForLyrics: Boolean = false,
 )
 
 internal enum class AodLyricAlignment {
@@ -1349,6 +1352,15 @@ object NotificationMediaAodLyricHooker {
                 translationColor
             }
         )
+        // 等待歌词匹配：用动态圆点占位（与摘要态一致），并启动循环高亮动画。
+        if (content.waitingForLyrics) {
+            overlay.waitingForLyrics = true
+            val base = api.getTitleText(holder).currentTextColor
+            overlay.main.text = buildWaitingDots(waitingDotsFrame, base, dimOf(base))
+            ensureWaitingDotsTicker()
+        } else {
+            overlay.waitingForLyrics = false
+        }
         // 全屏 AOD：展示自绘进度行（系统该模式无原生进度条）；
         // 紧凑模式由 applyCompactMode 隐藏，无时长数据时也不显示。
         val songDurationMs = LyriconDataBridge.currentSong?.duration?.takeIf { it > 0L }
@@ -1779,6 +1791,15 @@ object NotificationMediaAodLyricHooker {
         applyLyricRowOrder(overlay, textStyle.swapTranslation)
         updateClassicEmbeddedSongInfo(overlay, songInfo)
         updateClassicLineSpacing(overlay)
+        // 等待歌词匹配：用动态圆点占位（与摘要态一致），并启动循环高亮动画。
+        if (content.waitingForLyrics) {
+            overlay.waitingForLyrics = true
+            val base = overlay.main.currentTextColor
+            overlay.main.text = buildWaitingDots(waitingDotsFrame, base, dimOf(base))
+            ensureWaitingDotsTicker()
+        } else {
+            overlay.waitingForLyrics = false
+        }
         // 字体颜色设置（自定义AOD独立偏好组）非默认时覆盖系统跟随色
         OverlayFontColorApplier.apply(
             prefs = prefs,
@@ -3288,7 +3309,16 @@ object NotificationMediaAodLyricHooker {
         } else {
             null
         }
-        return AodMediaLyricPolicy.assembleContent(
+        // 等待歌词匹配中（摘要态同款动态圆点）：有当前歌曲、正在播放、无实际歌词、
+        // 且非报错占位、非纯文本模式时，主行用圆点占位，由 ticker 做循环高亮动画。
+        val waitingForLyrics = !LyriconDataBridge.isTextMode &&
+            LyriconDataBridge.currentPlaybackState == true &&
+            LyriconDataBridge.currentSong != null &&
+            !LyriconDataBridge.currentSong?.name.isNullOrBlank() &&
+            currentActualLyrics().isEmpty() &&
+            LyriconDataBridge.currentSong?.metadata
+                ?.getString(LyricMetadataKeys.LYRIC_ERROR_MESSAGE).isNullOrBlank()
+        val assembled = AodMediaLyricPolicy.assembleContent(
             main = displayText(main),
             translation = displayText(line?.translation),
             backing = displayText(primaryBacking),
@@ -3316,6 +3346,84 @@ object NotificationMediaAodLyricHooker {
             translationDisplayMode = style.translationDisplayMode,
             translationFallback = style.translationFallback,
         )
+        return if (waitingForLyrics) {
+            assembled.copy(main = WAITING_DOTS_PLACEHOLDER, waitingForLyrics = true)
+        } else {
+            assembled
+        }
+    }
+
+    /** 等待歌词占位文案（动态圆点，颜色在 apply 时按当前文本色着色）。 */
+    private const val WAITING_DOTS_PLACEHOLDER = "● ● ● ●"
+    private const val WAITING_DOTS_INTERVAL_MS = 420L
+    private const val WAITING_DOTS_COUNT = 4
+
+    private fun dimOf(color: Int): Int = (color and 0x00FFFFFF) or 0x55000000
+
+    private fun buildWaitingDots(frame: Int, active: Int, inactive: Int): SpannableString {
+        val sb = SpannableString(WAITING_DOTS_PLACEHOLDER)
+        val positions = (0 until WAITING_DOTS_COUNT).map { it * 2 }
+        positions.forEachIndexed { index, pos ->
+            sb.setSpan(
+                ForegroundColorSpan(if (index == frame % WAITING_DOTS_COUNT) active else inactive),
+                pos,
+                pos + 1,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
+        return sb
+    }
+
+    @Volatile
+    private var waitingDotsFrame = 0
+    private var waitingDotsRunnable: Runnable? = null
+
+    /** 任一覆盖层处于等待态时启动圆点循环高亮动画，无等待态时自动停止。 */
+    private fun ensureWaitingDotsTicker() {
+        if (waitingDotsRunnable != null) return
+        val runnable = object : Runnable {
+            override fun run() {
+                waitingDotsFrame++
+                var anyWaiting = false
+                synchronized(states) {
+                    for (state in states.values) {
+                        val overlay = state.overlay ?: continue
+                        if (overlay.waitingForLyrics && overlay.root.isShown) {
+                            anyWaiting = true
+                            val base = overlay.main.currentTextColor
+                            overlay.main.text = buildWaitingDots(
+                                waitingDotsFrame,
+                                base,
+                                dimOf(base),
+                            )
+                            overlay.root.invalidate()
+                        }
+                    }
+                }
+                synchronized(aodPluginStates) {
+                    for (state in aodPluginStates.values) {
+                        val overlay = state.overlay ?: continue
+                        if (overlay.waitingForLyrics && overlay.root.isShown) {
+                            anyWaiting = true
+                            val base = overlay.main.currentTextColor
+                            overlay.main.text = buildWaitingDots(
+                                waitingDotsFrame,
+                                base,
+                                dimOf(base),
+                            )
+                            overlay.root.invalidate()
+                        }
+                    }
+                }
+                if (anyWaiting) {
+                    mainHandler.postDelayed(this, WAITING_DOTS_INTERVAL_MS)
+                } else {
+                    waitingDotsRunnable = null
+                }
+            }
+        }
+        waitingDotsRunnable = runnable
+        mainHandler.postDelayed(runnable, WAITING_DOTS_INTERVAL_MS)
     }
 
     private fun appendNextSongPreview(
@@ -4104,6 +4212,7 @@ object NotificationMediaAodLyricHooker {
         var fullAodActive: Boolean = false,
         var heightAnimator: ValueAnimator? = null,
         var compactMode: Boolean = false,
+        var waitingForLyrics: Boolean = false,
     )
 
     private class MediaHeaderHeightController private constructor(
@@ -4213,6 +4322,7 @@ object NotificationMediaAodLyricHooker {
         var appliedOverlappingAlignment: AodLyricAlignment? = null,
         var appliedOverlappingBackingAlignment: AodLyricAlignment? = null,
         var appliedNextAlignment: AodLyricAlignment? = null,
+        var waitingForLyrics: Boolean = false,
     )
 
     private data class AodPluginState(
