@@ -1,5 +1,6 @@
 package com.genius.hyperlyrics.root.source
 
+import android.content.ComponentName
 import android.content.Context
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -48,9 +49,16 @@ class LyricInfoSource(private val context: Context) : LyricSource {
         this.sink = sink
         trackedControllers.clear()
         try {
-            manager.addOnActiveSessionsChangedListener(sessionListener, null)
-            onActiveSessionsChanged(manager.getActiveSessions(null))
-            HookLogger.i("LyricInfoSource", "数据源已启动")
+            // 传入已启用的通知监听组件（而非 null），否则 change 回调只对本进程 UID 的
+            // 会话生效，SystemUI 内的 HyperLyrics 会漏掉酷狗等其他 UID 播放器，
+            // 导致“重启播放器/手机后不显示歌词”。
+            val component = ComponentName(
+                "com.genius.hyperlyrics",
+                "com.genius.hyperlyrics.service.LiveLyricService",
+            )
+            manager.addOnActiveSessionsChangedListener(sessionListener, component)
+            onActiveSessionsChanged(runCatching { manager.getActiveSessions(component) }.getOrElse { emptyList() })
+            HookLogger.i("LyricInfoSource", "数据源已启动, component=${component.className}")
         } catch (e: Exception) {
             HookLogger.e("LyricInfoSource", "数据源启动失败", e)
         }

@@ -1,6 +1,7 @@
 package com.genius.hyperlyrics.root.source
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -14,6 +15,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.R
+import com.genius.hyperlyrics.common.IslandAlbumCoverWhitelist
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.lyric.AppleOriginalMetadataPolicy
 import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceInfo
@@ -310,7 +312,13 @@ class LyriconSource : LyricSource {
     private var audioManager: AudioManager? = null
     private var mediaSessionManager: MediaSessionManager? = null
     private var localSessionsListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
+    private var localSessionPollJob: Job? = null
     private var universalFallbackProvider: UniversalFallbackProvider? = null
+
+    /** 本地媒体会话轮询间隔：兜底 MIUI 下 change 回调对其他 UID 会话不触发的情况。 */
+    private companion object {
+        const val LOCAL_SESSION_POLL_INTERVAL_MS = 3_000L
+    }
     private val activeMediaSessionGate = ActiveMediaSessionGate(
         nowElapsedMs = SystemClock::elapsedRealtime,
         nowWallClockMs = System::currentTimeMillis,
@@ -320,26 +328,74 @@ class LyriconSource : LyricSource {
 
     /**
      * SystemUI 进程内的权威会话真值（AOD-LYRICS-004 `150213` 证据：app 侧
-     * 监听器被 MIUI 解绑后会沉默，快照可冻结在过期值上）。本地查询
-     * `getActiveSessions(null)` 与同进程 `LyricInfoSource` 的既有用法一致，
-     * 是已被运行验证的路径；不可用时回退 app 快照链路。
+     * 监听器被 MIUI 解绑后会沉默，快照可冻结在过期值上）。
+     *
+     * 关键修复：注册监听时必须传入**已启用的通知监听服务组件**
+     * （[com.genius.hyperlyrics.service.LiveLyricService]），而非 `null`。
+     * `addOnActiveSessionsChangedListener(listener, null)` 的回调只会在
+     * 调用方自身 UID 的会话变化时触发，而 HyperLyrics 在 SystemUI 进程里，
+     * 酷狗等播放器是其他 UID——导致：
+     * - 系统启动 / 播放器早于模块加载时，初始 `getActiveSessions` 若为空，
+     *   之后再无 change 事件，歌词永久不显示；
+     * - 中途偶发能显示，只是被其他路径的快照补到。
+     * 传入通知监听组件后，change 回调对全部会话生效；再辅以周期轮询兜底，
+     * 彻底消除“重启后不展示歌词”。
      */
+    private fun localMediaSessionListenerComponent(): ComponentName? =
+        runCatching {
+            ComponentName(
+                "com.genius.hyperlyrics",
+                "com.genius.hyperlyrics.service.LiveLyricService",
+            )
+        }.getOrNull()
+
+    /**
+     * 读取当前活动会话；优先用通知监听组件（可拿到全部 UID 的会话），
+     * 若该组件未启用而抛异常，则回退 [MediaSessionManager.getActiveSessions] 的
+     * null 形式（SystemUI 系统 UID 下仍可读到全部会话）。
+     */
+    private fun readActiveSessions(
+        manager: MediaSessionManager,
+        component: ComponentName?,
+    ): List<MediaController> =
+        runCatching { manager.getActiveSessions(component) }
+            .getOrElse { runCatching { manager.getActiveSessions(null) }.getOrElse { emptyList() } }
+
     private fun registerLocalMediaSessionTracker() {
         val context = app ?: return
         if (localSessionsListener != null) return
         runCatching {
             val manager = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+            val component = localMediaSessionListenerComponent()
             val listener = MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
                 onLocalActiveMediaSessionsChanged(controllers)
             }
-            manager.addOnActiveSessionsChangedListener(listener, null)
+            if (component != null) {
+                manager.addOnActiveSessionsChangedListener(listener, component)
+            } else {
+                manager.addOnActiveSessionsChangedListener(listener, null)
+            }
             mediaSessionManager = manager
             localSessionsListener = listener
-            onLocalActiveMediaSessionsChanged(manager.getActiveSessions(null))
-            HookLogger.i(TAG, "SystemUI 本地媒体会话跟踪已启动")
+            // 立即拉取一次已存在的活动会话（覆盖系统启动/播放器早于模块加载的场景）
+            onLocalActiveMediaSessionsChanged(readActiveSessions(manager, component))
+            // 周期轮询兜底：MIUI 下 change 回调对其他 UID 会话可能不触发，
+            // 每 [LOCAL_SESSION_POLL_INTERVAL_MS] 重拉快照，避免“重启后永不显示”。
+            localSessionPollJob = fallbackScope.launch {
+                while (isActive) {
+                    delay(LOCAL_SESSION_POLL_INTERVAL_MS)
+                    runCatching { onLocalActiveMediaSessionsChanged(readActiveSessions(manager, component)) }
+                }
+            }
+            HookLogger.i(
+                TAG,
+                "SystemUI 本地媒体会话跟踪已启动, component=${component?.className ?: "null"}",
+            )
         }.onFailure { error ->
             mediaSessionManager = null
             localSessionsListener = null
+            localSessionPollJob?.cancel()
+            localSessionPollJob = null
             HookLogger.w(TAG, "SystemUI 本地媒体会话跟踪不可用，回退 app 快照: reason=${error.message}")
         }
     }
@@ -363,6 +419,8 @@ class LyriconSource : LyricSource {
     private fun unregisterLocalMediaSessionTracker() {
         val manager = mediaSessionManager
         val listener = localSessionsListener
+        localSessionPollJob?.cancel()
+        localSessionPollJob = null
         if (manager != null && listener != null) {
             runCatching { manager.removeOnActiveSessionsChangedListener(listener) }
         }
@@ -507,6 +565,9 @@ class LyriconSource : LyricSource {
      */
     private fun isFallbackAllowedFor(playerPackage: String): Boolean {
         if (playerPackage == APPLE_MUSIC_PACKAGE) return false
+        // 通用兜底必须走歌词白名单：与 app 进程 AppLyricSink 一致，
+        // 未列入白名单的包（如视频 App）不应上岛，否则会占用歌词位置并干扰其他播放器。
+        if (!isWhitelistedForLyrics(playerPackage)) return false
         if (activeCentralPlayerPackageName == playerPackage &&
             activeProviderPackageName != null &&
             activeProviderPackageName != BUILT_IN_PROVIDER_PACKAGE &&
@@ -515,6 +576,21 @@ class LyriconSource : LyricSource {
             return false
         }
         return true
+    }
+
+    /**
+     * 读取歌词白名单（[ServiceConstants.KEY_NOTIFICATION_WHITELIST]）。
+     * 与 AppLyricSink 行为对齐：包必须在白名单内才允许上岛。
+     * 白名单为空时视为未配置，沿用旧行为放行（避免影响未配置白名单的用户）。
+     */
+    private fun isWhitelistedForLyrics(playerPackage: String): Boolean {
+        // LSPosed / Root 模式下，用户唯一可见的白名单入口是“超级岛 → 应用白名单”，
+        // 对应 KEY_HOOK_ISLAND_ALBUM_COVER_STYLE_APP_WHITELIST。通用兜底必须用这个
+        // 白名单过滤包名，否则视频 App 等非白名单应用也会上岛。
+        val enabledPackages = runCatching {
+            prefs?.getStringSet(RootConstants.KEY_HOOK_ISLAND_ALBUM_COVER_STYLE_APP_WHITELIST, null)
+        }.getOrElse { null }
+        return IslandAlbumCoverWhitelist.isEnabled(enabledPackages, playerPackage)
     }
 
     fun initialize(

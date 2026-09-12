@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.ClassicAodSongInfoConfig
+import com.genius.hyperlyrics.common.IslandAlbumCoverWhitelist
 import com.genius.hyperlyrics.common.ServiceConstants
 import com.genius.hyperlyrics.common.UIConstants
 
@@ -97,11 +98,25 @@ class AppLyricSink(
         ) && ClassicAodSongInfoConfig.displayStyle(sp) ==
             RootConstants.AOD_SONG_INFO_DISPLAY_STYLE_FOCUS_NOTIFICATION
         val pauseListening = !enableDynamicIsland && !classicAodSongInfoEnabled
-        val isWhitelisted = ConfigRepository.whitelistState.value.contains(data.currentPackageName)
+        // Root/LSPosed 模式下，用户唯一可见的白名单是“超级岛 → 应用白名单”；
+        // 非 Root 的通知歌词模式才使用原来的通知歌词白名单。
+        val isSuperIslandEnabled = sp.getBoolean(
+            RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND,
+            RootConstants.DEFAULT_HOOK_ENABLE_SUPER_ISLAND,
+        )
+        val isWhitelisted = if (isSuperIslandEnabled) {
+            val enabledPackages = sp.getStringSet(
+                RootConstants.KEY_HOOK_ISLAND_ALBUM_COVER_STYLE_APP_WHITELIST,
+                null,
+            )
+            IslandAlbumCoverWhitelist.isEnabled(enabledPackages, data.currentPackageName)
+        } else {
+            ConfigRepository.whitelistState.value.contains(data.currentPackageName)
+        }
         LogManager.d(
             "AppLyricSink",
             "processSyncData: 超级岛开关=$enableDynamicIsland, 自定义AOD歌曲信息=$classicAodSongInfoEnabled, " +
-                "白名单通过=$isWhitelisted, pkg=${data.currentPackageName}"
+                "超级岛启用=$isSuperIslandEnabled, 白名单通过=$isWhitelisted, pkg=${data.currentPackageName}"
         )
 
         if (pauseListening || (!isWhitelisted && !classicAodSongInfoEnabled)) {
