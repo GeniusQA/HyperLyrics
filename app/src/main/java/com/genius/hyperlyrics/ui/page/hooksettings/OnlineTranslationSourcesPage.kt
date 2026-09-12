@@ -214,26 +214,26 @@ fun OnlineTranslationSourcesPage() {
             it.playbackState?.state == PlaybackState.STATE_PLAYING
         }
         currentPackage = active?.packageName
-        if (active == null) {
-            listenerEnabled = isNotificationListenerEnabled()
+        listenerEnabled = isNotificationListenerEnabled()
+        if (active == null) return false
+        val pkg = active.packageName
+        // 隐私/权限：未在“启用 App”中开启的包（如视频软件）不应读取其歌曲元数据。
+        // 只保留包名用于动态展示条目，让用户能手动开启；标题/歌手/专辑等敏感信息不获取。
+        if (pkg != null && appEnabled[pkg] != true) {
+            currentTrack = null
+            currentAlbum = ""
+            currentDurationMs = 0L
             return false
         }
-        val metadata = active?.metadata ?: run {
-            listenerEnabled = isNotificationListenerEnabled()
-            return false
-        }
+        val metadata = active.metadata ?: return false
         val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty().trim()
-        if (title.isEmpty()) {
-            listenerEnabled = isNotificationListenerEnabled()
-            return false
-        }
+        if (title.isEmpty()) return false
         val artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?.takeIf { it.isNotBlank() }
             ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST).orEmpty().trim()
         currentTrack = title to artist
         currentAlbum = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty().trim()
         currentDurationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
-        listenerEnabled = true
         return true
     }
 
