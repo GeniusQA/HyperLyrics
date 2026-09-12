@@ -191,6 +191,21 @@ object RootConstants {
     const val KEY_ACTIVE_MEDIA_SESSION_PACKAGES = "key_active_media_session_packages"
 
     const val KEY_HOOK_LYRICON_PROVIDER_DELAY_PREFIX = "key_hook_lyricon_provider_delay_"
+
+    /**
+     * 当前实际提供歌词的 Provider 包名（App 侧用于 MetaData/链路展示准确来源）。
+     * 取值可能是专属 Provider 包名、内置 Provider [BUILT_IN_LYRIC_PROVIDER_PACKAGE]、
+     * 通用兜底 Provider [UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE]，或为 null。
+     */
+    const val KEY_HOOK_CURRENT_LYRIC_PROVIDER = "key_hook_current_lyric_provider"
+
+    /** Lyricon 内置 Provider 包名。 */
+    const val BUILT_IN_LYRIC_PROVIDER_PACKAGE = "com.genius.hyperlyrics"
+
+    /** 通用兜底（LRCLIB）Provider 包名。 */
+    const val UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE =
+        "com.genius.hyperlyrics.universal"
+
     const val KEY_HOOK_REMOVE_CJK_LYRIC_SPACES =
         "key_hook_remove_cjk_lyric_spaces"
 
