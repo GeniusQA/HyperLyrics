@@ -368,10 +368,21 @@ class LyriconSource : LyricSource {
             val listener = MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
                 onLocalActiveMediaSessionsChanged(controllers)
             }
+            // 优先用通知监听组件注册（change 回调对全部 UID 会话生效）；
+            // 但该组件依赖 LiveLyricService 通知监听被系统启用，MIUI 等 ROM 会拦截，
+            // 未启用时 addOnActiveSessionsChangedListener(component) 会抛 SecurityException，
+            // 不可因此禁用整条会话跟踪——捕获后回退 null 注册（SystemUI 系统 UID 下
+            // getActiveSessions(null) 仍能读到全部会话，再靠下方轮询补足 change 缺口）。
+            var usedComponent = false
             if (component != null) {
-                manager.addOnActiveSessionsChangedListener(listener, component)
-            } else {
-                manager.addOnActiveSessionsChangedListener(listener, null)
+                runCatching { manager.addOnActiveSessionsChangedListener(listener, component) }
+                    .onSuccess { usedComponent = true }
+                    .onFailure { e ->
+                        HookLogger.w(TAG, "组件式会话监听注册失败，回退 null: ${e.message}")
+                    }
+            }
+            if (!usedComponent) {
+                runCatching { manager.addOnActiveSessionsChangedListener(listener, null) }
             }
             mediaSessionManager = manager
             localSessionsListener = listener
@@ -387,7 +398,7 @@ class LyriconSource : LyricSource {
             }
             HookLogger.i(
                 TAG,
-                "SystemUI 本地媒体会话跟踪已启动, component=${component?.className ?: "null"}",
+                "SystemUI 本地媒体会话跟踪已启动, component=${if (usedComponent) component?.className else "null(回退)"}",
             )
         }.onFailure { error ->
             mediaSessionManager = null
