@@ -143,9 +143,13 @@ object LyriconDataBridge : StateResetter {
 
         HookLogger.d("LyriconDataBridge", "同曲内容更新: ${song.name}")
         isTextMode = false
-        currentSong = song
-        currentSongName = song.name
-        prepareSong(song)
+        // 同一首歌被重新发布（如播放中再次收到元数据/原生歌词）时，
+        // 若新歌词缺失翻译/发音而旧歌词有，则沿位置把旧翻译/发音搬过来，
+        // 避免「放着放着翻译整段消失」。
+        val mergedSong = mergeLyricEnrichment(previousSong, song)
+        currentSong = mergedSong
+        currentSongName = mergedSong.name
+        prepareSong(mergedSong)
         versionCounter.incrementAndGet()
         DisplayDiagnosticLogger.log(
             channel = "BRIDGE",
@@ -153,6 +157,27 @@ object LyriconDataBridge : StateResetter {
             reason = "same_song_content_replaced",
         )
         return true
+    }
+
+    /**
+     * 行数一致时，把上一首歌词里已有的翻译/发音沿行序搬运到新歌词，
+     * 仅当新行对应字段为空时补充，绝不覆盖已有内容。
+     */
+    private fun mergeLyricEnrichment(previous: Song, next: Song): Song {
+        val prevLines = previous.lyrics
+        val nextLines = next.lyrics
+        if (prevLines.isNullOrEmpty() || nextLines.isNullOrEmpty()) return next
+        if (prevLines.size != nextLines.size) return next
+        val merged = prevLines.zip(nextLines).map { (prev, cur) ->
+            val translation = if (cur.translation.isNullOrBlank()) prev.translation else cur.translation
+            val roma = if (cur.roma.isNullOrBlank()) prev.roma else cur.roma
+            if (translation != cur.translation || roma != cur.roma) {
+                cur.copy(translation = translation, roma = roma)
+            } else {
+                cur
+            }
+        }
+        return next.copy(lyrics = merged)
     }
 
     fun applyTranslation(translatedSong: Song) {
