@@ -1250,6 +1250,7 @@ object OnlineLyricTargeter {
 
     /**
      * 「二次匹配」：按用户输入的「歌名 + 歌手（必填）+ 专辑（可选）」在已启用来源里搜索候选。
+     * 返回的结果会按与输入条件的相关性排序，并剔除完全无关的候选。
      */
     suspend fun searchCandidates(
         context: Context,
@@ -1278,7 +1279,7 @@ object OnlineLyricTargeter {
             "OnlineTargeter",
             "二次匹配搜索: 关键词=\"$keyword\", 源=${sources.joinToString { it.sourceType.name }}",
         )
-        return coroutineScope {
+        val rawResults = coroutineScope {
             sources.map { source ->
                 async {
                     withTimeoutOrNull(TIMEOUT_MS) {
@@ -1294,6 +1295,99 @@ object OnlineLyricTargeter {
                 }
             }.awaitAll().flatten()
         }
+        return rankManualMatchCandidates(
+            context = context,
+            queryTitle = normalizedTitle,
+            queryArtist = normalizedArtist,
+            queryAlbum = album?.trim(),
+            candidates = rawResults,
+        )
+    }
+
+    /**
+     * 对二次匹配搜索结果进行本地相关性评分与排序。
+     *
+     * 评分维度：标题（最高 55）、歌手（最高 35）、专辑（最高 15）。
+     * 最终按分数降序排列，并剔除既未命中标题也未命中歌手的完全无关项。
+     */
+    private fun rankManualMatchCandidates(
+        context: Context,
+        queryTitle: String,
+        queryArtist: String,
+        queryAlbum: String?,
+        candidates: List<SongSearchResult>,
+    ): List<SongSearchResult> {
+        val cleanTitle = cleanString(context, queryTitle)
+        val compactTitle = compactWhitespace(cleanTitle)
+        val cleanArtists = splitArtists(queryArtist).map { cleanString(context, it) }
+        val cleanAlbum = queryAlbum?.let { normalizeAlbum(context, it) }.orEmpty()
+
+        data class Scored(
+            val result: SongSearchResult,
+            val score: Int,
+        )
+
+        val scored = candidates.map { candidate ->
+            val candidateTitle = cleanString(context, candidate.title)
+            val candidateCompactTitle = compactWhitespace(candidateTitle)
+            val candidateArtists = splitArtists(candidate.artist).map { cleanString(context, it) }
+            val candidateAlbum = normalizeAlbum(context, candidate.album)
+            val candidateCompactAlbum = compactWhitespace(candidateAlbum)
+
+            var score = 0
+
+            // 标题匹配：支持完全相等、包含关系、紧凑去空白
+            when {
+                candidateTitle == cleanTitle -> score += 50
+                candidateTitle.contains(cleanTitle) || cleanTitle.contains(candidateTitle) -> score += 40
+                compactTitle.isNotEmpty() && (
+                    candidateCompactTitle == compactTitle ||
+                        candidateCompactTitle.contains(compactTitle) ||
+                        compactTitle.contains(candidateCompactTitle)
+                    ) -> score += 35
+            }
+            // 原始大小写不敏感的精确相等给予小幅加分，用于区分同名不同曲
+            if (candidate.title.trim().equals(queryTitle.trim(), ignoreCase = true)) {
+                score += 5
+            }
+
+            // 歌手匹配
+            if (hasCommonArtist(cleanArtists, candidateArtists)) {
+                score += 30
+            }
+            if (candidate.artist.trim().equals(queryArtist.trim(), ignoreCase = true)) {
+                score += 5
+            }
+
+            // 专辑匹配
+            if (cleanAlbum.isNotEmpty() && candidateAlbum.isNotEmpty()) {
+                when {
+                    cleanAlbum == candidateAlbum -> score += 10
+                    stripAlbumVersionSuffixes(cleanAlbum) == stripAlbumVersionSuffixes(candidateAlbum) -> score += 5
+                }
+                if (candidate.album.trim().equals(queryAlbum?.trim().orEmpty(), ignoreCase = true)) {
+                    score += 5
+                }
+            }
+
+            Scored(candidate, score)
+        }
+
+        // 只保留至少标题或歌手命中其一的候选，避免展示完全无关歌曲
+        val minScore = 20
+        val filtered = scored.filter { it.score >= minScore }
+        LogManager.d(
+            "OnlineTargeter",
+            "二次匹配本地筛选: 原始=${candidates.size}, 保留=${filtered.size}, " +
+                "最高分=${filtered.maxOfOrNull { it.score } ?: 0}",
+        )
+        return filtered
+            .sortedWith(
+                compareByDescending<Scored> { it.score }
+                    .thenBy { it.result.source.ordinal }
+                    .thenBy { it.result.title.length }
+            )
+            .map { it.result }
     }
 
     /**
