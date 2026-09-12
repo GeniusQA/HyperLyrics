@@ -56,7 +56,6 @@ internal class InterludeDotsRenderer {
 
         val diameter = dotSize(textPaint.textSize)
         val radius = diameter / 2f
-        val step = diameter * DOT_STEP_IN_DIAMETERS
         val totalWidth = width(textPaint.textSize)
         val startX = resolveInterludeDotsStartX(
             totalWidth = totalWidth,
@@ -71,15 +70,16 @@ internal class InterludeDotsRenderer {
         dotPaint.color = textPaint.color
         dotPaint.shader = textPaint.shader
 
-        repeat(DOT_COUNT) { index ->
-            dotPaint.alpha = frame.dotAlphas[index] * frame.groupAlpha / 255
-            canvas.drawCircle(
-                groupCenterX + (index - 1) * step * frame.groupScale,
-                centerY,
-                radius * frame.groupScale,
-                dotPaint
-            )
-        }
+        // 只绘制单个居中等候点：
+        // - 避免 3 点组合在呼吸动画中某个点变得巨大（"等待播放圆点太大"）
+        // - 去掉两侧暗淡小黑点（"不要再展示之前的小黑点"）
+        dotPaint.alpha = frame.dotAlphas[0] * frame.groupAlpha / 255
+        canvas.drawCircle(
+            groupCenterX,
+            centerY,
+            radius * frame.groupScale,
+            dotPaint
+        )
     }
 
     private fun resolvePlaybackPosition(model: LyricModel, nowMs: Long): Long {
@@ -98,15 +98,13 @@ internal class InterludeDotsRenderer {
     private fun dotSize(textSize: Float): Float = resolveInterludeDotSize(textSize)
 
     private companion object {
-        const val DOT_COUNT = 3
-        const val DOT_STEP_IN_DIAMETERS = 1.6f
-        const val DOTS_VISUAL_WIDTH_IN_DIAMETERS = 4.2f
-        const val MAX_GROUP_SCALE = 1.4f
+        const val DOTS_VISUAL_WIDTH_IN_DIAMETERS = 1.0f
+        const val MAX_GROUP_SCALE = 1.0f
     }
 }
 
 internal fun resolveInterludeDotSize(textSize: Float): Float =
-    textSize * 0.45f
+    textSize * 0.30f
 
 internal data class InterludeDotsFrame(
     val dotAlphas: List<Int>,

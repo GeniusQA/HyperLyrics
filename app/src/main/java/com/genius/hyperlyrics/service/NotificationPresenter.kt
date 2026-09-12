@@ -13,6 +13,7 @@ import android.media.AudioManager
 import android.view.KeyEvent
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.ClassicAodSongInfoConfig
+import com.genius.hyperlyrics.common.IslandAlbumCoverWhitelist
 import com.genius.hyperlyrics.common.ServiceConstants
 import com.genius.hyperlyrics.common.UIConstants
 import com.genius.hyperlyrics.common.lyric.LyricSplitter
@@ -124,7 +125,20 @@ class NotificationPresenter(
      * 内部完成：开关检查、白名单过滤、状态去重、息屏降频、防抖，最终发射通知。
      */
     fun updateState(globalState: com.genius.hyperlyrics.lyric.LyricState, force: Boolean) {
-        val isWhitelisted = ConfigRepository.whitelistState.value.contains(globalState.targetPackageName)
+        val sp = context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE)
+        val isSuperIslandEnabled = sp.getBoolean(
+            RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND,
+            RootConstants.DEFAULT_HOOK_ENABLE_SUPER_ISLAND,
+        )
+        val isWhitelisted = if (isSuperIslandEnabled) {
+            val enabledPackages = sp.getStringSet(
+                RootConstants.KEY_HOOK_ISLAND_ALBUM_COVER_STYLE_APP_WHITELIST,
+                null,
+            )
+            IslandAlbumCoverWhitelist.isEnabled(enabledPackages, globalState.targetPackageName)
+        } else {
+            ConfigRepository.whitelistState.value.contains(globalState.targetPackageName)
+        }
         val classicAodSongInfoEnabled = isClassicAodSongInfoEnabled()
         if (!isWhitelisted && !classicAodSongInfoEnabled) {
             clearClassicAodSongInfoNotification()
@@ -132,8 +146,6 @@ class NotificationPresenter(
             return
         }
         updateClassicAodSongInfoNotification(globalState)
-
-        val sp = context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE)
         if (!sp.getBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND)) {
             clearNotifications()
             return

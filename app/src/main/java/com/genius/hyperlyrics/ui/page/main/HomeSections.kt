@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.genius.hyperlyrics.R
+import com.genius.hyperlyrics.root.RootApplication
 import com.genius.hyperlyrics.ui.component.EnhancedVersionNotice
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -38,6 +39,10 @@ fun LazyListScope.homePageSections(
     onRemoveIslandWhitelistToggle: (Boolean) -> Unit,
     onAppSettingsClick: () -> Unit,
 ) {
+    // Root / LSPosed 模式下通知型灵动岛歌词（无 root 方案）不可用；
+    // 非 Root 模式下 SystemUI 增强类功能不可用。
+    val isModuleActive = RootApplication.xposedService != null
+
     item(key = "enhanced_version_notice") {
         EnhancedVersionNotice(
             updateAvailable = availableUpdateVersion != null,
@@ -68,6 +73,7 @@ fun LazyListScope.homePageSections(
                     summary = stringResource(R.string.summary_miui_systemui_enhancement),
                     checked = enableSuperIsland,
                     onCheckedChange = onSuperIslandToggle,
+                    enabled = isModuleActive,
                 )
                 AnimatedVisibility(visible = enableSuperIsland) {
                     Column {
@@ -130,6 +136,7 @@ fun LazyListScope.homePageSections(
                     summary = stringResource(R.string.summary_dynamic_island_lyrics),
                     checked = enableDynamicIsland,
                     onCheckedChange = onDynamicIslandToggle,
+                    enabled = !isModuleActive,
                 )
                 AnimatedVisibility(visible = enableDynamicIsland) {
                     ArrowPreference(
@@ -155,11 +162,13 @@ fun LazyListScope.homePageSections(
                     summary = stringResource(R.string.summary_remove_focus_whitelist),
                     checked = removeFocusWhitelist,
                     onCheckedChange = onRemoveFocusWhitelistToggle,
+                    enabled = isModuleActive,
                 )
                 SwitchPreference(
                     title = stringResource(R.string.title_remove_island_whitelist),
                     checked = removeIslandWhitelist,
                     onCheckedChange = onRemoveIslandWhitelistToggle,
+                    enabled = isModuleActive,
                 )
             }
         }
