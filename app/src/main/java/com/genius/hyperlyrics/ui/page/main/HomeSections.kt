@@ -22,6 +22,8 @@ fun LazyListScope.homePageSections(
     onSuperIslandToggle: (Boolean) -> Unit,
     enableDynamicIsland: Boolean,
     onDynamicIslandToggle: (Boolean) -> Unit,
+    enableLsposedSuperIsland: Boolean,
+    onLsposedSuperIslandToggle: (Boolean) -> Unit,
     enableAodLyrics: Boolean,
     onAodLyricsToggle: (Boolean) -> Unit,
     enableLockScreenLyrics: Boolean,
@@ -73,7 +75,7 @@ fun LazyListScope.homePageSections(
                     summary = stringResource(R.string.summary_miui_systemui_enhancement),
                     checked = enableSuperIsland,
                     onCheckedChange = onSuperIslandToggle,
-                    enabled = isModuleActive,
+                    enabled = isModuleActive && enableLsposedSuperIsland,
                 )
                 AnimatedVisibility(visible = enableSuperIsland) {
                     Column {
@@ -99,6 +101,7 @@ fun LazyListScope.homePageSections(
                     summary = stringResource(R.string.summary_aod_lyrics),
                     checked = enableAodLyrics,
                     onCheckedChange = onAodLyricsToggle,
+                    enabled = isModuleActive && enableLsposedSuperIsland,
                 )
                 AnimatedVisibility(visible = enableAodLyrics) {
                     Column {
@@ -117,6 +120,7 @@ fun LazyListScope.homePageSections(
                     summary = stringResource(R.string.summary_lock_screen_lyrics),
                     checked = enableLockScreenLyrics,
                     onCheckedChange = onLockScreenLyricsToggle,
+                    enabled = isModuleActive && enableLsposedSuperIsland,
                 )
                 AnimatedVisibility(visible = enableLockScreenLyrics) {
                     ArrowPreference(
@@ -131,6 +135,13 @@ fun LazyListScope.homePageSections(
     item(key = "basic_features_content_dynamic_island") {
         Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp).fillMaxWidth()) {
             Column {
+                SwitchPreference(
+                    title = stringResource(R.string.title_lsposed_super_island_lyrics),
+                    summary = stringResource(R.string.summary_lsposed_super_island_lyrics),
+                    checked = enableLsposedSuperIsland,
+                    onCheckedChange = onLsposedSuperIslandToggle,
+                    enabled = isModuleActive,
+                )
                 SwitchPreference(
                     title = stringResource(R.string.title_dynamic_island_lyrics),
                     summary = stringResource(R.string.summary_dynamic_island_lyrics),
@@ -162,13 +173,13 @@ fun LazyListScope.homePageSections(
                     summary = stringResource(R.string.summary_remove_focus_whitelist),
                     checked = removeFocusWhitelist,
                     onCheckedChange = onRemoveFocusWhitelistToggle,
-                    enabled = isModuleActive,
+                    enabled = isModuleActive && enableLsposedSuperIsland,
                 )
                 SwitchPreference(
                     title = stringResource(R.string.title_remove_island_whitelist),
                     checked = removeIslandWhitelist,
                     onCheckedChange = onRemoveIslandWhitelistToggle,
-                    enabled = isModuleActive,
+                    enabled = isModuleActive && enableLsposedSuperIsland,
                 )
             }
         }

@@ -165,6 +165,9 @@ fun MainPage() {
     var enableDynamicIsland by remember {
         mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND))
     }
+    var enableLsposedSuperIsland by remember {
+        mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ENABLE_LSPOSER_SUPER_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_LSPOSER_SUPER_ISLAND))
+    }
     var enableAodLyrics by remember {
         mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, RootConstants.DEFAULT_HOOK_ENABLE_AOD_LYRICS))
     }
@@ -219,6 +222,8 @@ fun MainPage() {
                     enableSuperIsland = p.getBoolean(RootConstants.KEY_HOOK_ENABLE_SUPER_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_SUPER_ISLAND)
                 RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND ->
                     enableDynamicIsland = p.getBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_DYNAMIC_ISLAND)
+                RootConstants.KEY_HOOK_ENABLE_LSPOSER_SUPER_ISLAND ->
+                    enableLsposedSuperIsland = p.getBoolean(RootConstants.KEY_HOOK_ENABLE_LSPOSER_SUPER_ISLAND, RootConstants.DEFAULT_HOOK_ENABLE_LSPOSER_SUPER_ISLAND)
                 RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS ->
                     enableAodLyrics = p.getBoolean(RootConstants.KEY_HOOK_ENABLE_AOD_LYRICS, RootConstants.DEFAULT_HOOK_ENABLE_AOD_LYRICS)
                 RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED ->
@@ -290,6 +295,33 @@ fun MainPage() {
             enableDynamicIsland = false
             prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, false) }
             PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_DYNAMIC_ISLAND, false)
+        }
+    } }
+
+    val toggleLsposedSuperIsland: (Boolean) -> Unit = remember { { isChecked ->
+        if (isChecked) {
+            if (RootApplication.xposedService != null) {
+                enableLsposedSuperIsland = true
+                prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_LSPOSER_SUPER_ISLAND, true) }
+                PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_LSPOSER_SUPER_ISLAND, true)
+            } else {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = msgXposedNotActive,
+                        duration = SnackbarDuration.Custom(2000L)
+                    )
+                }
+            }
+        } else {
+            enableLsposedSuperIsland = false
+            prefs.edit { putBoolean(RootConstants.KEY_HOOK_ENABLE_LSPOSER_SUPER_ISLAND, false) }
+            PrefsBridge.putBoolean(RootConstants.KEY_HOOK_ENABLE_LSPOSER_SUPER_ISLAND, false)
+            // 关闭 LSPosed 总开关时，同步关闭其控制的 root 功能
+            if (enableSuperIsland) toggleSuperIsland(false)
+            if (enableAodLyrics) toggleAodLyrics(false)
+            if (enableLockScreenLyrics) toggleLockScreenLyrics(false)
+            if (removeFocusWhitelist) toggleRemoveFocusWhitelist(false)
+            if (removeIslandWhitelist) toggleRemoveIslandWhitelist(false)
         }
     } }
 
@@ -692,6 +724,8 @@ fun MainPage() {
                         onSuperIslandToggle = toggleSuperIsland,
                         enableDynamicIsland = enableDynamicIsland,
                         onDynamicIslandToggle = toggleDynamicIsland,
+                        enableLsposedSuperIsland = enableLsposedSuperIsland,
+                        onLsposedSuperIslandToggle = toggleLsposedSuperIsland,
                         enableAodLyrics = enableAodLyrics,
                         onAodLyricsToggle = toggleAodLyrics,
                         enableLockScreenLyrics = enableLockScreenLyrics,

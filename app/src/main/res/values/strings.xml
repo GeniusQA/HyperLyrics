@@ -37,8 +37,10 @@
     <string name="title_miui_systemui_enhancement">超级岛·摘要态歌词</string>
     <string name="summary_miui_systemui_enhancement">播放时在超级岛显示歌词</string>
     <string name="title_super_island_config">小米超级岛歌词自定义配置</string>
-    <string name="title_dynamic_island_lyrics">通知型灵动岛歌词</string>
-    <string name="summary_dynamic_island_lyrics">利用通知实现灵动岛歌词效果，适用于无root设备</string>
+    <string name="title_lsposed_super_island_lyrics">LSPosed超级岛歌词</string>
+    <string name="summary_lsposed_super_island_lyrics">开启后才能使用息屏歌词、锁屏歌词、摘要态歌词等需要root/LSPosed的功能</string>
+    <string name="title_dynamic_island_lyrics">通知型超级岛歌词</string>
+    <string name="summary_dynamic_island_lyrics">利用通知实现超级岛歌词效果，适用于无root设备</string>
     <string name="title_aod_lyrics">息屏歌词</string>
     <string name="summary_aod_lyrics">播放且停留在息屏界面时，在息屏媒体卡片下方显示歌词</string>
     <string name="title_lock_screen_aod">锁屏AOD</string>
@@ -52,7 +54,7 @@
     <string name="title_island_expanded_lyrics">超级岛·展开态歌词</string>
     <string name="summary_island_expanded_lyrics">展开超级岛媒体大岛时，在卡片内进度条下方显示歌词与翻译</string>
     <string name="title_classic_aod">自定义AOD</string>
-    <string name="title_dynamic_island_config">通知型灵动岛歌词自定义配置</string>
+    <string name="title_dynamic_island_config">通知型超级岛歌词自定义配置</string>
     <string name="title_special_features">特殊功能</string>
     <string name="title_remove_focus_whitelist">移除焦点通知白名单</string>
     <string name="summary_remove_focus_whitelist">不要和其他模块的相同功能冲突使用</string>
@@ -677,11 +679,11 @@
     <string name="title_help_usage_tips">使用提示</string>
     <string name="title_help_config_steps">配置流程</string>
     <string name="title_help_warm_tips">温馨提示</string>
-    <string name="summary_help_bug_notice">目前版本存在bug，如果不适配你的机型或系统版本，可用通知型灵动岛歌词代替，还请谅解</string>
+    <string name="summary_help_bug_notice">目前版本存在bug，如果不适配你的机型或系统版本，可用通知型超级岛歌词代替，还请谅解</string>
     <string name="summary_help_super_island_steps">Apple Music：在 LSPosed 中为 HyperLyrics 勾选推荐作用域 App，打开主页的“小米超级岛歌词”开关后，重启系统界面和 Apple Music。\n\n其他音乐 App 只需安装对应的 LyricProvider；Lyricon Central 已由 HyperLyrics 内置。完成配置后重启系统界面和音乐 App。</string>
     <string name="summary_help_dynamic_island_hint">利用实时通知和小米焦点通知来实现灵动岛歌词效果，适用于支持这两种通知的设备</string>
     <string name="summary_help_focus_whitelist_hint">小米的焦点通知有白名单验证，需要你自己想办法绕过</string>
-    <string name="summary_help_dynamic_island_steps">1、打开 HyperLyrics 主页的通知型灵动岛歌词开关\n2、点击进入歌词白名单页添加音乐软件包名\n3、在音乐软件里打开蓝牙歌词功能，并连接蓝牙设备</string>
+    <string name="summary_help_dynamic_island_steps">1、打开 HyperLyrics 主页的通知型超级岛歌词开关\n2、点击进入歌词白名单页添加音乐软件包名\n3、在音乐软件里打开蓝牙歌词功能，并连接蓝牙设备</string>
     <string name="summary_help_salt_player">已支持 Salt Player，更多应用等你发现...</string>
 
     <!-- Super Island Help -->
