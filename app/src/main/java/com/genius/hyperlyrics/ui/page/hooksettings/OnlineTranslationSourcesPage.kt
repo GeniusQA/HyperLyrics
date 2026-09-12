@@ -161,6 +161,8 @@ fun OnlineTranslationSourcesPage() {
     }
     var pendingSwap by remember { mutableStateOf<SourceSwap?>(null) }
     var showHelpDialog by remember { mutableStateOf(false) }
+    // 歌词来源链路弹窗：可视化展示当前歌曲歌词+翻译的完整获取链路。
+    var showChainDialog by remember { mutableStateOf(false) }
     // 二次匹配：手动输入歌名/歌手/专辑，搜索候选后选中重新抓词。
     var showManualMatchDialog by remember { mutableStateOf(false) }
     var manualTitle by remember { mutableStateOf("") }
@@ -638,6 +640,11 @@ fun OnlineTranslationSourcesPage() {
                             } else {
                                 MiuixTheme.colorScheme.onSurfaceVariantActions
                             },
+                            modifier = if (track != null && currentAppOnlineEnabled) {
+                                Modifier.clickable { showChainDialog = true }
+                            } else {
+                                Modifier
+                            },
                         )
                     }
                 }
@@ -878,6 +885,23 @@ fun OnlineTranslationSourcesPage() {
             }
         }
     }
+
+    WindowDialog(
+        title = stringResource(R.string.title_lyric_source_chain),
+        show = showChainDialog,
+        onDismissRequest = { showChainDialog = false },
+    ) {
+        LyricSourceChainDialog(
+            currentPackage = currentPackage,
+            appDisplayName = installedApps?.firstOrNull { it.app.packageName == currentPackage }
+                ?.app?.displayName ?: dynamicCurrentApp?.app?.displayName,
+            currentTrack = currentTrack,
+            currentAlbum = currentAlbum,
+            lyricOriginRes = lyricOriginRes(currentPackage),
+            enabledSources = sourceOrder.filter { sourceEnabled[it] == true },
+            sourceDiagnostics = sourceDiagnostics,
+        )
+    }
 }
 
 @Composable
@@ -910,6 +934,178 @@ private fun ManualMatchCandidateRow(
                 color = MiuixTheme.colorScheme.onSurfaceVariantActions,
             )
         }
+    }
+}
+
+@Composable
+private fun LyricSourceChainDialog(
+    currentPackage: String?,
+    appDisplayName: String?,
+    currentTrack: Pair<String, String>?,
+    currentAlbum: String,
+    lyricOriginRes: Int,
+    enabledSources: List<Source>,
+    sourceDiagnostics: Map<Source, SourceMatchDiagnostic?>,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 560.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        if (currentTrack == null) {
+            Text(
+                text = stringResource(R.string.chain_dialog_empty),
+                fontSize = MiuixTheme.textStyles.body1.fontSize,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
+            return@Column
+        }
+        val trackLabel = buildString {
+            append(currentTrack.first)
+            append(" - ")
+            append(currentTrack.second)
+            if (currentAlbum.isNotBlank()) append(" - $currentAlbum")
+        }
+        ChainStepRow(
+            label = stringResource(R.string.chain_step_player),
+            value = appDisplayName ?: currentPackage ?: "",
+        )
+        ChainStepRow(
+            label = stringResource(R.string.chain_step_strategy),
+            value = trackLabel,
+        )
+        // 基础歌词：原生曲库直读 或 通用歌词源 LRCLIB 殿后
+        val lrclib = sourceDiagnostics[Source.LRCLIB]
+        val baseValue = if (lyricOriginRes == R.string.lyric_origin_native) {
+            stringResource(R.string.chain_base_native)
+        } else if (lrclib != null && lrclib.found) {
+            stringResource(R.string.chain_base_lrclib_lines, lrclib.lineCount)
+        } else {
+            stringResource(R.string.chain_base_lrclib_none)
+        }
+        ChainStepRow(
+            label = stringResource(R.string.chain_step_base),
+            value = baseValue,
+            highlight = lyricOriginRes != R.string.lyric_origin_native,
+        )
+        // 翻译平台逐源匹配链路
+        val translationSources = enabledSources.filter { it != Source.LRCLIB }
+        if (translationSources.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.chain_step_translate),
+                fontSize = MiuixTheme.textStyles.title4.fontSize,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
+            )
+            translationSources.forEach { source ->
+                val diag = sourceDiagnostics[source]
+                val (statusText, statusColor) = when {
+                    diag == null ->
+                        stringResource(R.string.chain_status_no_data) to
+                            MiuixTheme.colorScheme.onSurfaceVariantActions
+                    diag.errorMessage != null || !diag.searched ->
+                        stringResource(R.string.chain_status_search_fail) to
+                            MiuixTheme.colorScheme.error
+                    diag.found ->
+                        stringResource(R.string.chain_status_hit) to
+                            MiuixTheme.colorScheme.primary
+                    diag.nearMissEligible ->
+                        stringResource(R.string.chain_status_nearmiss) to
+                            MiuixTheme.colorScheme.onSurfaceVariantActions
+                    diag.score >= OnlineLyricTargeter.PASS_SCORE ->
+                        stringResource(R.string.chain_status_pass_no_lyric) to
+                            MiuixTheme.colorScheme.onSurfaceVariantActions
+                    else ->
+                        stringResource(R.string.chain_status_fail) to
+                            MiuixTheme.colorScheme.error
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = source.displayName(),
+                        modifier = Modifier.weight(1f),
+                        fontSize = MiuixTheme.textStyles.body1.fontSize,
+                        color = MiuixTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = statusText,
+                        fontSize = MiuixTheme.textStyles.body2.fontSize,
+                        color = statusColor,
+                    )
+                }
+            }
+        }
+        // 最终命中平台
+        val matched = enabledSources.firstNotNullOfOrNull { source ->
+            sourceDiagnostics[source]?.takeIf {
+                it.found && it.score >= OnlineLyricTargeter.PASS_SCORE
+            }
+        }
+        if (matched != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            ChainStepRow(
+                label = stringResource(R.string.chain_step_final),
+                value = stringResource(
+                    R.string.chain_final_format,
+                    matched.source.displayName(),
+                    matched.score,
+                    matched.lineCount,
+                ),
+                emphasize = true,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChainStepRow(
+    label: String,
+    value: String,
+    highlight: Boolean = false,
+    emphasize: Boolean = false,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (emphasize) {
+                    Modifier.background(MiuixTheme.colorScheme.surfaceContainerHigh)
+                } else {
+                    Modifier
+                },
+            )
+            .padding(vertical = 8.dp)
+            .then(if (emphasize) Modifier.padding(horizontal = 12.dp) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.width(84.dp),
+            fontSize = MiuixTheme.textStyles.body2.fontSize,
+            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+        )
+        Text(
+            text = value,
+            modifier = Modifier.weight(1f),
+            fontSize = if (emphasize) {
+                MiuixTheme.textStyles.body1.fontSize
+            } else {
+                MiuixTheme.textStyles.body2.fontSize
+            },
+            fontWeight = if (emphasize) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (highlight || emphasize) {
+                MiuixTheme.colorScheme.primary
+            } else {
+                MiuixTheme.colorScheme.onBackground
+            },
+        )
     }
 }
 
