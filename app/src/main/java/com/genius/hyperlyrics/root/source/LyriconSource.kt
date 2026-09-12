@@ -16,6 +16,7 @@ import android.util.Log
 import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.IslandAlbumCoverWhitelist
+import com.genius.hyperlyrics.common.PrefsBridge
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.lyric.AppleOriginalMetadataPolicy
 import com.genius.hyperlyrics.common.lyric.AppleMissingLyricsSourceInfo
@@ -221,8 +222,9 @@ class LyriconSource : LyricSource {
     companion object {
         private const val TAG = "LyriconSource"
         private const val APPLE_MUSIC_PACKAGE = "com.apple.android.music"
-        private const val BUILT_IN_PROVIDER_PACKAGE = "com.genius.hyperlyrics"
-        private const val UNIVERSAL_FALLBACK_PROVIDER_PACKAGE = "com.genius.hyperlyrics.universal"
+        private const val BUILT_IN_PROVIDER_PACKAGE = RootConstants.BUILT_IN_LYRIC_PROVIDER_PACKAGE
+        private const val UNIVERSAL_FALLBACK_PROVIDER_PACKAGE =
+            RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE
         private const val APPLE_LYRICS_GRACE_MS = 5_000L
         private const val SALT_LOCAL_LYRICS_GRACE_MS = 3_000L
         private const val APPLE_MEDIA_MONITOR_INTERVAL_MS = 1_000L
@@ -251,7 +253,17 @@ class LyriconSource : LyricSource {
     @Volatile
     private var subscriber: LyriconSubscriber? = null
 
+    @Volatile
     private var activeProviderPackageName: String? = null
+        set(value) {
+            if (field != value) {
+                field = value
+                PrefsBridge.putString(
+                    RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER,
+                    value,
+                )
+            }
+        }
     @Volatile
     private var activeCentralPlayerPackageName: String? = null
     private var activeProviderDelayMs: Int = RootConstants.DEFAULT_HOOK_LYRICON_PROVIDER_DELAY
