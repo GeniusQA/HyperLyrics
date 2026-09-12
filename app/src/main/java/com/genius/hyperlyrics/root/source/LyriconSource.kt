@@ -228,6 +228,7 @@ class LyriconSource : LyricSource {
         private const val SOURCE_SWITCH_DIAGNOSTIC_WINDOW_MS = 20_000L
         private const val APPLE_NATIVE_LYRICS_SOURCE = "APPLE"
         private const val PRONUNCIATION_DIAGNOSTIC_TAG = "ApplePronunciationDiag"
+        private const val ROMANIZATION_REPLACE_TIME_WINDOW_MS = 8_000L
         private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     }
 
@@ -2001,7 +2002,9 @@ class LyriconSource : LyricSource {
 
     /**
      * LRCLIB 命中歌词但缺翻译时，用四平台补翻译后合并；
-     * 四平台也补不到翻译时，直接用「未命中歌词翻译」报错占位替代歌词展示。
+     * 若 LRCLIB 基准本身就是罗马音，则自动用在线源原词替换主行，
+     * 并保留 LRCLIB 时间戳用于同步；原 LRCLIB 文本降级为 [roma]。
+     * 四平台也补不到翻译/原词时，直接用「未命中歌词翻译」报错占位替代歌词展示。
      */
     private suspend fun enrichWithOnlineTranslations(
         application: Application,
@@ -2012,6 +2015,21 @@ class LyriconSource : LyricSource {
         orderedSources: List<Source>,
     ): LocalSong {
         if (orderedSources.isEmpty() || !needsOnlineEnrichment(lrclibSong)) return lrclibSong
+        // 自动罗马音替换：检测到 LRCLIB 主行是拉丁罗马音且在线源能拿到非拉丁原词时，
+        // 直接按时间戳对齐替换，不需要单独开关。
+        if (hasRomanizationLines(lrclibSong)) {
+            val originalLines = fetchThirdPartyLyrics(
+                application = application,
+                playerPackage = playerPackage,
+                baseSong = baseSong,
+                album = album,
+                order = orderedSources,
+                requireTranslation = false,
+            )
+            if (originalLines != null && originalLines.any { containsNonLatinLetter(it.content) }) {
+                replaceRomanizationWithOriginal(lrclibSong, originalLines)?.let { return it }
+            }
+        }
         val translationLines = fetchThirdPartyLyrics(
             application = application,
             playerPackage = playerPackage,
@@ -2038,6 +2056,78 @@ class LyriconSource : LyricSource {
             )
         }
         return OnlineTranslationMatcher.apply(lrclibSong, translationLines).song
+    }
+
+    private fun hasRomanizationLines(song: LocalSong): Boolean =
+        song.lyrics.orEmpty().any { line ->
+            RomanizationPolicy.looksLikeRomanization(line.text.orEmpty())
+        }
+
+    private fun containsNonLatinLetter(text: String): Boolean {
+        var index = 0
+        while (index < text.length) {
+            val codePoint = text.codePointAt(index)
+            if (
+                Character.isLetter(codePoint) &&
+                Character.UnicodeScript.of(codePoint) != Character.UnicodeScript.LATIN
+            ) {
+                return true
+            }
+            index += Character.charCount(codePoint)
+        }
+        return false
+    }
+
+    /**
+     * 用在线源原词替换 LRCLIB 罗马音主行，保留 LRCLIB 时间戳做同步；
+     * 仅替换那些主行确实是拉丁罗马音、且对应在线源行包含非拉丁原词的行。
+     */
+    private fun replaceRomanizationWithOriginal(
+        lrclibSong: LocalSong,
+        sourceLines: List<LrcLine>,
+    ): LocalSong? {
+        val baseLines = lrclibSong.lyrics?.map { line ->
+            LrcLine(
+                startTimeMs = line.begin,
+                content = line.text.orEmpty(),
+                translation = line.translation,
+                romanization = line.roma,
+            )
+        } ?: return null
+        if (baseLines.isEmpty() || sourceLines.isEmpty()) return null
+        val aligned = alignSourceToBase(baseLines, sourceLines)
+        val replaced = baseLines.mapIndexed { index, base ->
+            val source = aligned.getOrNull(index) ?: base
+            val baseIsRomanization = RomanizationPolicy.looksLikeRomanization(base.content)
+            val sourceHasOriginal = containsNonLatinLetter(source.content)
+            if (baseIsRomanization && sourceHasOriginal && source.content.isNotBlank()) {
+                base.copy(
+                    content = source.content,
+                    translation = source.translation,
+                    romanization = base.content,
+                )
+            } else {
+                base
+            }
+        }
+        return OnlineFallbackSongMapper.map(lrclibSong, replaced)
+            ?.copy(metadata = lrclibSong.metadata)
+    }
+
+    private fun alignSourceToBase(
+        baseLines: List<LrcLine>,
+        sourceLines: List<LrcLine>,
+    ): List<LrcLine> {
+        val sortedSource = sourceLines.sortedBy { it.startTimeMs }
+        return baseLines.map { base ->
+            val best = sortedSource.minByOrNull {
+                kotlin.math.abs(it.startTimeMs - base.startTimeMs)
+            }
+            val distance = best?.let {
+                kotlin.math.abs(it.startTimeMs - base.startTimeMs)
+            } ?: Long.MAX_VALUE
+            if (best != null && distance <= ROMANIZATION_REPLACE_TIME_WINDOW_MS) best else base
+        }
     }
 
     /**

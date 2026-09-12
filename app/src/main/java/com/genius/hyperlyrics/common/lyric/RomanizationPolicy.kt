@@ -26,6 +26,16 @@ object RomanizationPolicy {
             ?.split('-')
             ?.any { it.equals("Latn", ignoreCase = true) } == true
 
+    /**
+     * 判断一段文本是否看起来像拉丁罗马音（仅含拉丁字母，且至少有一个字母）。
+     * 用于 LRCLIB 等兜底歌词的自动罗马音检测。
+     */
+    fun looksLikeRomanization(text: String?): Boolean {
+        val visible = visibleText(text ?: return false)
+        if (visible.isEmpty()) return false
+        return isLatinRomanization(visible)
+    }
+
     private fun isLatinRomanization(text: String): Boolean {
         var hasLatinLetter = false
         var index = 0
