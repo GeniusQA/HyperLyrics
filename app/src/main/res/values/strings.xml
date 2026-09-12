@@ -498,6 +498,7 @@
     <string name="title_online_translation_platform_sources">平台来源</string>
     <string name="online_translation_no_current_track">暂无歌曲播放</string>
     <string name="online_translation_notification_access_needed">未检测到播放歌曲：需开启通知使用权（点此前往授权）</string>
+    <string name="online_translation_current_app_disabled_hint">当前 App「%1$s」未启用在线翻译，已隐藏平台来源与匹配链路</string>
     <string name="toast_song_info_copied">歌曲信息已复制，可用于手动搜索</string>
     <string name="online_translation_diagnose_refresh">刷新匹配分</string>
     <string name="online_translation_current_track_format">当前歌曲：%1$s - %2$s</string>
@@ -509,7 +510,10 @@
     <string name="lyric_origin_spotify">歌词来源：原生歌词优先，缺失或缺翻译时在线补齐</string>
     <string name="lyric_origin_ytm">歌词来源：在线歌词+翻译（YTM 无可读原生歌词）</string>
     <string name="lyric_origin_salt">歌词来源：本地歌词优先，缺失时在线兜底</string>
-    <string name="lyric_origin_online">歌词来源：在线歌词+翻译</string>
+    <string name="lyric_origin_online">歌词来源：通用插件 LRCLIB 歌词</string>
+    <string name="lyric_origin_lrclib_with_translation">歌词来源：通用插件 LRCLIB 歌词 + %1$s 翻译</string>
+    <string name="lyric_origin_provider_format">歌词来源：%1$s 插件（歌词+翻译）</string>
+    <string name="lyric_origin_provider_unknown_format">歌词来源：%1$s</string>
     <string name="title_online_translation_enabled_apps">启用App</string>
     <string name="summary_online_translation_app_translation">仅翻译</string>
     <string name="summary_online_translation_app_lyrics_translation">歌词、翻译</string>
@@ -527,9 +531,11 @@
     <string name="chain_step_translate">翻译平台匹配</string>
     <string name="chain_step_final">最终命中</string>
     <string name="chain_base_native">原生曲库直读（歌词+翻译）</string>
-    <string name="chain_base_lrclib">通用歌词源 LRCLIB 殿后</string>
-    <string name="chain_base_lrclib_lines">LRCLIB 命中 %1$d 行（仅歌词、无翻译）</string>
-    <string name="chain_base_lrclib_none">LRCLIB 未命中</string>
+    <string name="chain_base_lrclib">通用插件 LRCLIB 歌词</string>
+    <string name="chain_base_lrclib_lines">通用插件 LRCLIB 命中 %1$d 行</string>
+    <string name="chain_base_lrclib_none">通用插件 LRCLIB 未命中</string>
+    <string name="chain_base_provider_format">%1$s 插件（歌词+翻译）</string>
+    <string name="chain_base_provider_lrclib_format">%1$s 插件 + LRCLIB 歌词</string>
     <string name="chain_status_hit">命中</string>
     <string name="chain_status_pass_no_lyric">达标但无翻译</string>
     <string name="chain_status_nearmiss">近失候选</string>
