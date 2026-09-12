@@ -49,16 +49,28 @@ class LyricInfoSource(private val context: Context) : LyricSource {
         this.sink = sink
         trackedControllers.clear()
         try {
-            // 传入已启用的通知监听组件（而非 null），否则 change 回调只对本进程 UID 的
-            // 会话生效，SystemUI 内的 HyperLyrics 会漏掉酷狗等其他 UID 播放器，
-            // 导致“重启播放器/手机后不显示歌词”。
+            // 优先用通知监听组件（change 回调对全部 UID 会话生效），但 MIUI 等 ROM 会
+            // 拦截通知监听，未启用时 addOnActiveSessionsChangedListener(component) 抛异常，
+            // 不能因此让整个数据源启动失败——改为回退 null（SystemUI 下仍可读全部会话，
+            // 再靠下方逻辑补足）。
             val component = ComponentName(
                 "com.genius.hyperlyrics",
                 "com.genius.hyperlyrics.service.LiveLyricService",
             )
-            manager.addOnActiveSessionsChangedListener(sessionListener, component)
-            onActiveSessionsChanged(runCatching { manager.getActiveSessions(component) }.getOrElse { emptyList() })
-            HookLogger.i("LyricInfoSource", "数据源已启动, component=${component.className}")
+            var usedComponent = false
+            runCatching { manager.addOnActiveSessionsChangedListener(sessionListener, component) }
+                .onSuccess { usedComponent = true }
+                .onFailure { e ->
+                    HookLogger.w("LyricInfoSource", "组件式会话监听注册失败，回退 null: ${e.message}")
+                    runCatching { manager.addOnActiveSessionsChangedListener(sessionListener, null) }
+                }
+            val initial = if (usedComponent) {
+                runCatching { manager.getActiveSessions(component) }.getOrElse { emptyList() }
+            } else {
+                runCatching { manager.getActiveSessions(null) }.getOrElse { emptyList() }
+            }
+            onActiveSessionsChanged(initial)
+            HookLogger.i("LyricInfoSource", "数据源已启动, component=${if (usedComponent) component.className else "null(回退)"}")
         } catch (e: Exception) {
             HookLogger.e("LyricInfoSource", "数据源启动失败", e)
         }
