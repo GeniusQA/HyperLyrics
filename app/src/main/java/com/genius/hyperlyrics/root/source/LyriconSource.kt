@@ -23,6 +23,7 @@ import com.genius.hyperlyrics.common.lyric.ApplePronunciationVisibilityPolicy
 import com.genius.hyperlyrics.common.lyric.ChineseLyricsPolicy
 import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import com.genius.hyperlyrics.common.lyric.OnlineTranslationContentPolicy
+import com.genius.hyperlyrics.common.lyric.RomanizationPolicy
 import com.genius.hyperlyrics.common.lyric.TraditionalLyricsSimplifier
 import com.genius.hyperlyrics.common.media.MediaMetadataHelper
 import com.genius.hyperlyrics.common.media.NextTrackMetadataCache
