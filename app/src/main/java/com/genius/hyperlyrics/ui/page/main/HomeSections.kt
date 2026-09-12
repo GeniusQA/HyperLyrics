@@ -139,15 +139,27 @@ fun LazyListScope.homePageSections(
                     title = stringResource(R.string.title_lsposed_super_island_lyrics),
                     summary = stringResource(R.string.summary_lsposed_super_island_lyrics),
                     checked = enableLsposedSuperIsland,
-                    onCheckedChange = onLsposedSuperIslandToggle,
-                    enabled = isModuleActive,
+                    onCheckedChange = { isChecked ->
+                        // 互斥：开启 LSPosed 超级岛歌词时，先关闭通知型超级岛歌词。
+                        if (isChecked && enableDynamicIsland) {
+                            onDynamicIslandToggle(false)
+                        }
+                        onLsposedSuperIslandToggle(isChecked)
+                    },
+                    enabled = !enableDynamicIsland,
                 )
                 SwitchPreference(
                     title = stringResource(R.string.title_dynamic_island_lyrics),
                     summary = stringResource(R.string.summary_dynamic_island_lyrics),
                     checked = enableDynamicIsland,
-                    onCheckedChange = onDynamicIslandToggle,
-                    enabled = !isModuleActive,
+                    onCheckedChange = { isChecked ->
+                        // 互斥：开启通知型超级岛歌词时，先关闭 LSPosed 超级岛歌词。
+                        if (isChecked && enableLsposedSuperIsland) {
+                            onLsposedSuperIslandToggle(false)
+                        }
+                        onDynamicIslandToggle(isChecked)
+                    },
+                    enabled = !enableLsposedSuperIsland,
                 )
                 AnimatedVisibility(visible = enableDynamicIsland) {
                     ArrowPreference(
