@@ -2015,8 +2015,27 @@ class LyriconSource : LyricSource {
         orderedSources: List<Source>,
     ): LocalSong {
         if (orderedSources.isEmpty() || !needsOnlineEnrichment(lrclibSong)) return lrclibSong
-        // 自动罗马音替换：检测到 LRCLIB 主行是拉丁罗马音且在线源能拿到非拉丁原词时，
-        // 直接按时间戳对齐替换，不需要单独开关。
+        val translationLines = fetchThirdPartyLyrics(
+            application = application,
+            playerPackage = playerPackage,
+            baseSong = baseSong,
+            album = album,
+            order = orderedSources,
+            requireTranslation = true,
+        )
+        if (translationLines != null) {
+            // 自动罗马音替换：检测到 LRCLIB 主行是拉丁罗马音且在线源能拿到非拉丁原词时，
+            // 用在线源原词（含译文）按时间戳对齐替换主行，原 LRCLIB 文本降级为 roma，
+            // 翻译沿用在线源译文，避免整段翻译被清空；不需要单独开关。
+            if (hasRomanizationLines(lrclibSong) &&
+                translationLines.any { containsNonLatinLetter(it.content) }
+            ) {
+                return replaceRomanizationWithOriginal(lrclibSong, translationLines)
+                    ?: OnlineTranslationMatcher.apply(lrclibSong, translationLines).song
+            }
+            return OnlineTranslationMatcher.apply(lrclibSong, translationLines).song
+        }
+        // 翻译缺失时仍尝试取原词修复罗马音基准（译文缺失可接受），避免只能看到罗马音
         if (hasRomanizationLines(lrclibSong)) {
             val originalLines = fetchThirdPartyLyrics(
                 application = application,
@@ -2027,35 +2046,24 @@ class LyriconSource : LyricSource {
                 requireTranslation = false,
             )
             if (originalLines != null && originalLines.any { containsNonLatinLetter(it.content) }) {
-                replaceRomanizationWithOriginal(lrclibSong, originalLines)?.let { return it }
+                return replaceRomanizationWithOriginal(lrclibSong, originalLines) ?: lrclibSong
             }
         }
-        val translationLines = fetchThirdPartyLyrics(
-            application = application,
-            playerPackage = playerPackage,
-            baseSong = baseSong,
-            album = album,
-            order = orderedSources,
-            requireTranslation = true,
+        diagnostic("MetaData未命中歌词翻译: title=${baseSong.name}")
+        HookLogger.w(
+            TAG,
+            "MetaData未命中歌词翻译: title=${baseSong.name}, player=$playerPackage",
         )
-        if (translationLines == null) {
-            diagnostic("MetaData未命中歌词翻译: title=${baseSong.name}")
-            HookLogger.w(
-                TAG,
-                "MetaData未命中歌词翻译: title=${baseSong.name}, player=$playerPackage",
-            )
-            return lrclibSong.copy(
-                lyrics = null,
-                metadata = lyricMetadataOf(
-                    LyricMetadataKeys.LYRIC_ERROR_MESSAGE to
-                        moduleString(
-                            R.string.lyric_error_no_translation,
-                            "通用插件翻译匹配失败",
-                        ),
-                ),
-            )
-        }
-        return OnlineTranslationMatcher.apply(lrclibSong, translationLines).song
+        return lrclibSong.copy(
+            lyrics = null,
+            metadata = lyricMetadataOf(
+                LyricMetadataKeys.LYRIC_ERROR_MESSAGE to
+                    moduleString(
+                        R.string.lyric_error_no_translation,
+                        "通用插件翻译匹配失败",
+                    ),
+            ),
+        )
     }
 
     private fun hasRomanizationLines(song: LocalSong): Boolean =
