@@ -232,6 +232,8 @@ class LyriconSource : LyricSource {
         private const val APPLE_NATIVE_LYRICS_SOURCE = "APPLE"
         private const val PRONUNCIATION_DIAGNOSTIC_TAG = "ApplePronunciationDiag"
         private const val ROMANIZATION_REPLACE_TIME_WINDOW_MS = 8_000L
+        /** 本地媒体会话轮询间隔：兜底 MIUI 下 change 回调对其他 UID 会话不触发的情况。 */
+        private const val LOCAL_SESSION_POLL_INTERVAL_MS = 3_000L
         private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     }
 
@@ -315,10 +317,6 @@ class LyriconSource : LyricSource {
     private var localSessionPollJob: Job? = null
     private var universalFallbackProvider: UniversalFallbackProvider? = null
 
-    /** 本地媒体会话轮询间隔：兜底 MIUI 下 change 回调对其他 UID 会话不触发的情况。 */
-    private companion object {
-        const val LOCAL_SESSION_POLL_INTERVAL_MS = 3_000L
-    }
     private val activeMediaSessionGate = ActiveMediaSessionGate(
         nowElapsedMs = SystemClock::elapsedRealtime,
         nowWallClockMs = System::currentTimeMillis,
