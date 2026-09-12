@@ -77,6 +77,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.provider.OfficialProviderCatalog
 import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
 import com.genius.hyperlyrics.online.OnlineLyricTargeter
 import com.genius.hyperlyrics.online.SourceMatchDiagnostic
@@ -190,6 +191,8 @@ fun OnlineTranslationSourcesPage() {
     var currentAlbum by remember { mutableStateOf("") }
     var currentDurationMs by remember { mutableStateOf(0L) }
     var currentPackage by remember { mutableStateOf<String?>(null) }
+    // Hook 侧写入的实际歌词 Provider 包名，用于 MetaData 中准确展示歌词来源。
+    var currentProviderPackage by remember { mutableStateOf<String?>(null) }
     var listenerEnabled by remember { mutableStateOf<Boolean?>(null) }
     val sourceDiagnostics = remember { mutableStateMapOf<Source, SourceMatchDiagnostic?>() }
     var diagnosing by remember { mutableStateOf(false) }
@@ -215,7 +218,10 @@ fun OnlineTranslationSourcesPage() {
         }
         currentPackage = active?.packageName
         listenerEnabled = isNotificationListenerEnabled()
-        if (active == null) return false
+        if (active == null) {
+            currentProviderPackage = null
+            return false
+        }
         val pkg = active.packageName
         // 隐私/权限：未在“启用 App”中开启的包（如视频软件）不应读取其歌曲元数据。
         // 只保留包名用于动态展示条目，让用户能手动开启；标题/歌手/专辑等敏感信息不获取。
@@ -223,6 +229,7 @@ fun OnlineTranslationSourcesPage() {
             currentTrack = null
             currentAlbum = ""
             currentDurationMs = 0L
+            currentProviderPackage = null
             return false
         }
         val metadata = active.metadata ?: return false
@@ -234,6 +241,9 @@ fun OnlineTranslationSourcesPage() {
         currentTrack = title to artist
         currentAlbum = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty().trim()
         currentDurationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
+        currentProviderPackage = runCatching {
+            prefs.getString(RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER, null)
+        }.getOrNull()
         return true
     }
 
@@ -479,6 +489,34 @@ fun OnlineTranslationSourcesPage() {
             }
         },
     ) {
+        val currentAppDisabled = currentPackage != null && !currentAppOnlineEnabled
+        if (currentAppDisabled) {
+            item(key = "platform_sources_disabled_hint") {
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp)
+                        .fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.online_translation_current_app_disabled_hint,
+                            installedApps?.firstOrNull {
+                                it.app.packageName == currentPackage
+                            }?.app?.displayName
+                                ?: dynamicCurrentApp?.app?.displayName
+                                ?: currentPackage
+                                ?: "",
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        fontSize = MiuixTheme.textStyles.body1.fontSize,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    )
+                }
+            }
+        } else {
         item(key = "platform_sources_title") {
             Row(
                 modifier = Modifier
@@ -590,18 +628,15 @@ fun OnlineTranslationSourcesPage() {
                     },
                 )
                 if (track != null && currentAppOnlineEnabled) {
-                    // 歌词来源：与 hook 侧管线决策一致——原生曲库 App 直读；
-                    // 非原生 App 命中在线源时展示实际命中的在线来源，
-                    // 未命中（或尚未诊断）时才展示“原生优先/兜底”策略。
-                    var originRes = lyricOriginRes(currentPackage)
-                    if (originRes != R.string.lyric_origin_native &&
-                        (matchedDiagnostic != null || nearMissDiagnostic != null)
-                    ) {
-                        originRes = R.string.lyric_origin_online
-                    }
+                    // 歌词来源：优先按 Hook 侧写入的实际 Provider 展示；
+                    // 通用兜底 LRCLIB 命中翻译时会追加翻译平台。
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = stringResource(originRes),
+                        text = resolveLyricSourceText(
+                            currentPackage,
+                            currentProviderPackage,
+                            matchedDiagnostic,
+                        ),
                         fontSize = MiuixTheme.textStyles.body2.fontSize,
                         color = MiuixTheme.colorScheme.onBackground,
                     )
@@ -782,6 +817,7 @@ fun OnlineTranslationSourcesPage() {
                 )
             },
         )
+        }
     }
 
     WindowDialog(
@@ -897,7 +933,7 @@ fun OnlineTranslationSourcesPage() {
                 ?.app?.displayName ?: dynamicCurrentApp?.app?.displayName,
             currentTrack = currentTrack,
             currentAlbum = currentAlbum,
-            lyricOriginRes = lyricOriginRes(currentPackage),
+            currentProviderPackage = currentProviderPackage,
             enabledSources = sourceOrder.filter { sourceEnabled[it] == true },
             sourceDiagnostics = sourceDiagnostics,
         )
@@ -943,7 +979,7 @@ private fun LyricSourceChainDialog(
     appDisplayName: String?,
     currentTrack: Pair<String, String>?,
     currentAlbum: String,
-    lyricOriginRes: Int,
+    currentProviderPackage: String?,
     enabledSources: List<Source>,
     sourceDiagnostics: Map<Source, SourceMatchDiagnostic?>,
 ) {
@@ -968,6 +1004,7 @@ private fun LyricSourceChainDialog(
             append(currentTrack.second)
             if (currentAlbum.isNotBlank()) append(" - $currentAlbum")
         }
+        val context = LocalContext.current
         ChainStepRow(
             label = stringResource(R.string.chain_step_player),
             value = appDisplayName ?: currentPackage ?: "",
@@ -976,19 +1013,13 @@ private fun LyricSourceChainDialog(
             label = stringResource(R.string.chain_step_strategy),
             value = trackLabel,
         )
-        // 基础歌词：原生曲库直读 或 通用歌词源 LRCLIB 殿后
+        // 基础歌词：按 Hook 侧实际 Provider 显示来源，LRCLIB 通用兜底时展示命中行数。
         val lrclib = sourceDiagnostics[Source.LRCLIB]
-        val baseValue = if (lyricOriginRes == R.string.lyric_origin_native) {
-            stringResource(R.string.chain_base_native)
-        } else if (lrclib != null && lrclib.found) {
-            stringResource(R.string.chain_base_lrclib_lines, lrclib.lineCount)
-        } else {
-            stringResource(R.string.chain_base_lrclib_none)
-        }
+        val baseValue = resolveBaseLyricLabel(context, currentProviderPackage, lrclib)
         ChainStepRow(
             label = stringResource(R.string.chain_step_base),
             value = baseValue,
-            highlight = lyricOriginRes != R.string.lyric_origin_native,
+            highlight = currentProviderPackage == RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE,
         )
         // 翻译平台逐源匹配链路
         val translationSources = enabledSources.filter { it != Source.LRCLIB }
@@ -1556,16 +1587,108 @@ private val NATIVE_LYRIC_PACKAGES = setOf(
     "com.xuncorp.qinalt.music",
 )
 
-/** 按播放器类型推断当前歌词/翻译的实际来源（与 hook 侧管线决策一致）。 */
-private fun lyricOriginRes(packageName: String?): Int = when (packageName) {
-    OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE -> R.string.lyric_origin_spotify
-    OnlineTranslationSourcePreferences.YOUTUBE_MUSIC_PACKAGE -> R.string.lyric_origin_ytm
-    OnlineTranslationSourcePreferences.SALT_PACKAGE -> R.string.lyric_origin_salt
-    OnlineTranslationSourcePreferences.APPLE_MUSIC_PACKAGE,
-    OnlineTranslationSourcePreferences.QISHUI_PACKAGE,
+/** 按播放器类型推断当前歌词/翻译的实际来源（与 hook 侧管线决策一致）。
+ *  注意：优先以 [currentProviderPackage]（Hook 侧写入的实际 Provider）为准。
+ */
+private fun lyricOriginRes(
+    packageName: String?,
+    currentProviderPackage: String? = null,
+): Int = when {
+    currentProviderPackage == RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE -> R.string.lyric_origin_online
+    currentProviderPackage == RootConstants.BUILT_IN_LYRIC_PROVIDER_PACKAGE -> R.string.lyric_origin_native
+    currentProviderPackage != null && isOfficialLyricProvider(currentProviderPackage) -> R.string.lyric_origin_native
+    packageName == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE -> R.string.lyric_origin_spotify
+    packageName == OnlineTranslationSourcePreferences.YOUTUBE_MUSIC_PACKAGE -> R.string.lyric_origin_ytm
+    packageName == OnlineTranslationSourcePreferences.SALT_PACKAGE -> R.string.lyric_origin_salt
+    packageName == OnlineTranslationSourcePreferences.APPLE_MUSIC_PACKAGE,
+    packageName == OnlineTranslationSourcePreferences.QISHUI_PACKAGE,
     -> R.string.lyric_origin_native
-    in NATIVE_LYRIC_PACKAGES -> R.string.lyric_origin_native
+    packageName in NATIVE_LYRIC_PACKAGES -> R.string.lyric_origin_native
     else -> R.string.lyric_origin_online
+}
+
+/** 判断包名是否为官方独立 Lyric Provider 模块。 */
+private fun isOfficialLyricProvider(packageName: String): Boolean =
+    packageName.startsWith(OfficialProviderCatalog.OFFICIAL_PROVIDER_PACKAGE_PREFIX)
+
+/** 解析 Provider 包名到展示名称（内置/通用插件/独立 Provider）。 */
+private fun providerDisplayName(context: Context, providerPackageName: String?): String? = when (providerPackageName) {
+    RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE -> context.getString(R.string.chain_base_lrclib)
+    RootConstants.BUILT_IN_LYRIC_PROVIDER_PACKAGE -> context.getString(R.string.chain_base_native)
+    null -> null
+    else -> {
+        val prefix = OfficialProviderCatalog.OFFICIAL_PROVIDER_PACKAGE_PREFIX
+        if (providerPackageName.startsWith(prefix)) {
+            OfficialProviderCatalog.definitionForId(
+                providerPackageName.removePrefix(prefix),
+            )?.displayName
+        } else {
+            null
+        }
+    }
+}
+
+/**
+ * 生成“歌词来源”顶部展示文本。
+ * 如果 Hook 侧已写入实际 Provider，按 Provider 显示；否则按包名推断。
+ */
+@Composable
+private fun resolveLyricSourceText(
+    packageName: String?,
+    currentProviderPackage: String?,
+    translationHit: SourceMatchDiagnostic?,
+): String {
+    val context = LocalContext.current
+    val providerName = providerDisplayName(context, currentProviderPackage)
+    return when {
+        currentProviderPackage == RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE -> {
+            val hit = translationHit?.takeIf { it.found }
+            if (hit != null) {
+                context.getString(R.string.lyric_origin_lrclib_with_translation, hit.source.displayName)
+            } else {
+                context.getString(R.string.lyric_origin_online)
+            }
+        }
+        currentProviderPackage == RootConstants.BUILT_IN_LYRIC_PROVIDER_PACKAGE -> {
+            context.getString(R.string.lyric_origin_native)
+        }
+        currentProviderPackage != null && isOfficialLyricProvider(currentProviderPackage) && providerName != null -> {
+            context.getString(R.string.lyric_origin_provider_format, providerName)
+        }
+        currentProviderPackage != null -> {
+            // 未知 Provider，兜底显示包名
+            context.getString(R.string.lyric_origin_provider_unknown_format, currentProviderPackage)
+        }
+        else -> stringResource(lyricOriginRes(packageName, null))
+    }
+}
+
+/** 生成“基础歌词”链路展示文本。 */
+private fun resolveBaseLyricLabel(
+    context: Context,
+    providerPackageName: String?,
+    lrclib: SourceMatchDiagnostic?,
+): String = when (providerPackageName) {
+    RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE -> {
+        if (lrclib != null && lrclib.found) {
+            context.getString(R.string.chain_base_lrclib_lines, lrclib.lineCount)
+        } else {
+            context.getString(R.string.chain_base_lrclib_none)
+        }
+    }
+    RootConstants.BUILT_IN_LYRIC_PROVIDER_PACKAGE -> context.getString(R.string.chain_base_native)
+    else -> {
+        val providerName = providerDisplayName(context, providerPackageName)
+        if (providerName != null) {
+            if (lrclib != null && lrclib.found) {
+                context.getString(R.string.chain_base_provider_lrclib_format, providerName)
+            } else {
+                context.getString(R.string.chain_base_provider_format, providerName)
+            }
+        } else {
+            context.getString(R.string.chain_base_lrclib_none)
+        }
+    }
 }
 
 private val ENABLED_APPS = listOf(
