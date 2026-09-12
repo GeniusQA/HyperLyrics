@@ -2031,8 +2031,14 @@ class LyriconSource : LyricSource {
             if (hasRomanizationLines(lrclibSong) &&
                 translationLines.any { containsNonLatinLetter(it.content) }
             ) {
-                return replaceRomanizationWithOriginal(lrclibSong, translationLines)
-                    ?: OnlineTranslationMatcher.apply(lrclibSong, translationLines).song
+                val replaced = replaceRomanizationWithOriginal(lrclibSong, translationLines)
+                if (replaced != null) return replaced
+                // 罗马音基准与在线源原词对齐失败：直接用在线源行（含原词+翻译）作歌词，
+                // 沿用其同步时间戳，避免回落到「罗马音基准 vs 韩文候选」导致翻译整段丢失。
+                val fromSource = OnlineFallbackSongMapper.map(lrclibSong, translationLines)
+                if (fromSource.lyrics.orEmpty().any { !it.translation.isNullOrBlank() }) {
+                    return fromSource
+                }
             }
             return OnlineTranslationMatcher.apply(lrclibSong, translationLines).song
         }

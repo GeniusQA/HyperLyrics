@@ -921,30 +921,54 @@ object OnlineLyricTargeter {
         }
 
     internal fun toLrcLines(lyricsResult: LyricsResult): List<LrcLine> {
-        val translationsByStart = lyricsResult.translated.orEmpty().associate { line ->
+        val originalLines = lyricsResult.original
+        val translatedLines = lyricsResult.translated.orEmpty()
+        val romanizationLines = lyricsResult.romanization.orEmpty()
+        val translationsByStart = translatedLines.associate { line ->
             line.start to line.words.joinToString("") { it.text }.trim()
         }
-        val romanizationsByStart = lyricsResult.romanization.orEmpty().associate { line ->
+        val romanizationsByStart = romanizationLines.associate { line ->
             line.start to line.words
                 .map { it.text.trim() }
                 .filter(String::isNotEmpty)
                 .joinToString(" ")
         }
-        return lyricsResult.original.mapNotNull { line ->
+        fun build(index: Int, line: LyricsLine, translation: String?): LrcLine? {
             val content = line.words.joinToString("") { it.text }.trim()
-            if (content.isEmpty()) return@mapNotNull null
-            LrcLine(
+            if (content.isEmpty()) return null
+            return LrcLine(
                 startTimeMs = line.start,
                 content = content,
-                translation = OnlineTranslationContentPolicy.sanitize(
-                    translationsByStart[line.start]
-                ),
+                translation = OnlineTranslationContentPolicy.sanitize(translation),
                 romanization = RomanizationPolicy.sanitize(
                     originalText = content,
                     pronunciation = romanizationsByStart[line.start],
                 ),
             )
         }
+        val exactMatched = originalLines.mapIndexedNotNull { index, line ->
+            build(index, line, translationsByStart[line.start])
+        }
+        // 部分平台（如某些 NetEase 接口）的翻译行与原词行时间戳不一致，
+        // 精确 start 关联会全盘落空导致翻译整段丢失。此时在行数一致的前提下
+        // 回退按行序（位置）关联翻译，保留 LRCLIB 原词时间戳用于同步。
+        if (exactMatched.count { !it.translation.isNullOrBlank() } == 0 &&
+            translatedLines.isNotEmpty() &&
+            translatedLines.size == originalLines.size
+        ) {
+            val translatedByIndex = translatedLines.map {
+                it.words.joinToString("") { w -> w.text }.trim()
+            }
+            LogManager.d(
+                "OnlineTargeter",
+                "toLrcLines: 精确时间戳关联翻译失败，回退按行序关联 " +
+                    "(original=${originalLines.size}, translated=${translatedLines.size})",
+            )
+            return originalLines.mapIndexedNotNull { index, line ->
+                build(index, line, translatedByIndex.getOrNull(index))
+            }
+        }
+        return exactMatched
     }
 
     private fun calculateScore(
