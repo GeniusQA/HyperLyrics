@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "pluginApiVersion": 3,
+  "pluginId": "qishui",
+  "displayName": "汽水音乐",
+  "versionName": "1.0.3",
+  "versionCode": 4,
+  "minCoreVersionCode": 140071,
+  "entryClass": "com.juren233.hle.providers.qishui.QishuiPluginEntry",
+  "providerPackageName": "com.juren233.hyperlyricsenhanced.provider.qishui",
+  "targetPackages": [
+    "com.luna.music"
+  ],
+  "classesSha256": ""
+}

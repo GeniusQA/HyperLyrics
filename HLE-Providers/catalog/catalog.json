@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {"id":"netease","displayName":"网易云音乐","targetPackages":["com.netease.cloudmusic","com.hihonor.cloudmusic"],"available":true,"versionName":"1.0.16","versionCode":19,"assetUrl":"https://github.com/juren233/HLE-Providers/releases/download/netease-v1.0.16/netease-1.0.16.hlp","sha256":"2c41b011db70e09ac09635b96f0418221cb88a4c0a03d4188d99dbd8496ff409"},
+    {"id":"qqmusic","displayName":"QQ音乐","targetPackages":["com.tencent.qqmusic","com.tencent.qqmusicpad","com.miui.player"],"available":true,"versionName":"1.0.12","versionCode":13,"assetUrl":"https://github.com/juren233/HLE-Providers/releases/download/qqmusic-v1.0.12/qqmusic-1.0.12.hlp","sha256":"efe920cc5164ae0d4dd99bb8000adcee7de19ac6230eb03e784779baccef434c"},
+    {"id":"kugou","displayName":"酷狗音乐","targetPackages":["com.kugou.android","com.kugou.android.lite"],"available":true,"versionName":"1.0.13","versionCode":14,"assetUrl":"https://github.com/juren233/HLE-Providers/releases/download/kugou-v1.0.13/kugou-1.0.13.hlp","sha256":"6ffcad6bcf06083ed238a672e23df3f3e171311a613f62064835135b10dd3baf"},
+    {"id":"kuwo","displayName":"酷我音乐","targetPackages":["cn.kuwo.player"],"available":true,"versionName":"1.0.9","versionCode":10,"assetUrl":"https://github.com/juren233/HLE-Providers/releases/download/kuwo-v1.0.9/kuwo-1.0.9.hlp","sha256":"297f8acae23d6ba13a449fcf7915ec32fdac7d38a109305f22f2bc64143366b0"},
+    {"id":"spotify","displayName":"Spotify","targetPackages":["com.spotify.music"],"available":true,"versionName":"1.0.15","versionCode":16,"assetUrl":"https://github.com/juren233/HLE-Providers/releases/download/spotify-v1.0.15/spotify-1.0.15.hlp","sha256":"20fe5b1c84c2a777d737db69e3fed43980595e9edc86a65d4ee1e2b5429293fc"},
+    {"id":"lxmusic","displayName":"LX音乐","targetPackages":["cn.toside.music.mobile","com.ikunshare.music.mobile","com.lxnetease.music.mobile"],"available":false},
+    {"id":"poweramp","displayName":"Poweramp","targetPackages":["com.maxmpz.audioplayer"],"available":false},
+    {"id":"salt-player","displayName":"椒盐音乐","targetPackages":["com.salt.music"],"available":true,"versionName":"1.0.11","versionCode":13,"assetUrl":"https://github.com/juren233/HLE-Providers/releases/download/salt-player-v1.0.11/salt-player-1.0.11.hlp","sha256":"f797f41a694638ae73b68869682c09de4a30513231e14156e1b0e0f5aafe1b53"},
+    {"id":"qishui","displayName":"汽水音乐","targetPackages":["com.luna.music"],"available":true,"versionName":"1.0.2","versionCode":3,"assetUrl":"https://github.com/juren233/HLE-Providers/releases/download/qishui-v1.0.2/qishui-1.0.2.hlp","sha256":"a67f6b7df5f2a4a8376702cc643ce7f364f9b9be02c53d6c01fa67f05bfc3ad9"},
+    {"id":"musicfree","displayName":"MusicFree","targetPackages":["fun.upup.musicfree"],"available":false},
+    {"id":"gramophone","displayName":"Gramophone","targetPackages":["org.akanework.gramophone"],"available":false},
+    {"id":"symfonium","displayName":"Symfonium","targetPackages":["app.symfonik.music.player"],"available":false}
+  ]
+}

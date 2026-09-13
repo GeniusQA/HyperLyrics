@@ -1,0 +1,166 @@
+name: Provider Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider to publish
+        required: true
+        type: choice
+        options:
+          - netease
+          - qqmusic
+          - kugou
+          - kuwo
+          - qishui
+          - salt-player
+          - spotify
+  push:
+    tags:
+      - "provider-*-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v4
+      - name: Resolve provider
+        id: provider
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            provider='${{ inputs.provider }}'
+          else
+            provider="${GITHUB_REF_NAME#provider-}"
+            provider="${provider%%-v*}"
+          fi
+          case "$provider" in
+            netease) display_name="网易云音乐" ;;
+            qqmusic) display_name="QQ音乐" ;;
+            kugou) display_name="酷狗音乐" ;;
+            kuwo) display_name="酷我音乐" ;;
+            qishui) display_name="汽水音乐" ;;
+            salt-player) display_name="椒盐音乐" ;;
+            spotify) display_name="Spotify" ;;
+            *) echo "Unsupported provider tag: $GITHUB_REF_NAME" >&2; exit 1 ;;
+          esac
+          echo "id=$provider" >> "$GITHUB_OUTPUT"
+          echo "display_name=$display_name" >> "$GITHUB_OUTPUT"
+      - name: Restore signing key
+        env:
+          HLE_PROVIDER_SIGNING_KEY_PEM: ${{ secrets.HLE_PROVIDER_SIGNING_KEY_PEM }}
+        run: |
+          test -n "$HLE_PROVIDER_SIGNING_KEY_PEM"
+          printf '%s' "$HLE_PROVIDER_SIGNING_KEY_PEM" > signing-private.pem
+          chmod 600 signing-private.pem
+      - name: Build signed Provider Pack
+        id: pack
+        run: |
+          provider='${{ steps.provider.outputs.id }}'
+          manifest="HLE-Providers/providers/$provider/provider.json"
+          version_name=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["versionName"])' "$manifest")
+          version_code=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["versionCode"])' "$manifest")
+          target_packages=$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1],encoding="utf-8"))["targetPackages"]))' "$manifest")
+          asset="dist/${provider}-${version_name}.hlp"
+          (cd HLE-Providers && ./gradlew --no-daemon --max-workers=2 ":providers:$provider:assembleRelease")
+          apk="HLE-Providers/providers/$provider/build/outputs/apk/release/${provider}-release-unsigned.apk"
+          python3 HLE-Providers/scripts/build_provider_pack.py \
+            --apk "$apk" \
+            --manifest "$manifest" \
+            --private-key signing-private.pem \
+            --output "$asset"
+          pack_sha=$(sha256sum "$asset" | cut -d' ' -f1)
+          echo "provider=$provider" >> "$GITHUB_OUTPUT"
+          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
+          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          echo "target_packages=$target_packages" >> "$GITHUB_OUTPUT"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "sha256=$pack_sha" >> "$GITHUB_OUTPUT"
+      - name: Update catalog & commit to main
+        run: |
+          provider='${{ steps.pack.outputs.provider }}'
+          version_name='${{ steps.pack.outputs.version_name }}'
+          version_code='${{ steps.pack.outputs.version_code }}'
+          target_packages='${{ steps.pack.outputs.target_packages }}'
+          pack_sha='${{ steps.pack.outputs.sha256 }}'
+          asset_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/providers/${provider}-${version_name}.hlp"
+
+          mkdir -p providers
+          cp "${{ steps.pack.outputs.asset }}" "providers/${provider}-${version_name}.hlp"
+
+          python3 - "$provider" "$version_name" "$version_code" "$asset_url" "$pack_sha" "$target_packages" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          provider_id, version_name, version_code, asset_url, pack_sha, target_packages = sys.argv[1:]
+          catalog_path = pathlib.Path("catalog/catalog.json")
+          catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+          if provider_id == "qqmusic":
+              catalog["providers"] = [
+                  item for item in catalog["providers"] if item["id"] != "qqmusic-hd"
+              ]
+          canonical_display_names = {
+              "qqmusic": "QQ音乐",
+              "kugou": "酷狗音乐",
+              "lxmusic": "LX音乐",
+              "qishui": "汽水音乐",
+              "salt-player": "椒盐音乐",
+              "spotify": "Spotify",
+          }
+          for item in catalog["providers"]:
+              if item["id"] in canonical_display_names:
+                  item["displayName"] = canonical_display_names[item["id"]]
+          provider = next(item for item in catalog["providers"] if item["id"] == provider_id)
+          provider.update(
+              targetPackages=json.loads(target_packages),
+              available=True,
+              versionName=version_name,
+              versionCode=int(version_code),
+              assetUrl=asset_url,
+              sha256=pack_sha,
+          )
+
+          lines = [
+              "{",
+              f'  "schemaVersion": {catalog["schemaVersion"]},',
+              '  "providers": [',
+          ]
+          for index, item in enumerate(catalog["providers"]):
+              suffix = "," if index + 1 < len(catalog["providers"]) else ""
+              encoded = json.dumps(item, ensure_ascii=False, separators=(",", ":"))
+              lines.append(f"    {encoded}{suffix}")
+          lines.extend(["  ]", "}"])
+          catalog_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+          signature_file=$(mktemp)
+          openssl pkeyutl -sign -rawin \
+            -inkey signing-private.pem \
+            -in catalog/catalog.json \
+            -out "$signature_file"
+          base64 -w0 "$signature_file" > catalog/catalog.sig
+          printf '\n' >> catalog/catalog.sig
+          openssl pkeyutl -verify -rawin -pubin \
+            -inkey HLE-Providers/keys/provider-signing-public.pem \
+            -in catalog/catalog.json \
+            -sigfile "$signature_file"
+
+          git config user.name "QuanTum2088"
+          git config user.email "158152582+QuanTum2088@users.noreply.github.com"
+          git add "providers/${provider}-${version_name}.hlp" catalog/catalog.json catalog/catalog.sig
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit \
+            -m "更新 $provider Provider 发布目录" \
+            -m "- 同步 $version_name 版本与 CI 生成的 Pack 摘要。" \
+            -m "- 使用项目 Ed25519 私钥重新签名官方目录。"
+          git push origin main
