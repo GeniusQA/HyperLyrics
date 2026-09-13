@@ -22,6 +22,11 @@ on:
 permissions:
   contents: write
 
+# 多个 provider 同时发布时会竞争 push main，这里串行化避免 non-fast-forward
+concurrency:
+  group: provider-release
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
