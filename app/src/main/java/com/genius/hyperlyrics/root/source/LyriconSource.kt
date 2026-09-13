@@ -1334,6 +1334,13 @@ class LyriconSource : LyricSource {
         restorePosition: Boolean,
         onlineTranslationMatched: Boolean = false
     ) {
+        // 兜底：SystemUI 重启后 onActiveProviderChanged 可能未及时登记歌词归属包名，
+        // 岛上会以 reason=package_missing 直接跳过。发布歌曲时补登记一次。
+        if (LyriconDataBridge.currentLyricPackageName.isNullOrBlank()) {
+            activeCentralPlayerPackageName
+                ?.takeIf(String::isNotBlank)
+                ?.let(LyriconDataBridge::updateLyricPackage)
+        }
         val preservedSameSongState = restorePosition &&
             song != null &&
             !song.lyrics.isNullOrEmpty() &&
