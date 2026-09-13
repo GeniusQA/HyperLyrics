@@ -64,14 +64,14 @@ jobs:
         id: pack
         run: |
           provider='${{ steps.provider.outputs.id }}'
-          manifest="HLE-Providers/providers/$provider/provider.json"
+          manifest="HL-Providers/providers/$provider/provider.json"
           version_name=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["versionName"])' "$manifest")
           version_code=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["versionCode"])' "$manifest")
           target_packages=$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1],encoding="utf-8"))["targetPackages"]))' "$manifest")
           asset="dist/${provider}-${version_name}.hlp"
           (cd HLE-Providers && ./gradlew --no-daemon --max-workers=2 ":providers:$provider:assembleRelease")
-          apk="HLE-Providers/providers/$provider/build/outputs/apk/release/${provider}-release-unsigned.apk"
-          python3 HLE-Providers/scripts/build_provider_pack.py \
+          apk="HL-Providers/providers/$provider/build/outputs/apk/release/${provider}-release-unsigned.apk"
+          python3 HL-Providers/scripts/build_provider_pack.py \
             --apk "$apk" \
             --manifest "$manifest" \
             --private-key signing-private.pem \
@@ -149,7 +149,7 @@ jobs:
           base64 -w0 "$signature_file" > catalog/catalog.sig
           printf '\n' >> catalog/catalog.sig
           openssl pkeyutl -verify -rawin -pubin \
-            -inkey HLE-Providers/keys/provider-signing-public.pem \
+            -inkey HL-Providers/keys/provider-signing-public.pem \
             -in catalog/catalog.json \
             -sigfile "$signature_file"
 
