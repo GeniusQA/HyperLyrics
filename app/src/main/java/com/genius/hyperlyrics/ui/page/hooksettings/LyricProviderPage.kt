@@ -789,7 +789,7 @@ private fun LazyListScope.providerSections(
             key = { "official_${officialUiState.items[it].catalog.id}" },
         ) { index ->
             val item = officialUiState.items[index]
-            val packageName = OfficialProviderCatalog.OFFICIAL_PROVIDER_PACKAGE_PREFIX + item.catalog.id
+            val packageName = OfficialProviderCatalog.OFFICIAL_PROVIDER_RUNTIME_PACKAGE_PREFIX + item.catalog.id
             val isExpanded = expandedStates[packageName] ?: false
             val busy = item.catalog.id in officialUiState.busyPluginIds
             val installedVersionName = item.installedVersionName ?: stringResource(R.string.unknown)

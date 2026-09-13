@@ -24,6 +24,30 @@ object OfficialProviderCatalog {
     const val OFFICIAL_PROVIDER_PACKAGE_PREFIX =
         "com.juren233.hyperlyricsenhanced.provider."
 
+    /**
+     * 运行时 Lyricon Provider 包名前缀（Provider Pack 内编译期写死）。
+     *
+     * 本分支把 Provider 运行时包名统一为 com.genius.hyperlyrics.provider.*，
+     * 与清单里历史 providerPackageName 前缀并存；两者都必须被识别为官方来源，
+     * 否则 ActivePlayerCoordinator 会把官方包当作 LEGACY_APK 丢弃。
+     */
+    const val OFFICIAL_PROVIDER_RUNTIME_PACKAGE_PREFIX =
+        "com.genius.hyperlyrics.provider."
+
+    private val OFFICIAL_PROVIDER_PACKAGE_PREFIXES = listOf(
+        OFFICIAL_PROVIDER_PACKAGE_PREFIX,
+        OFFICIAL_PROVIDER_RUNTIME_PACKAGE_PREFIX,
+    )
+
+    /** 从运行时 Provider 包名解析插件 id；非官方前缀返回 null。 */
+    fun officialProviderId(providerPackageName: String): String? =
+        OFFICIAL_PROVIDER_PACKAGE_PREFIXES.firstNotNullOfOrNull { prefix ->
+            providerPackageName
+                .takeIf { it.startsWith(prefix) }
+                ?.removePrefix(prefix)
+                ?.takeIf { it.isNotBlank() }
+        }
+
     /** 官方 Provider 插件入口类所在命名空间（同样沿用插件编译期写死的包名）。 */
     const val OFFICIAL_PROVIDER_ENTRY_PREFIX = "com.juren233.hle.providers."
 
@@ -156,8 +180,7 @@ object OfficialProviderCatalog {
         providerPackageName: String,
         playerPackageName: String,
     ): Boolean {
-        val pluginId = providerPackageName.removePrefix(OFFICIAL_PROVIDER_PACKAGE_PREFIX)
-        if (pluginId == providerPackageName) return false
+        val pluginId = officialProviderId(providerPackageName) ?: return false
         return definitionForId(pluginId)?.targetPackages?.contains(playerPackageName) == true
     }
 
