@@ -1623,7 +1623,7 @@ private fun lyricOriginRes(
 
 /** 判断包名是否为官方独立 Lyric Provider 模块。 */
 private fun isOfficialLyricProvider(packageName: String): Boolean =
-    packageName.startsWith(OfficialProviderCatalog.OFFICIAL_PROVIDER_PACKAGE_PREFIX)
+    OfficialProviderCatalog.officialProviderId(packageName) != null
 
 /** 解析 Provider 包名到展示名称（内置/通用插件/独立 Provider）。 */
 private fun providerDisplayName(context: Context, providerPackageName: String?): String? = when (providerPackageName) {
@@ -1631,13 +1631,8 @@ private fun providerDisplayName(context: Context, providerPackageName: String?):
     RootConstants.BUILT_IN_LYRIC_PROVIDER_PACKAGE -> context.getString(R.string.chain_base_native)
     null -> null
     else -> {
-        val prefix = OfficialProviderCatalog.OFFICIAL_PROVIDER_PACKAGE_PREFIX
-        if (providerPackageName.startsWith(prefix)) {
-            OfficialProviderCatalog.definitionForId(
-                providerPackageName.removePrefix(prefix),
-            )?.displayName
-        } else {
-            null
+        OfficialProviderCatalog.officialProviderId(providerPackageName)?.let { pluginId ->
+            OfficialProviderCatalog.definitionForId(pluginId)?.displayName
         }
     }
 }
