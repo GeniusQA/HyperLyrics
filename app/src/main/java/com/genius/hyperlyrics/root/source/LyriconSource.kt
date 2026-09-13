@@ -715,6 +715,7 @@ class LyriconSource : LyricSource {
                 "title=${request.title}, artist=${request.artist}, " +
                 "album=${request.album.ifBlank { "无" }}",
         )
+        cancelThirdPartyFallback(reason = "manual_match_applied")
         fallbackScope.launch {
             try {
                 val lines = OnlineLyricTargeter.fetchLyricsForCandidate(application, candidate)
@@ -740,7 +741,9 @@ class LyriconSource : LyricSource {
                 val result = matched
                 mainHandler.post {
                     currentPublishedThirdPartySong = result
-                    thirdPartyFallbackSongActive = false
+                    // 与在线兜底命中保持一致：置 true 让 handleThirdPartySong 的
+                    // “同曲空歌词重复回调忽略”防护生效，避免酷狗重发的空歌词覆盖手动匹配。
+                    thirdPartyFallbackSongActive = true
                     thirdPartyMatchFailedIdentity = null
                     publishSong(result, restorePosition = true)
                     diagnostic(
@@ -884,17 +887,31 @@ class LyriconSource : LyricSource {
             activeCentralPlayerPackageName != APPLE_MUSIC_PACKAGE
         ) {
             val song = currentThirdPartySong ?: return
-            cancelThirdPartyFallback(reason = "third_party_preference_changed")
+            // 当前已发布（含歌词）的歌曲。第三方播放器的歌词由兜底源投递到
+            // currentPublishedThirdPartySong，而 currentThirdPartySong 仅含元数据、lyrics 为空。
+            // 若用空歌词的 currentThirdPartySong 重新发布，会把已显示的歌词清空塌缩成单行占位，
+            // 并因 restorePosition=true 把播放位置重置为 0。
+            val published = currentPublishedThirdPartySong
+            val lyricsAlreadyShown = thirdPartyFallbackSongActive ||
+                (published != null &&
+                    !published.lyrics.isNullOrEmpty() &&
+                    isSameTrack(published, song))
+            if (!lyricsAlreadyShown) {
+                // 仅在尚未拿到歌词（失败占位）时才取消兜底以允许重匹配。
+                cancelThirdPartyFallback(reason = "third_party_preference_changed")
+            }
             cancelOnlineTranslation(
                 clearAttempt = true,
                 clearMatched = true,
                 reason = "third_party_preference_changed",
             )
-            if (currentPublishedThirdPartySong != song) {
+            if (!lyricsAlreadyShown && published != song) {
                 currentPublishedThirdPartySong = song
                 publishSong(song, restorePosition = true)
             }
-            reevaluateThirdPartyOnlineMatching(song)
+            // 用已发布（含歌词）的歌曲重新评估在线翻译：既保留已显示歌词，
+            // 又能让新增/调整的翻译源重新抓取翻译（scheduleOnlineTranslation 需要歌词非空）。
+            reevaluateThirdPartyOnlineMatching(published ?: song)
             return
         }
 

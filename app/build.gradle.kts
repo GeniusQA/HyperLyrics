@@ -44,8 +44,9 @@ android {
         minSdk = 33
         targetSdk = 37
         // versionCode 必须保持单调递增：Provider 插件包内含 minCoreVersionCode 校验，
-        // 低于插件要求时添加插件会报「插件与当前版本不兼容，请更新 HyperLyrics」
-        versionCode = 151022
+        // 低于插件要求时添加插件会报「插件与当前版本不兼容，请更新 HyperLyrics」。
+        // 160102 用于满足 qqmusic Provider Pack 的 minCoreVersionCode 门槛。
+        versionCode = 160102
         versionName = ciVersionName ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
