@@ -348,6 +348,14 @@ fun OnlineTranslationSourcesPage() {
         }
     }
 
+    LaunchedEffect(Unit) {
+        // 页面进入时即使 currentTrack 尚未就绪也主动刷新一次，
+        // 避免 DisposableEffect 监听回调延迟导致“暂无歌曲播放”而不触发自动匹配诊断。
+        delay(300)
+        queryCurrentTrack()
+        currentTrack?.let { runSourceDiagnosis() }
+    }
+
     LaunchedEffect(currentAppOnlineEnabled) {
         // App 被禁用后清空残留匹配数据，页面只呈现原生歌词状态。
         if (!currentAppOnlineEnabled) sourceDiagnostics.clear()
@@ -427,6 +435,12 @@ fun OnlineTranslationSourcesPage() {
         currentPackage?.let { pkg ->
             if (pkg !in appEnabled) {
                 appEnabled[pkg] = OnlineTranslationSourcePreferences.isAppEnabled(prefs, pkg)
+                // 动态 App（如酷狗极速版）首次进入 appEnabled 时，
+                // DisposableEffect 里的初始查询可能因它尚未被标记为启用而错过当前歌曲，
+                // 因此加入启用列表后若仍未读到歌曲信息，立刻再查一次。
+                if (appEnabled[pkg] == true && currentTrack == null) {
+                    queryCurrentTrack()
+                }
             }
         }
     }
