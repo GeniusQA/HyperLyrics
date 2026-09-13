@@ -9,6 +9,7 @@ package com.genius.hyperlyrics.ui.page.hooksettings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
@@ -1614,9 +1615,8 @@ private fun lyricOriginRes(
     packageName == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE -> R.string.lyric_origin_spotify
     packageName == OnlineTranslationSourcePreferences.YOUTUBE_MUSIC_PACKAGE -> R.string.lyric_origin_ytm
     packageName == OnlineTranslationSourcePreferences.SALT_PACKAGE -> R.string.lyric_origin_salt
-    packageName == OnlineTranslationSourcePreferences.APPLE_MUSIC_PACKAGE,
-    packageName == OnlineTranslationSourcePreferences.QISHUI_PACKAGE,
-    -> R.string.lyric_origin_native
+    packageName == OnlineTranslationSourcePreferences.APPLE_MUSIC_PACKAGE ||
+        packageName == OnlineTranslationSourcePreferences.QISHUI_PACKAGE -> R.string.lyric_origin_native
     packageName in NATIVE_LYRIC_PACKAGES -> R.string.lyric_origin_native
     else -> R.string.lyric_origin_online
 }
@@ -1658,7 +1658,7 @@ private fun resolveLyricSourceText(
         currentProviderPackage == RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE -> {
             val hit = translationHit?.takeIf { it.found }
             if (hit != null) {
-                context.getString(R.string.lyric_origin_lrclib_with_translation, hit.source.displayName)
+                context.getString(R.string.lyric_origin_lrclib_with_translation, hit.source.displayName())
             } else {
                 context.getString(R.string.lyric_origin_online)
             }
