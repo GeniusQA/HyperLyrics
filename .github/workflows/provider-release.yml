@@ -92,6 +92,10 @@ jobs:
           pack_sha='${{ steps.pack.outputs.sha256 }}'
           asset_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/providers/${provider}-${version_name}.hlp"
 
+          # tag 触发时 checkout 是 detached HEAD，先基于最新 main 建立本地 main 再回写
+          git fetch origin main
+          git switch -C main origin/main
+
           mkdir -p providers
           cp "${{ steps.pack.outputs.asset }}" "providers/${provider}-${version_name}.hlp"
 
