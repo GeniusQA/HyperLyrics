@@ -69,7 +69,7 @@ jobs:
           version_code=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["versionCode"])' "$manifest")
           target_packages=$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1],encoding="utf-8"))["targetPackages"]))' "$manifest")
           asset="dist/${provider}-${version_name}.hlp"
-          (cd HLE-Providers && ./gradlew --no-daemon --max-workers=2 ":providers:$provider:assembleRelease")
+          (cd HL-Providers && ./gradlew --no-daemon --max-workers=2 ":providers:$provider:assembleRelease")
           apk="HL-Providers/providers/$provider/build/outputs/apk/release/${provider}-release-unsigned.apk"
           python3 HL-Providers/scripts/build_provider_pack.py \
             --apk "$apk" \
