@@ -1,0 +1,13 @@
+.gradle/
+.idea/
+**/build/
+dist/
+.signing/
+local.properties
+signing-private.pem
+*.apk
+*.hlp
+
+DEBUGGING_MISTAKES.md
+.codegraph/
+.trae/

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "pluginApiVersion": 3,
+  "pluginId": "kugou",
+  "displayName": "酷狗音乐",
+  "versionName": "1.0.14",
+  "versionCode": 15,
+  "minCoreVersionCode": 140077,
+  "entryClass": "com.juren233.hle.providers.kugou.KuGouPluginEntry",
+  "providerPackageName": "com.juren233.hyperlyricsenhanced.provider.kugou",
+  "targetPackages": [
+    "com.kugou.android",
+    "com.kugou.android.lite"
+  ],
+  "classesSha256": ""
+}

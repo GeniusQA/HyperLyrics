@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "pluginApiVersion": 3,
+  "pluginId": "netease",
+  "displayName": "网易云音乐",
+  "versionName": "1.0.17",
+  "versionCode": 20,
+  "minCoreVersionCode": 140077,
+  "entryClass": "com.juren233.hle.providers.netease.NeteasePluginEntry",
+  "providerPackageName": "com.juren233.hyperlyricsenhanced.provider.netease",
+  "targetPackages": [
+    "com.netease.cloudmusic",
+    "com.hihonor.cloudmusic"
+  ],
+  "classesSha256": ""
+}

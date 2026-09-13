@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HLE Provider Catalog",
+  "type": "object",
+  "required": ["schemaVersion", "providers"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "displayName", "targetPackages", "available"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,47}$" },
+          "displayName": { "type": "string" },
+          "targetPackages": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "available": { "type": "boolean" },
+          "versionName": { "type": "string" },
+          "versionCode": { "type": "integer", "minimum": 1 },
+          "assetUrl": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    }
+  }
+}
+
