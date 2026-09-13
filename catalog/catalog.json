@@ -8,7 +8,7 @@
     {"id":"spotify","displayName":"Spotify","targetPackages":["com.spotify.music"],"available":true,"versionName":"1.0.0","versionCode":1,"assetUrl":"https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/spotify-1.0.0.hlp","sha256":"efd7f16600f31b2bd8e5cf3b841139a023e05a995f0e787c9d8e0c61ec135117"},
     {"id":"lxmusic","displayName":"LX音乐","targetPackages":["cn.toside.music.mobile","com.ikunshare.music.mobile","com.lxnetease.music.mobile"],"available":false},
     {"id":"poweramp","displayName":"Poweramp","targetPackages":["com.maxmpz.audioplayer"],"available":false},
-    {"id":"salt-player","displayName":"椒盐音乐","targetPackages":["com.salt.music"],"available":true,"versionName":"1.0.11","versionCode":13,"assetUrl":"https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/salt-player-1.0.11.hlp","sha256":"2f545eedf2de7c15bdd9a3cd32f685e911528a4cef64f9425d037e3c9f5b121e"},
+    {"id":"salt-player","displayName":"椒盐音乐","targetPackages":["com.salt.music"],"available":true,"versionName":"1.0.0","versionCode":1,"assetUrl":"https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/salt-player-1.0.0.hlp","sha256":"7c4184e26e5426935b052c850996c7e0260b10eca49e08476410f9b9aaff92e0"},
     {"id":"qishui","displayName":"汽水音乐","targetPackages":["com.luna.music"],"available":true,"versionName":"1.0.0","versionCode":1,"assetUrl":"https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/qishui-1.0.0.hlp","sha256":"908371d50a3091e4ec982fbe12b0561fe9f1aa8cc6c3b71f90fc0f660dfe72e6"},
     {"id":"musicfree","displayName":"MusicFree","targetPackages":["fun.upup.musicfree"],"available":false},
     {"id":"gramophone","displayName":"Gramophone","targetPackages":["org.akanework.gramophone"],"available":false},
