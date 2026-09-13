@@ -32,3 +32,5 @@ DEBUGGING_MISTAKES.md
 .trae/
 build.bat
 build_release.bat
+/signing-private.pem
+/dist/
