@@ -1,5 +1,8 @@
 name: Provider Release
 
+# 运行列表标题展示平台，例如 "Provider · kugou"（手动）或 tag 名（如 provider-kugou-v1.0.0）
+run-name: Provider · ${{ inputs.provider || github.ref_name }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -24,6 +27,7 @@ permissions:
 
 jobs:
   build:
+    name: Build ${{ inputs.provider || github.ref_name }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
