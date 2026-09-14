@@ -693,7 +693,10 @@ class LyriconSource : LyricSource {
         val application = app ?: return
         val baseSong = currentPublishedThirdPartySong ?: currentThirdPartySong ?: run {
             diagnostic("二次匹配失败: 当前无三方播放歌曲")
-            showManualMatchToast(application, R.string.manual_match_result_no_song)
+            showManualMatchToast(
+                application,
+                moduleString(R.string.manual_match_result_no_song, "二次匹配失败：当前没有三方播放歌曲"),
+            )
             return
         }
         val currentTitle = normalizeIdentity(baseSong.name)
@@ -705,7 +708,11 @@ class LyriconSource : LyricSource {
             )
             showManualMatchToast(
                 application,
-                application.getString(R.string.manual_match_result_switched, baseSong.name),
+                moduleStringFmt(
+                    R.string.manual_match_result_switched,
+                    baseSong.name,
+                    fallback = "二次匹配已忽略：当前歌曲已切换为 ${baseSong.name}",
+                ),
             )
             return
         }
@@ -729,11 +736,17 @@ class LyriconSource : LyricSource {
                 val lines = OnlineLyricTargeter.fetchLyricsForCandidate(application, candidate)
                 if (lines == null) {
                     diagnostic("二次匹配未取到歌词: source=${source.name}, id=${request.sourceSongId}")
-                    showManualMatchToast(application, R.string.manual_match_result_no_lyrics)
+                    showManualMatchToast(
+                        application,
+                        moduleString(R.string.manual_match_result_no_lyrics, "二次匹配失败：未取到歌词"),
+                    )
                     return@launch
                 }
                 var matched = OnlineFallbackSongMapper.map(baseSong, lines) ?: run {
-                    showManualMatchToast(application, R.string.manual_match_result_no_lyrics)
+                    showManualMatchToast(
+                        application,
+                        moduleString(R.string.manual_match_result_no_lyrics, "二次匹配失败：未取到歌词"),
+                    )
                     return@launch
                 }
                 val orderedSources = configuredOnlineSources()
@@ -771,10 +784,21 @@ class LyriconSource : LyricSource {
                             "translations=$translationCount",
                     )
                     val message = when {
-                        lineCount == 0 -> application.getString(R.string.manual_match_result_no_lyrics)
+                        lineCount == 0 ->
+                            moduleString(R.string.manual_match_result_no_lyrics, "二次匹配失败：未取到歌词")
                         needsTranslation && (!translationMerged || translationCount == 0) ->
-                            application.getString(R.string.manual_match_result_no_translation, lineCount)
-                        else -> application.getString(R.string.manual_match_result_success, lineCount, translationCount)
+                            moduleStringFmt(
+                                R.string.manual_match_result_no_translation,
+                                lineCount,
+                                fallback = "二次匹配完成：已获取 $lineCount 行原词，但未找到翻译",
+                            )
+                        else ->
+                            moduleStringFmt(
+                                R.string.manual_match_result_success,
+                                lineCount,
+                                translationCount,
+                                fallback = "二次匹配成功：$lineCount 行歌词，$translationCount 行翻译",
+                            )
                     }
                     showManualMatchToast(application, message)
                 }
@@ -784,10 +808,11 @@ class LyriconSource : LyricSource {
                 diagnostic("二次匹配异常: ${e.javaClass.simpleName}:${e.message}")
                 showManualMatchToast(
                     application,
-                    application.getString(
+                    moduleStringFmt(
                         R.string.manual_match_result_exception,
                         e.javaClass.simpleName,
                         e.message ?: "",
+                        fallback = "二次匹配异常：${e.javaClass.simpleName}：${e.message ?: ""}",
                     ),
                 )
             }
@@ -798,10 +823,6 @@ class LyriconSource : LyricSource {
         mainHandler.post {
             Toast.makeText(application, message, Toast.LENGTH_LONG).show()
         }
-    }
-
-    private fun showManualMatchToast(application: Application, messageResId: Int) {
-        showManualMatchToast(application, application.getString(messageResId))
     }
 
     private fun applyLunaBeatWordLyricsPreferenceChange() {
@@ -2305,6 +2326,18 @@ class LyriconSource : LyricSource {
             Context.CONTEXT_IGNORE_SECURITY,
         ).resources.getString(resId)
     }.getOrDefault(fallback)
+
+    /**
+     * 同上，但支持带占位符的格式化字符串（如 %1$d、%2$s）。
+     */
+    private fun moduleStringFmt(resId: Int, vararg formatArgs: Any, fallback: String): String =
+        runCatching {
+            val application = app ?: return fallback
+            application.createPackageContext(
+                BuildConfig.APPLICATION_ID,
+                Context.CONTEXT_IGNORE_SECURITY,
+            ).resources.getString(resId, *formatArgs)
+        }.getOrDefault(fallback)
 
     private fun applyThirdPartyFallbackResult(
         generation: Int,
