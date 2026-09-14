@@ -16,6 +16,9 @@ object UIConstants {
     const val DEFAULT_HIDE_LAUNCHER_ICON = false
     const val KEY_LOG_LEVEL = "key_log_level"
     const val KEY_LOG_LEVEL_BUILD_KIND = "key_log_level_build_kind"
+    const val KEY_LOG_AUTO_CLEANUP_INTERVAL = "key_log_auto_cleanup_interval"
+    const val KEY_LOG_LAST_CLEANUP_TIME = "key_log_last_cleanup_time"
+    const val DEFAULT_LOG_AUTO_CLEANUP_INTERVAL = 0
     const val KEY_LAST_SEEN_VERSION = "key_last_seen_version"
 
     // ================= DEFAULTS =================
