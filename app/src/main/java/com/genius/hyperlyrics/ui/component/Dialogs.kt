@@ -6,24 +6,40 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.genius.hyperlyrics.R
+import com.genius.hyperlyrics.utils.LogManager
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun NumberInputDialog(
@@ -401,6 +417,228 @@ fun PaddingInputDialog(
                     colors = ButtonDefaults.textButtonColorsPrimary()
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun SingleChoiceDialog(
+    show: Boolean,
+    title: String,
+    options: List<String>,
+    selectedIndex: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    var currentSelection by remember { mutableStateOf(selectedIndex) }
+    LaunchedEffect(show, selectedIndex) {
+        if (show) currentSelection = selectedIndex
+    }
+
+    WindowDialog(title = title, show = show, onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, option ->
+                RadioButtonPreference(
+                    title = option,
+                    selected = currentSelection == index,
+                    onClick = { currentSelection = index }
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                TextButton(
+                    text = stringResource(id = R.string.cancel),
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(20.dp))
+                TextButton(
+                    text = stringResource(id = R.string.confirm),
+                    onClick = {
+                        onConfirm(currentSelection)
+                        onDismiss()
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CleanupHistoryDialog(
+    show: Boolean,
+    records: List<LogManager.CleanupRecord>,
+    onDismiss: () -> Unit
+) {
+    val timeFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
+
+    WindowDialog(
+        title = stringResource(id = R.string.cleanup_history_title),
+        show = show,
+        onDismissRequest = onDismiss
+    ) {
+        if (records.isEmpty()) {
+            Text(
+                text = stringResource(id = R.string.cleanup_history_empty),
+                color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+            ) {
+                items(records, key = { it.timestamp }) { record ->
+                    val triggerLabel = when (record.trigger) {
+                        LogManager.TRIGGER_SCHEDULED -> stringResource(id = R.string.cleanup_trigger_scheduled)
+                        else -> stringResource(id = R.string.cleanup_trigger_manual)
+                    }
+                    val allSuccess = record.files.isNotEmpty() && record.files.all { it.success }
+                    val allFailed = record.files.isNotEmpty() && record.files.all { !it.success }
+                    val failedFiles = record.files.filter { !it.success }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        // 清理时间
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.cleanup_time_label),
+                                fontSize = 12.sp,
+                                color = MiuixTheme.colorScheme.onSecondaryVariant
+                            )
+                            Text(
+                                text = timeFormat.format(Date(record.timestamp)),
+                                fontSize = 12.sp,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                        }
+                        // 文件路径：显示真实路径，多个文件用逗号分隔
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.cleanup_file_path),
+                                fontSize = 12.sp,
+                                color = MiuixTheme.colorScheme.onSecondaryVariant,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            val pathText = if (record.files.isEmpty()) {
+                                "-"
+                            } else {
+                                record.files.joinToString(separator = ", ") {
+                                    "...${it.path.substringAfterLast('/')}"
+                                }
+                            }
+                            Text(
+                                text = pathText,
+                                fontSize = 12.sp,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f, fill = false),
+                                textAlign = TextAlign.End,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        // 状态与触发来源合并显示
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.cleanup_status_label),
+                                fontSize = 12.sp,
+                                color = MiuixTheme.colorScheme.onSecondaryVariant,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            val statusText = when {
+                                record.files.isEmpty() -> stringResource(
+                                    id = R.string.cleanup_status_no_files,
+                                    triggerLabel
+                                )
+                                allSuccess -> stringResource(
+                                    id = R.string.cleanup_status_all_success,
+                                    triggerLabel
+                                )
+                                allFailed -> stringResource(
+                                    id = R.string.cleanup_status_all_failed,
+                                    triggerLabel
+                                )
+                                else -> stringResource(
+                                    id = R.string.cleanup_status_partial_failed,
+                                    triggerLabel,
+                                    failedFiles.joinToString(", ") { "...${it.path.substringAfterLast('/')}" }
+                                )
+                            }
+                            val statusColor = if (allSuccess) {
+                                Color(0xFF4CAF50)
+                            } else {
+                                Color(0xFFF44336)
+                            }
+                            Text(
+                                text = statusText,
+                                fontSize = 12.sp,
+                                color = statusColor,
+                                modifier = Modifier.weight(1f, fill = false),
+                                textAlign = TextAlign.End,
+                                maxLines = 4,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        // 失败文件与可行解决方案
+                        if (failedFiles.isNotEmpty()) {
+                            val failedNames = failedFiles.joinToString(", ") {
+                                "...${it.path.substringAfterLast('/')}"
+                            }
+                            Text(
+                                text = stringResource(
+                                    id = R.string.cleanup_status_failed_files,
+                                    failedNames
+                                ),
+                                fontSize = 11.sp,
+                                color = Color(0xFFF44336),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            Text(
+                                text = stringResource(id = R.string.cleanup_failure_solution),
+                                fontSize = 11.sp,
+                                color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            horizontalArrangement = Arrangement.End,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            TextButton(
+                text = stringResource(id = R.string.confirm),
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColorsPrimary()
+            )
         }
     }
 }
