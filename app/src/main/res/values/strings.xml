@@ -9,7 +9,7 @@
     <string name="app_description">面向 HyperOS 3/4 提供 Apple Music 深度适配与系统级超级岛/锁屏/AOD 息屏歌词</string>
     <string name="label_lyric_listener_service">获取媒体信息权限</string>
     <string name="label_lyric_enable_service">HyperLyrics 媒体信息监听</string>
-    <string name="provider_release_home">https://github.com/QuanTum2088/HyperLyrics</string>
+    <string name="provider_release_home">https://github.com/GeniusQA/HyperLyrics</string>
 
     <string name="add">添加</string>
     <string name="github">GitHub</string>

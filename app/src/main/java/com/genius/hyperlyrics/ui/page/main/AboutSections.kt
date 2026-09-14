@@ -144,7 +144,7 @@ fun LazyListScope.aboutPageSections(
             ArrowPreference(
                 title = stringResource(R.string.title_project),
                 onClick = {
-                    val uri = "https://github.com/QuanTum2088/HyperLyrics".toUri()
+                    val uri = "https://github.com/GeniusQA/HyperLyrics".toUri()
                     val intent = Intent(Intent.ACTION_VIEW, uri)
                     context.startActivity(intent)
                 }
