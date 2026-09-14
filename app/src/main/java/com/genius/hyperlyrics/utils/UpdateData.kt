@@ -33,12 +33,12 @@ object UpdateData {
     /**
      * 更新检查开关：包名独立（com.genius.hyperlyrics）后不再跟随上游仓库
      * 的版本发布线——上游的 v7.5.1-151021 与本分支 1.0.0 属于不同发布线，
-     * 比较没有意义。自有仓库 QuanTum2088/HyperLyrics 的 releases/latest 已
+     * 比较没有意义。自有仓库 GeniusQA/HyperLyrics 的 releases/latest 已
      * 配置，但默认保持关闭，直到新发布线有正式 Release 后再开启。
      */
     private const val UPDATE_CHECK_ENABLED = false
     private const val LATEST_RELEASE_API =
-        "https://api.github.com/repos/QuanTum2088/HyperLyrics/releases/latest"
+        "https://api.github.com/repos/GeniusQA/HyperLyrics/releases/latest"
     private val json = Json { ignoreUnknownKeys = true }
 
     private val _availableUpdate = MutableStateFlow<AvailableUpdate?>(null)

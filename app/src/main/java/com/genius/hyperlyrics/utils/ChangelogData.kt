@@ -31,7 +31,7 @@ private data class GitHubRelease(
 
 object ChangelogData {
     private const val RELEASES_API =
-        "https://api.github.com/repos/QuanTum2088/HyperLyrics/releases"
+        "https://api.github.com/repos/GeniusQA/HyperLyrics/releases"
     private const val PAGE_SIZE = 100
     private val json = Json { ignoreUnknownKeys = true }
 

@@ -70,7 +70,7 @@ private data class LrcLibCandidate(
 private object LrcLibNetwork {
     private const val SEARCH_URL = "https://lrclib.net/api/search"
     private const val CLIENT_HEADER =
-        "HyperLyrics (github.com/QuanTum2088/HyperLyrics)"
+        "HyperLyrics (github.com/GeniusQA/HyperLyrics)"
     private const val TAG = "LrcLib"
 
     /** 短期搜索缓存：设置页诊断会高频重复请求，避免触发 LRCLIB 限流（retry-after）。 */
