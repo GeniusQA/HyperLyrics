@@ -341,7 +341,7 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
             )
         )
     }
-    var lyricAreaHeight by remember {
+    var lyricMaxLines by remember {
         mutableIntStateOf(
             (prefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
                 ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
@@ -648,7 +648,7 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                                     Text(
                                         text = stringResource(
                                             R.string.format_lyric_area_height,
-                                            lyricAreaHeight
+                                            lyricMaxLines
                                         ),
                                         fontSize = MiuixTheme.textStyles.body2.fontSize,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
@@ -656,9 +656,9 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                                 },
                                 bottomAction = {
                                     Slider(
-                                        value = lyricAreaHeight.toFloat(),
+                                        value = lyricMaxLines.toFloat(),
                                         onValueChange = {
-                                            lyricAreaHeight = it.roundToInt()
+                                            lyricMaxLines = it.roundToInt()
                                                 .coerceIn(
                                                     RootConstants.MIN_LYRIC_MAX_LINES,
                                                     RootConstants.MAX_LYRIC_MAX_LINES
@@ -667,7 +667,7 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                                         onValueChangeFinished = {
                                             saveConfig(
                                                 RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
-                                                lyricAreaHeight
+                                                lyricMaxLines
                                             )
                                         },
                                         valueRange = RootConstants.MIN_LYRIC_MAX_LINES.toFloat()

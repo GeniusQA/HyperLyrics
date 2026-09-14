@@ -66,7 +66,7 @@ fun LazyListScope.islandExpandedMediaCardSection(
                 )
             )
         }
-        var lyricAreaHeight by remember {
+        var lyricMaxLines by remember {
             mutableIntStateOf(
                 (sectionPrefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
                     ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
@@ -140,7 +140,7 @@ fun LazyListScope.islandExpandedMediaCardSection(
                                 Text(
                                     text = stringResource(
                                         R.string.format_lyric_area_height,
-                                        lyricAreaHeight
+                                        lyricMaxLines
                                     ),
                                     fontSize = MiuixTheme.textStyles.body2.fontSize,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantActions
@@ -148,9 +148,9 @@ fun LazyListScope.islandExpandedMediaCardSection(
                             },
                             bottomAction = {
                                 Slider(
-                                    value = lyricAreaHeight.toFloat(),
+                                    value = lyricMaxLines.toFloat(),
                                     onValueChange = {
-                                        lyricAreaHeight = it.roundToInt()
+                                        lyricMaxLines = it.roundToInt()
                                             .coerceIn(
                                                 RootConstants.MIN_LYRIC_MAX_LINES,
                                                 RootConstants.MAX_LYRIC_MAX_LINES
@@ -160,12 +160,12 @@ fun LazyListScope.islandExpandedMediaCardSection(
                                         sectionPrefs.edit()
                                             .putInt(
                                                 RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
-                                                lyricAreaHeight
+                                                lyricMaxLines
                                             )
                                             .apply()
                                         PrefsBridge.putInt(
                                             RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
-                                            lyricAreaHeight
+                                            lyricMaxLines
                                         )
                                     },
                                     valueRange = RootConstants.MIN_LYRIC_MAX_LINES.toFloat()

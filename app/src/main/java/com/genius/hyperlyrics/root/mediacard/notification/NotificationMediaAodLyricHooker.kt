@@ -658,7 +658,7 @@ internal object AodMediaLyricPolicy {
      * 归一化「歌词总行数上限」：钳制到 [MIN_LYRIC_MAX_LINES, MAX_LYRIC_MAX_LINES]，
      * 非法或越界值回落到默认。偏好里可能是 Int / Long / Float / String（跨进程同步会丢类型），这里统一兜底。
      */
-    fun sanitizeLyricAreaHeight(value: Any?): Int = when (value) {
+    fun sanitizeLyricMaxLines(value: Any?): Int = when (value) {
         is Int -> value
         is Number -> value.toInt()
         is String -> value.toIntOrNull()
@@ -3938,7 +3938,7 @@ object NotificationMediaAodLyricHooker {
             ),
         nextLyricStyle = readAodNextLyricStyle("${prefix}next_lyric_style"),
         // 歌词总行数上限：直接以行数为准，不再按高度/字号反推。
-        lyricMaxLines = AodMediaLyricPolicy.sanitizeLyricAreaHeight(
+        lyricMaxLines = AodMediaLyricPolicy.sanitizeLyricMaxLines(
             prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_MAX_LINES)
         ),
         duetLyrics = prefs?.getBoolean(
