@@ -770,6 +770,12 @@ object IslandExpandedLyricHooker {
             RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
         ) ?: RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
         if (!multiLine) return 0
+        // 当前行存在翻译/发音/伴唱时，优先显示这些附加内容，不占用下一句位置。
+        val line = LyriconDataBridge.currentLyricLine
+        val hasDisplayedExtra = !line?.translation.isNullOrBlank() ||
+            !line?.roma.isNullOrBlank() ||
+            !line?.secondary.isNullOrBlank()
+        if (hasDisplayedExtra) return 0
         val maxLines = AodMediaLyricPolicy.sanitizeLyricMaxLines(
             prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_MAX_LINES)
         )
