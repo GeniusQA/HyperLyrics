@@ -3928,7 +3928,13 @@ object NotificationMediaAodLyricHooker {
                 prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT)
             )
             val density = android.content.res.Resources.getSystem().displayMetrics.density
-            val lineHeightPx = (mainTextSize * density * AodMediaLyricPolicy.LYRIC_LINE_HEIGHT_MULTIPLIER).toInt()
+            val mainSize = readAodTextSize(
+                key = "${prefix}main_text_size",
+                defaultValue = RootConstants.DEFAULT_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE,
+                min = RootConstants.MIN_HOOK_AOD_MAIN_TEXT_SIZE,
+                max = RootConstants.MAX_HOOK_AOD_MAIN_TEXT_SIZE,
+            )
+            val lineHeightPx = (mainSize * density * AodMediaLyricPolicy.LYRIC_LINE_HEIGHT_MULTIPLIER).toInt()
             AodMediaLyricPolicy.lyricAreaMaxLines(
                 (areaHeightDp * density).toInt(),
                 lineHeightPx,
