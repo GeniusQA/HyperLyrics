@@ -21,6 +21,9 @@ object LyriconDataBridge : StateResetter {
 
     private val playbackPositionEstimator = PlaybackPositionEstimator()
 
+    /** 后续歌词最多缓存条数（渲染层再按用户设置的「歌词行数上限」裁剪）。 */
+    private const val MAX_UPCOMING_LYRIC_LINES = 8
+
     val versionCounter = java.util.concurrent.atomic.AtomicInteger(0)
 
     @Volatile
@@ -37,6 +40,16 @@ object LyriconDataBridge : StateResetter {
 
     @Volatile
     var currentNextLyricLine: IRichLyricLine? = null
+
+    /**
+     * 当前行之后的后续歌词，供多行歌词渲染使用。
+     *
+     * 只缓存 [MAX_UPCOMING_LYRIC_LINES] 条，渲染层再按用户设置的
+     * 「歌词行数上限」裁剪，避免长列表常驻内存。
+     */
+    @Volatile
+    var currentUpcomingLyricLines: List<IRichLyricLine> = emptyList()
+        private set
 
     @Volatile
     private var currentUnmergedLyricLine: IRichLyricLine? = null
@@ -104,6 +117,7 @@ object LyriconDataBridge : StateResetter {
         currentLyric = null
         currentLyricLine = null
         currentNextLyricLine = null
+        currentUpcomingLyricLines = emptyList()
         currentUnmergedLyricLine = null
         currentPosition = 0L
         playbackPositionEstimator.reset()
@@ -292,6 +306,7 @@ object LyriconDataBridge : StateResetter {
 
         currentLyricLine = displayLine
         currentNextLyricLine = interlude?.next ?: foundLine?.next
+        currentUpcomingLyricLines = resolveUpcomingLines(foundLine)
         val newText = displayLine?.text ?: currentLyric ?: ""
         val changed = displayLine !== previousLine || newText != currentLyric
 
@@ -304,6 +319,31 @@ object LyriconDataBridge : StateResetter {
             )
         }
         return changed
+    }
+
+    /**
+     * 解析 [anchor] 之后的后续歌词，供多行歌词渲染使用。
+     *
+     * 优先沿预处理阶段串好的 next 链取；链不可用时回退为按歌词列表顺序取后续行。
+     */
+    private fun resolveUpcomingLines(anchor: TimedLine?): List<IRichLyricLine> {
+        if (anchor == null) return emptyList()
+        val chained = ArrayList<IRichLyricLine>(MAX_UPCOMING_LYRIC_LINES)
+        var cursor = anchor.next
+        while (cursor != null && chained.size < MAX_UPCOMING_LYRIC_LINES) {
+            chained.add(cursor.line)
+            cursor = cursor.next
+        }
+        if (chained.isNotEmpty()) return chained
+
+        val lyrics = currentSong?.lyrics ?: return emptyList()
+        val index = lyrics.indexOfFirst { it.begin == anchor.begin && it.text == anchor.text }
+            .takeIf { it >= 0 }
+            ?: lyrics.indexOfFirst { it.begin == anchor.begin }
+        if (index < 0) return emptyList()
+        val end = (index + 1 + MAX_UPCOMING_LYRIC_LINES).coerceAtMost(lyrics.size)
+        if (index + 1 >= end) return emptyList()
+        return lyrics.subList(index + 1, end)
     }
 
     fun updateLyric(text: String?) {
@@ -328,6 +368,7 @@ object LyriconDataBridge : StateResetter {
         }
         currentUnmergedLyricLine = currentLyricLine
         currentNextLyricLine = null
+        currentUpcomingLyricLines = emptyList()
     }
 
     fun updateLyricLine(line: IRichLyricLine) {
@@ -377,6 +418,7 @@ object LyriconDataBridge : StateResetter {
         currentLyricLine = preparedLine ?: line
         currentUnmergedLyricLine = line
         currentNextLyricLine = preparedLine?.next
+        currentUpcomingLyricLines = resolveUpcomingLines(preparedLine)
         currentLyric = currentLyricLine?.text
         DisplayDiagnosticLogger.log(
             channel = "BRIDGE",
@@ -402,6 +444,7 @@ object LyriconDataBridge : StateResetter {
         currentLyric = null
         currentLyricLine = null
         currentNextLyricLine = null
+        currentUpcomingLyricLines = emptyList()
         currentUnmergedLyricLine = null
         currentInterludeType = null
         currentInterlude = null

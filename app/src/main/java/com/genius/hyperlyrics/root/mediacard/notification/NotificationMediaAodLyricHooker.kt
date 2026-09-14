@@ -41,6 +41,7 @@ import com.genius.hyperlyrics.common.media.MediaMetadataHelper
 import com.genius.hyperlyrics.lyric.view.SongPreprocessor
 import com.genius.hyperlyrics.root.ClassicAodFocusNotificationRecovery
 import com.genius.hyperlyrics.root.HookEntry
+import com.genius.hyperlyrics.lyric.model.interfaces.IRichLyricLine
 import com.genius.hyperlyrics.root.LyriconDataBridge
 import com.genius.hyperlyrics.root.mediacard.LyricGestureHelper
 import com.genius.hyperlyrics.root.utils.CoverColorHelper
@@ -113,6 +114,11 @@ internal data class AodTextStyleConfig(
     val swapTranslation: Boolean,
     val nextSongPreview: Boolean,
     val nextSongPreviewPosition: Int,
+    /**
+     * 歌词块总行数上限：既限制渲染行数（长句自动换行计入），
+     * 也限制歌词条数（当前行 + 后续 N-1 句）。
+     */
+    val lyricMaxLines: Int = RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES,
 ) {
     val translationDisplay: Boolean
         get() = translationDisplayMode != RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_OFF
@@ -140,6 +146,9 @@ internal data class LockScreenLyricLayout(
 
 internal object AodMediaLyricPolicy {
     private const val NO_LYRIC_PREVIEW_DURATION_MS = 5_000L
+
+    /** 多行歌词里为主句预留的行数（主句最长折两行）。 */
+    private const val MAIN_LYRIC_LINES_RESERVED = 2
 
     fun embeddedSongInfoGravity(position: Int): Int = when (position) {
         RootConstants.AOD_SONG_INFO_POSITION_LEFT ->
@@ -653,6 +662,35 @@ internal object AodMediaLyricPolicy {
 
     fun sanitizeTextSize(value: Int, defaultValue: Int, min: Int, max: Int): Int =
         value.takeIf { it in min..max } ?: defaultValue
+
+    /**
+     * 归一化「歌词行数上限」：只允许 3 / 5 两档，非法或越界值回落到默认。
+     * 偏好里可能是 Int / Long / Float / String（跨进程同步会丢类型），这里统一兜底。
+     */
+    fun sanitizeLyricMaxLines(value: Any?): Int = when (value) {
+        is Int -> value
+        is Number -> value.toInt()
+        is String -> value.toIntOrNull()
+        else -> null
+    }?.let { raw ->
+        RootConstants.LYRIC_MAX_LINES_OPTIONS.firstOrNull { it == raw }
+    } ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
+
+    /**
+     * 在总行数上限 [maxLines] 下，后续歌词还能占几条。
+     *
+     * 主句最多折两行，先为它预留 [MAIN_LYRIC_LINES_RESERVED] 行，
+     * 剩下的才分给后续歌词，因此 3 行模式 = 后续 1 条、5 行模式 = 后续 3 条。
+     */
+    fun upcomingLineBudget(maxLines: Int): Int =
+        (sanitizeLyricMaxLines(maxLines) - MAIN_LYRIC_LINES_RESERVED).coerceAtLeast(0)
+
+    /**
+     * 单行歌词（主句 / 翻译）允许的最大折行数：主句最多两行，
+     * 同时不能超过总行数上限，避免长句无限换行把卡片撑爆。
+     */
+    fun lyricRowMaxLines(maxLines: Int): Int =
+        minOf(MAIN_LYRIC_LINES_RESERVED, sanitizeLyricMaxLines(maxLines))
 
     fun sanitizeNextLyricStyle(value: Int): Int = value.takeIf {
         it == RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING ||
@@ -1385,6 +1423,11 @@ object NotificationMediaAodLyricHooker {
             content.overlappingBackingTranslation
         )
         setOptionalText(overlay.next, content.next)
+        // 后续歌词行也受总行数上限约束：超过预算的后续歌词在拼接阶段就被丢弃，
+        // 这里再限制 maxLines，避免其中某条过长时继续换行撑爆预算。
+        overlay.next.maxLines = AodMediaLyricPolicy
+            .upcomingLineBudget(textStyle.lyricMaxLines)
+            .coerceAtLeast(1)
         applyContentAlignment(overlay, content)
         applyLockScreenTextStyle(
             overlay = overlay,
@@ -1688,23 +1731,20 @@ object NotificationMediaAodLyricHooker {
      * 息屏 AOD 场景保持多行样式。
      */
     private fun applyCompactMode(overlay: LyricOverlay, compact: Boolean) {
-        fun config(view: TextView, compact: Boolean) {
-            if (compact) {
-                // 紧凑模式：不再合并成单行 marquee，而是主/译分行并各自最多折两行。
-                view.setSingleLine(false)
-                view.maxLines = 2
-                view.ellipsize = TextUtils.TruncateAt.END
-                view.isSelected = false
-            } else {
-                // 全屏 AOD：不限制行数，完整展示多行歌词。
-                view.setSingleLine(false)
-                view.maxLines = Int.MAX_VALUE
-                view.ellipsize = null
-                view.isSelected = false
-            }
+        val maxLines = AodMediaLyricPolicy.sanitizeLyricMaxLines(
+            prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_MAX_LINES)
+        )
+        val rowMaxLines = AodMediaLyricPolicy.lyricRowMaxLines(maxLines)
+        fun config(view: TextView) {
+            // 主/译分行展示，各自最多折两行；同时受总行数上限约束，
+            // 长句自动换行后超出预算的部分以省略号截断，不会无限撑高卡片。
+            view.setSingleLine(false)
+            view.maxLines = rowMaxLines
+            view.ellipsize = TextUtils.TruncateAt.END
+            view.isSelected = false
         }
-        config(overlay.main, compact)
-        config(overlay.translation, compact)
+        config(overlay.main)
+        config(overlay.translation)
         listOf(
             overlay.backing,
             overlay.backingTranslation,
@@ -1712,13 +1752,18 @@ object NotificationMediaAodLyricHooker {
             overlay.overlappingTranslation,
             overlay.overlappingBacking,
             overlay.overlappingBackingTranslation,
-            overlay.next,
         ).forEach { view ->
             if (compact) {
                 view.visibility = View.GONE
             } else if (view.visibility == View.GONE && view.text.isNotBlank()) {
                 view.visibility = View.VISIBLE
             }
+        }
+        // 后续歌词行（多行歌词）在紧凑模式同样放行，可见性只取决于有没有内容。
+        if (overlay.next.text.isBlank()) {
+            overlay.next.visibility = View.GONE
+        } else if (overlay.next.visibility == View.GONE) {
+            overlay.next.visibility = View.VISIBLE
         }
         // 进度行是 View 而非 TextView：紧凑模式一律隐藏，
         // 非紧凑（全屏 AOD）下由 applyState 按是否有时长数据决定可见性。
@@ -1901,6 +1946,11 @@ object NotificationMediaAodLyricHooker {
             content.overlappingBackingTranslation
         )
         setOptionalText(overlay.next, content.next)
+        // 后续歌词行也受总行数上限约束：超过预算的后续歌词在拼接阶段就被丢弃，
+        // 这里再限制 maxLines，避免其中某条过长时继续换行撑爆预算。
+        overlay.next.maxLines = AodMediaLyricPolicy
+            .upcomingLineBudget(textStyle.lyricMaxLines)
+            .coerceAtLeast(1)
         applyContentAlignment(overlay, content)
         applyClassicTextStyle(overlay, textStyle)
         applyLyricRowOrder(overlay, textStyle.swapTranslation)
@@ -3564,9 +3614,13 @@ object NotificationMediaAodLyricHooker {
         val line = LyriconDataBridge.currentLyricLine.takeUnless {
             suppressNoLyricPlaceholder && !hasCurrentLine
         }
-        val nextLine = LyriconDataBridge.currentNextLyricLine.takeUnless {
+        val upcomingLines = LyriconDataBridge.currentUpcomingLyricLines.takeUnless {
             suppressNoLyricPlaceholder && !hasCurrentLine
-        }
+        }.orEmpty()
+        val nextLine = upcomingLines.firstOrNull()
+            ?: LyriconDataBridge.currentNextLyricLine.takeUnless {
+                suppressNoLyricPlaceholder && !hasCurrentLine
+            }
         val metadata = line?.metadata
         val isOverlappingGroup = metadata?.getBoolean(
             LyricMetadataKeys.OVERLAPPING_LYRICS_GROUP
@@ -3633,7 +3687,7 @@ object NotificationMediaAodLyricHooker {
             overlappingTranslation = displayText(overlappingTranslation),
             overlappingBacking = displayText(overlappingBacking),
             overlappingBackingTranslation = displayText(overlappingBackingTranslation),
-            next = displayText(nextLine?.text),
+            next = buildUpcomingLyricText(upcomingLines, style.lyricMaxLines),
             showNext = style.showNextLyric,
             mainAlignedRight = mainAlignedRight,
             backingAlignedRight = mainAlignedRight,
@@ -3656,6 +3710,26 @@ object NotificationMediaAodLyricHooker {
         } else {
             assembled
         }
+    }
+
+    /**
+     * 按总行数上限拼接后续歌词。
+     *
+     * 行数上限同时约束两件事：
+     * - 条数：最多取 [AodMediaLyricPolicy.upcomingLineBudget] 条后续歌词；
+     * - 行数：拼接后的整体再受 next 行 maxLines 限制，某条过长时截断而不是继续换行。
+     */
+    private fun buildUpcomingLyricText(
+        upcoming: List<IRichLyricLine>,
+        maxLines: Int
+    ): String {
+        val budget = AodMediaLyricPolicy.upcomingLineBudget(maxLines)
+        if (budget <= 0) return ""
+        return upcoming.asSequence()
+            .map { displayText(it.text) }
+            .filter { it.isNotBlank() }
+            .take(budget)
+            .joinToString("\n")
     }
 
     /** 等待歌词占位文案（动态圆点，颜色在 apply 时按当前文本色着色）。 */
@@ -3815,11 +3889,23 @@ object NotificationMediaAodLyricHooker {
             min = RootConstants.MIN_HOOK_AOD_TRANSLATION_TEXT_SIZE,
             max = RootConstants.MAX_HOOK_AOD_TRANSLATION_TEXT_SIZE,
         ),
-        showNextLyric = prefs?.getBoolean(
-            "${prefix}show_next_lyric",
-            RootConstants.DEFAULT_HOOK_AOD_SHOW_NEXT_LYRIC,
-        ) ?: RootConstants.DEFAULT_HOOK_AOD_SHOW_NEXT_LYRIC,
+        // 后续歌词（多行歌词）：位置内开关与全局「多行歌词」开关任一开启即显示，
+        // 这样只开全局开关时息屏/锁屏 AOD 与自定义 AOD 也跟随生效。
+        showNextLyric = (
+            prefs?.getBoolean(
+                "${prefix}show_next_lyric",
+                RootConstants.DEFAULT_HOOK_AOD_SHOW_NEXT_LYRIC,
+            ) ?: RootConstants.DEFAULT_HOOK_AOD_SHOW_NEXT_LYRIC
+            ) || (
+            prefs?.getBoolean(
+                RootConstants.KEY_HOOK_NEXT_LYRIC_LINE,
+                RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE,
+            ) ?: RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
+            ),
         nextLyricStyle = readAodNextLyricStyle("${prefix}next_lyric_style"),
+        lyricMaxLines = AodMediaLyricPolicy.sanitizeLyricMaxLines(
+            prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_MAX_LINES)
+        ),
         duetLyrics = prefs?.getBoolean(
             "${prefix}duet_lyrics",
             RootConstants.DEFAULT_HOOK_AOD_DUET_LYRICS,

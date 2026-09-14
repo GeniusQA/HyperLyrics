@@ -18,6 +18,7 @@ import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import com.genius.hyperlyrics.root.HookEntry
 import com.genius.hyperlyrics.root.LyriconDataBridge
 import com.genius.hyperlyrics.root.mediacard.LyricGestureHelper
+import com.genius.hyperlyrics.root.mediacard.notification.AodMediaLyricPolicy
 import com.genius.hyperlyrics.root.utils.CoverColorHelper
 import com.genius.hyperlyrics.root.utils.OverlayFontColorApplier
 import com.genius.hyperlyrics.root.utils.HookLogger
@@ -85,6 +86,7 @@ object IslandExpandedLyricHooker {
         val translation: TextView,
         val backing: TextView,
         val backingTranslation: TextView,
+        val next: TextView,
         val player: ViewGroup,
         val expandedView: View,
         val seekBar: View?,
@@ -452,6 +454,9 @@ object IslandExpandedLyricHooker {
         setOptionalText(lyricState.translation, translation)
         setOptionalText(lyricState.backing, backing)
         setOptionalText(lyricState.backingTranslation, backingTranslation)
+        val upcomingBudget = upcomingLineBudget()
+        lyricState.next.maxLines = upcomingBudget.coerceAtLeast(1)
+        setOptionalText(lyricState.next, buildUpcomingLyricText(upcomingBudget))
         lyricState.main.setTextColor(entry.title.currentTextColor)
         lyricState.backing.setTextColor(entry.title.currentTextColor)
         val translationColor = artist?.currentTextColor ?: entry.title.currentTextColor
@@ -523,6 +528,12 @@ object IslandExpandedLyricHooker {
             artist?.currentTextColor ?: title.currentTextColor,
             artist?.typeface ?: title.typeface,
         )
+        // 后续歌词行（多行歌词）：与主句同色系、按翻译字号展示，可见性由内容决定。
+        val next = lyricText(
+            translationTextSize(),
+            artist?.currentTextColor ?: title.currentTextColor,
+            artist?.typeface ?: title.typeface,
+        )
         val root = LinearLayout(context).apply {
             tag = OVERLAY_TAG
             orientation = LinearLayout.VERTICAL
@@ -544,6 +555,10 @@ object IslandExpandedLyricHooker {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = (4f * density).toInt() })
             addView(backingTranslation, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = (4f * density).toInt() })
+            addView(next, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = (4f * density).toInt() })
@@ -597,6 +612,7 @@ object IslandExpandedLyricHooker {
             translation = translation,
             backing = backing,
             backingTranslation = backingTranslation,
+            next = next,
             player = player,
             expandedView = expandedView,
             seekBar = seekBar,
@@ -743,6 +759,34 @@ object IslandExpandedLyricHooker {
                 it.name == "getExpandedView" && it.parameterTypes.isEmpty()
             }?.invoke(contentView) as? View
         }.getOrNull()
+    }
+
+    /**
+     * 后续歌词可用行数：关闭「多行歌词」时为 0，开启时按总行数上限减去主句预留行数。
+     */
+    private fun upcomingLineBudget(): Int {
+        val multiLine = prefs?.getBoolean(
+            RootConstants.KEY_HOOK_NEXT_LYRIC_LINE,
+            RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
+        ) ?: RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
+        if (!multiLine) return 0
+        val maxLines = AodMediaLyricPolicy.sanitizeLyricMaxLines(
+            prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_MAX_LINES)
+        )
+        return AodMediaLyricPolicy.upcomingLineBudget(maxLines)
+    }
+
+    /**
+     * 按 [budget] 取后续歌词并换行拼接；条数与渲染行数都受预算约束，
+     * 避免长句换行把大岛卡片撑爆。
+     */
+    private fun buildUpcomingLyricText(budget: Int): String {
+        if (budget <= 0) return ""
+        return LyriconDataBridge.currentUpcomingLyricLines.asSequence()
+            .map { it.text?.trim().orEmpty() }
+            .filter { it.isNotBlank() }
+            .take(budget)
+            .joinToString("\n")
     }
 
     private fun setOptionalText(view: TextView, text: String) {
