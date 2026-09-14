@@ -29,6 +29,7 @@ import com.genius.hyperlyrics.common.IslandAlbumCoverWhitelist
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.media.MediaMetadataHelper
 import com.genius.hyperlyrics.root.HookEntry
+import com.genius.hyperlyrics.root.mediacard.MediaCoverRotationController
 import com.genius.hyperlyrics.root.mediacard.island.IslandExpandedMediaAmbientFlowHooker
 import com.genius.hyperlyrics.root.LyriconDataBridge
 import com.genius.hyperlyrics.root.SystemUiEnhancementGate
@@ -220,7 +221,7 @@ internal object IslandAlbumCoverStyleHooker {
     }
 
     fun onPlaybackStateChanged(isPlaying: Boolean) {
-        IslandAlbumCoverRotationController.setPlaybackActive(isPlaying)
+        MediaCoverRotationController.setPlaybackActive(isPlaying)
         EmbeddedIslandAlbumCoverController.setPlaybackActive(isPlaying)
     }
 
@@ -305,7 +306,7 @@ internal object IslandAlbumCoverStyleHooker {
             }
         }
         runOnMain {
-            IslandAlbumCoverRotationController.cleanup()
+            MediaCoverRotationController.cleanup()
             restoreAllGradientCovers()
             restoringNative.set(true)
             try {
@@ -320,7 +321,7 @@ internal object IslandAlbumCoverStyleHooker {
     }
 
     fun cleanup() {
-        IslandAlbumCoverRotationController.cleanup()
+        MediaCoverRotationController.cleanup()
         restoreAllGradientCovers()
         cachedBigVisual = null
         cachedSmallVisual = null
@@ -376,7 +377,7 @@ internal object IslandAlbumCoverStyleHooker {
             scheduleNativeArtworkCapture(fixIcon, dynamicIslandData)
         }
         if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_ROTATING_CIRCLE) {
-            IslandAlbumCoverRotationController.detach(fixIcon)
+            MediaCoverRotationController.detach(fixIcon)
         }
         if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT) {
             restoreGradientCover(fixIcon)
@@ -393,7 +394,11 @@ internal object IslandAlbumCoverStyleHooker {
 
             RootConstants.ISLAND_ALBUM_COVER_STYLE_ROTATING_CIRCLE -> {
                 applyCircleOutline(fixIcon)
-                IslandAlbumCoverRotationController.attach(fixIcon)
+                MediaCoverRotationController.attach(
+                    fixIcon,
+                    centerPivot = true,
+                    resetRotationOnDetach = true
+                )
             }
 
             RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT -> {

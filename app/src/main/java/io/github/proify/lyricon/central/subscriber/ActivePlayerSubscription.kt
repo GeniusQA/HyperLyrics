@@ -13,7 +13,7 @@ import android.system.OsConstants
 import android.util.Log
 import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.root.utils.HookLogger
-import io.github.proify.lyricon.central.json
+import io.github.proify.extensions.json
 import io.github.proify.lyricon.central.provider.player.ActivePlayerListener
 import io.github.proify.lyricon.lyric.model.Song
 import io.github.proify.lyricon.provider.ProviderInfo

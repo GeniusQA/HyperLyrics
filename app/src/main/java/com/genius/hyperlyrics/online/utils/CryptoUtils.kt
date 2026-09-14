@@ -1,9 +1,9 @@
 package com.genius.hyperlyrics.online.utils
 
 import android.annotation.SuppressLint
+import com.genius.hyperlyrics.common.extensions.md5
 import com.genius.hyperlyrics.utils.LogManager
 import java.io.ByteArrayOutputStream
-import java.security.MessageDigest
 import java.util.zip.Inflater
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
@@ -12,10 +12,7 @@ object NeCryptoUtils {
     private const val EAPI_KEY = "e82ckenh8dichen8"
     private const val DIGEST_TEXT = "nobody%suse%smd5forencrypt"
 
-    fun md5(input: String): String {
-        val bytes = MessageDigest.getInstance("MD5").digest(input.toByteArray())
-        return bytes.joinToString("") { "%02x".format(it) }
-    }
+    fun md5(input: String): String = input.md5()
 
     @SuppressLint("GetInstance")
     private fun aesEncrypt(text: String): ByteArray {

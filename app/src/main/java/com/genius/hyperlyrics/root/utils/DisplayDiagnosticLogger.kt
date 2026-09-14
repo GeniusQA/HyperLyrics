@@ -6,7 +6,6 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** Debug-only display decisions shared by the bridge, island, and AOD renderers. */
 object DisplayDiagnosticLogger {
-    private const val MAX_IDENTITY_CHARS = 80
     private val lastSignatures = ConcurrentHashMap<String, String>()
 
     fun log(
@@ -78,9 +77,5 @@ object DisplayDiagnosticLogger {
         }
     }
 
-    private fun sanitize(value: String?): String = value
-        ?.replace(Regex("\\s+"), " ")
-        ?.trim()
-        ?.take(MAX_IDENTITY_CHARS)
-        .orEmpty()
+    private fun sanitize(value: String?): String = DiagnosticText.sanitize(value)
 }

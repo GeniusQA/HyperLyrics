@@ -7,13 +7,13 @@
 package io.github.proify.lyricon.amprovider.xposed.hooks
 
 import com.genius.hyperlyrics.BuildConfig
+import com.genius.hyperlyrics.common.extensions.sha256Hex
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicHookPoint
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicHookTarget
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicProviderRuntime
 import io.github.proify.lyricon.amprovider.xposed.AppleMusicRuntimeMember
 import io.github.proify.lyricon.amprovider.xposed.AppleReflection
 import io.github.proify.lyricon.amprovider.xposed.ProviderLogger
-import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -157,10 +157,7 @@ internal class AppleDebugNetworkHooks(
     private fun sensitiveSummary(value: Any?): String {
         if (value == null) return "null"
         val text = value.toString()
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(text.toByteArray(Charsets.UTF_8))
-            .take(6)
-            .joinToString("") { "%02x".format(it) }
+        val digest = text.sha256Hex().take(12)
         return "len=${text.length},sha256=$digest"
     }
 

@@ -18,7 +18,6 @@ object MediaCardDiagnosticLogger {
     private const val TAG = "MediaCardDiag"
     private const val PREFIX = "[MEDIA_CARD_DIAG]"
     private const val POSITION_SAMPLE_INTERVAL_MS = 2_000L
-    private const val MAX_TEXT_CHARS = 80
 
     private val sequence = AtomicLong(0)
     private val lastPositionSampleAt = ConcurrentHashMap<String, Long>()
@@ -66,12 +65,7 @@ object MediaCardDiagnosticLogger {
         "${it.javaClass.simpleName}@${System.identityHashCode(it)}"
     } ?: "null"
 
-    fun sanitize(value: Any?): String = value?.toString()
-        ?.replace(Regex("\\s+"), " ")
-        ?.trim()
-        ?.take(MAX_TEXT_CHARS)
-        ?.replace(',', ';')
-        .orEmpty()
+    fun sanitize(value: Any?): String = DiagnosticText.sanitize(value, replaceComma = true)
 
     private fun monotonicNowMs(): Long = runCatching {
         SystemClock.elapsedRealtime()
@@ -92,6 +86,7 @@ object MediaCardDiagnosticLogger {
             ",position=${LyriconDataBridge.currentPosition}" +
             ",line=${line?.begin}-${line?.end}" +
             ",lineTextLen=${line?.text?.length ?: 0}" +
+            ",actualLyrics=${LyriconDataBridge.currentSong?.lyrics?.size ?: 0}" +
             ",textMode=${LyriconDataBridge.isTextMode}" +
             ",version=${LyriconDataBridge.versionCounter.get()}"
     }

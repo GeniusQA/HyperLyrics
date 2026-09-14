@@ -1,7 +1,5 @@
 package com.genius.hyperlyrics.root.utils
 
-import java.lang.reflect.Method
-
 /**
  * 动态发现工具类，用于在混淆后的代码中定位关键 Hook 点。
  */
@@ -79,72 +77,4 @@ object DynamicFinder {
         return null
     }
 
-    /**
-     * 智能寻找方法，自动适配 Kotlin 协程生成的挂起函数（带 Continuation 参数）。
-     */
-    fun findMethodSuspendAware(
-        clazz: Class<*>,
-        methodName: String,
-        parameterTypes: Array<Class<*>>,
-        returnType: Class<*>? = null
-    ): Method? {
-        // 1. 首先尝试查找普通方法
-        for (method in clazz.declaredMethods) {
-            if (method.name == methodName && method.parameterTypes.contentEquals(parameterTypes)) {
-                if (returnType == null || method.returnType == returnType) {
-                    HookLogger.d(TAG, "找到普通方法: method=${clazz.name}.$methodName")
-                    return method
-                }
-            }
-        }
-
-        // 2. 如果找不到，尝试查找协程版本 (额外增加一个 Continuation 参数)
-        for (method in clazz.declaredMethods) {
-            if (method.name == methodName && method.parameterTypes.size == parameterTypes.size + 1) {
-                val lastParam = method.parameterTypes.last()
-                if (lastParam.name.contains("kotlin.coroutines.Continuation")) {
-                    // 检查前面的参数是否匹配
-                    val leadingParams = method.parameterTypes.copyOfRange(0, parameterTypes.size)
-                    if (leadingParams.contentEquals(parameterTypes)) {
-                        HookLogger.d(TAG, "找到挂起方法: method=${clazz.name}.$methodName")
-                        return method
-                    }
-                }
-            }
-        }
-        return null
-    }
-
-    /**
-     * 在指定的类集合中寻找符合签名的方法。
-     */
-    fun findMethodBySignature(
-        loader: ClassLoader,
-        classNames: List<String>,
-        parameterTypes: Array<Class<*>>,
-        returnType: Class<*>,
-        predicate: ((Method) -> Boolean)? = null
-    ): Method? {
-        for (className in classNames) {
-            try {
-                val clazz = loader.loadClass(className)
-                for (method in clazz.declaredMethods) {
-                    if (method.parameterTypes.contentEquals(parameterTypes) &&
-                        method.returnType == returnType
-                    ) {
-                        if (predicate == null || predicate(method)) {
-                            HookLogger.d(
-                                TAG,
-                                "按签名找到方法: method=${clazz.name}.${method.name}"
-                            )
-                            return method
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                // Ignore class not found
-            }
-        }
-        return null
-    }
 }

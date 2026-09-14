@@ -8,6 +8,7 @@ package com.genius.hyperlyrics.provider
 
 import android.content.Context
 import com.genius.hyperlyrics.common.PrefsBridge
+import com.genius.hyperlyrics.common.extensions.sha256Hex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -15,7 +16,6 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URI
-import java.security.MessageDigest
 import java.util.Base64
 
 @Serializable
@@ -220,7 +220,7 @@ object OfficialProviderRepository {
         validateAssetUrl(assetUrl)
         val expectedSha256 = requireNotNull(entry.sha256)
         val packBytes = fetch(assetUrl, MAX_PACK_BYTES)
-        require(sha256(packBytes).equals(expectedSha256, ignoreCase = true)) {
+        require(packBytes.sha256Hex().equals(expectedSha256, ignoreCase = true)) {
             "Provider Pack 与目录摘要不一致"
         }
         val installed = OfficialProviderInstaller.install(context, packBytes)
@@ -288,8 +288,4 @@ object OfficialProviderRepository {
             }
         }
 
-    private fun sha256(bytes: ByteArray): String =
-        MessageDigest.getInstance("SHA-256")
-            .digest(bytes)
-            .joinToString("") { "%02x".format(it) }
 }

@@ -8,8 +8,8 @@ package io.github.proify.lyricon.central.registration
 
 import android.content.Intent
 import android.util.Log
+import io.github.proify.extensions.json
 import io.github.proify.lyricon.central.Constants
-import io.github.proify.lyricon.central.json
 import io.github.proify.lyricon.central.provider.ProviderConnection
 import io.github.proify.lyricon.central.provider.ProviderDirectory
 import io.github.proify.lyricon.central.subscriber.SubscriberConnection

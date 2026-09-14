@@ -6,16 +6,8 @@
 
 package com.genius.hyperlyrics.common.extensions
 
+import io.github.proify.extensions.json
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-
-val json: Json = Json {
-    coerceInputValues = true
-    ignoreUnknownKeys = true
-    isLenient = true
-    explicitNulls = false
-    encodeDefaults = false
-}
 
 inline fun <reified T> T.toJson(): String {
     return json.encodeToString(this)

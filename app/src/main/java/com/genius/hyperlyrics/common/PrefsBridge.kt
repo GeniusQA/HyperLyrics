@@ -10,7 +10,7 @@ object PrefsBridge {
     private var prefs: SharedPreferences? = null
 
     fun init(context: Context) {
-        prefs = context.getSharedPreferences(PreferenceKeys.PREF_NAME, Context.MODE_PRIVATE)
+        prefs = context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE)
         PreferenceDiagnostics.logSnapshot("app_local_init", requirePrefs(), ::log)
     }
 
@@ -28,37 +28,37 @@ object PrefsBridge {
     fun putBoolean(key: String, value: Boolean) {
         getPrefs().edit().putBoolean(key, value).apply()
         logWrite(key, value)
-        RootApplication.syncPreference(PreferenceKeys.PREF_NAME, key, value)
+        RootApplication.syncPreference(UIConstants.PREF_NAME, key, value)
     }
 
     fun putInt(key: String, value: Int) {
         getPrefs().edit().putInt(key, value).apply()
         logWrite(key, value)
-        RootApplication.syncPreference(PreferenceKeys.PREF_NAME, key, value)
+        RootApplication.syncPreference(UIConstants.PREF_NAME, key, value)
     }
 
     fun putString(key: String, value: String?) {
         getPrefs().edit().putString(key, value).apply()
         logWrite(key, value)
-        RootApplication.syncPreference(PreferenceKeys.PREF_NAME, key, value)
+        RootApplication.syncPreference(UIConstants.PREF_NAME, key, value)
     }
 
     fun putLong(key: String, value: Long) {
         getPrefs().edit().putLong(key, value).apply()
         logWrite(key, value)
-        RootApplication.syncPreference(PreferenceKeys.PREF_NAME, key, value)
+        RootApplication.syncPreference(UIConstants.PREF_NAME, key, value)
     }
 
     fun putFloat(key: String, value: Float) {
         getPrefs().edit().putFloat(key, value).apply()
         logWrite(key, value)
-        RootApplication.syncPreference(PreferenceKeys.PREF_NAME, key, value)
+        RootApplication.syncPreference(UIConstants.PREF_NAME, key, value)
     }
 
     fun putStringSet(key: String, value: Set<String>?) {
         getPrefs().edit().putStringSet(key, value).apply()
         logWrite(key, value)
-        RootApplication.syncPreference(PreferenceKeys.PREF_NAME, key, value)
+        RootApplication.syncPreference(UIConstants.PREF_NAME, key, value)
     }
 
     fun syncAllToRemote() {

@@ -8,10 +8,16 @@ package io.github.proify.extensions
 
 import kotlinx.serialization.json.Json
 
+/**
+ * 全项目唯一的 kotlinx.serialization Json 配置。
+ *
+ * 之前存在三份几乎相同的定义（本文件、lyricon central 的 Extensions、
+ * common.extensions 的 JsonExtensions），现已统一到此处，其余位置一律 import 本实例。
+ */
 val json: Json = Json {
     coerceInputValues = true     // 尝试转换类型
     ignoreUnknownKeys = true     // 忽略未知字段
     isLenient = true             // 宽松的 JSON 语法
     explicitNulls = false        // 不序列化 null
-    //encodeDefaults = false       // 不序列化默认值
+    encodeDefaults = false       // 不序列化默认值
 }
