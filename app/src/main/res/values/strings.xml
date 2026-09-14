@@ -760,6 +760,14 @@
     <string name="cleanup_status_failed_files">失败文件：%1$s</string>
     <string name="cleanup_failure_solution">部分文件因被占用或权限不足未能清理，可重启系统或手动删除。</string>
 
+    <!-- 二次匹配结果提示（LyriconSource 在 hook 进程用 moduleString 取模块自有资源） -->
+    <string name="manual_match_result_no_song">二次匹配失败：当前没有三方播放歌曲</string>
+    <string name="manual_match_result_switched">二次匹配已忽略：当前歌曲已切换为 %1$s</string>
+    <string name="manual_match_result_no_lyrics">二次匹配失败：未取到歌词</string>
+    <string name="manual_match_result_no_translation">二次匹配完成：已获取 %1$d 行原词，但未找到翻译</string>
+    <string name="manual_match_result_success">二次匹配成功：%1$d 行歌词，%2$d 行翻译</string>
+    <string name="manual_match_result_exception">二次匹配异常：%1$s：%2$s</string>
+
     <string name="title_log_detail">日志详情</string>
     <string name="export_success">导出成功</string>
     <string name="format_export_failed">导出失败: %1$s</string>
