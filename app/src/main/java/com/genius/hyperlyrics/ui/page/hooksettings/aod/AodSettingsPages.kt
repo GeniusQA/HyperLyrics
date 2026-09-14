@@ -672,8 +672,8 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                                         },
                                         valueRange = RootConstants.MIN_LYRIC_AREA_HEIGHT.toFloat()
                                             ..RootConstants.MAX_LYRIC_AREA_HEIGHT.toFloat(),
-                                        steps = ((RootConstants.MAX_LYRIC_AREA_HEIGHT
-                                            - RootConstants.MIN_LYRIC_AREA_HEIGHT) / 10) - 1,
+                                        steps = (RootConstants.MAX_LYRIC_AREA_HEIGHT
+                                            - RootConstants.MIN_LYRIC_AREA_HEIGHT) - 1,
                                     )
                                 }
                             )
