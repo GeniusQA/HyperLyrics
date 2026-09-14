@@ -775,7 +775,7 @@ object IslandExpandedLyricHooker {
     /**
      * 当前歌词块总行数上限：直接以行数为准，不再按高度/字号反推。
      */
-    private fun lyricMaxLines(): Int = AodMediaLyricPolicy.sanitizeLyricAreaHeight(
+    private fun lyricMaxLines(): Int = AodMediaLyricPolicy.sanitizeLyricMaxLines(
         prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_MAX_LINES)
     )
 
