@@ -710,7 +710,7 @@ class LyriconSource : LyricSource {
                 application,
                 moduleStringFmt(
                     R.string.manual_match_result_switched,
-                    baseSong.name,
+                    baseSong.name ?: "",
                     fallback = "二次匹配已忽略：当前歌曲已切换为 ${baseSong.name}",
                 ),
             )
