@@ -497,42 +497,53 @@ object IslandExpandedLyricHooker {
     ): BinderLyricState? {
         val context = player.context
         val density = context.resources.displayMetrics.density
-        fun lyricText(sizeSp: Int, color: Int, typeface: android.graphics.Typeface?) =
-            TextView(context).apply {
-                gravity = Gravity.CENTER
-                includeFontPadding = false
-                this.typeface = typeface
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp.toFloat())
-                setTextColor(color)
-                setSingleLine(false)
-                maxLines = 2
-                ellipsize = TextUtils.TruncateAt.END
-            }
+        val rowMaxLines = lyricRowMaxLines()
+        val nextMaxLines = upcomingLineBudget().coerceAtLeast(1)
+        fun lyricText(
+            sizeSp: Int,
+            color: Int,
+            typeface: android.graphics.Typeface?,
+            maxLines: Int,
+        ) = TextView(context).apply {
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            this.typeface = typeface
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp.toFloat())
+            setTextColor(color)
+            setSingleLine(false)
+            this.maxLines = maxLines
+            ellipsize = TextUtils.TruncateAt.END
+        }
         val main = lyricText(
             mainTextSize(),
             title.currentTextColor,
             title.typeface,
+            rowMaxLines,
         )
         val translation = lyricText(
             translationTextSize(),
             artist?.currentTextColor ?: title.currentTextColor,
             artist?.typeface ?: title.typeface,
+            rowMaxLines,
         )
         val backing = lyricText(
             backingTextSize(),
             title.currentTextColor,
             title.typeface,
+            rowMaxLines,
         )
         val backingTranslation = lyricText(
             translationTextSize(),
             artist?.currentTextColor ?: title.currentTextColor,
             artist?.typeface ?: title.typeface,
+            rowMaxLines,
         )
         // 后续歌词行（多行歌词）：与主句同色系、按翻译字号展示，可见性由内容决定。
         val next = lyricText(
             translationTextSize(),
             artist?.currentTextColor ?: title.currentTextColor,
             artist?.typeface ?: title.typeface,
+            nextMaxLines,
         )
         val root = LinearLayout(context).apply {
             tag = OVERLAY_TAG
@@ -762,10 +773,21 @@ object IslandExpandedLyricHooker {
     }
 
     /**
-     * 后续歌词可用条数：关闭「多行歌词」时为 0；开启时取偏好设定的条数上限，
-     * 减去当前句预留行数。当前行存在翻译/发音/伴唱时，
+     * 当前歌词块总行数上限：直接以行数为准，不再按高度/字号反推。
+     */
+    private fun lyricMaxLines(): Int = AodMediaLyricPolicy.sanitizeLyricAreaHeight(
+        prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_MAX_LINES)
+    )
+
+    /**
+     * 单行歌词（主句 / 翻译）允许的最大折行数。
+     */
+    private fun lyricRowMaxLines(): Int = AodMediaLyricPolicy.lyricRowMaxLines(lyricMaxLines())
+
+    /**
+     * 后续歌词可用条数：关闭「多行歌词」时为 0；开启时按总行数上限
+     * 减去主句预留行数。当前行存在翻译/发音/伴唱时，
      * 优先显示这些附加内容，不占用下一句位置。
-     * 横向跑马灯方案下当前句固定单行，不再按高度/字号反推行数。
      */
     private fun upcomingLineBudget(): Int {
         val multiLine = prefs?.getBoolean(
@@ -773,17 +795,12 @@ object IslandExpandedLyricHooker {
             RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
         ) ?: RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
         if (!multiLine) return 0
-        // 当前行存在翻译/发音/伴唱时，优先显示这些附加内容，不占用下一句位置。
         val line = LyriconDataBridge.currentLyricLine
         val hasDisplayedExtra = !line?.translation.isNullOrBlank() ||
             !line?.roma.isNullOrBlank() ||
             !line?.secondary.isNullOrBlank()
         if (hasDisplayedExtra) return 0
-        // 偏好直接作为后续歌词条数上限，不再反推高度。
-        val maxLines = AodMediaLyricPolicy.sanitizeLyricAreaHeight(
-            prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT)
-        )
-        return AodMediaLyricPolicy.upcomingLineBudget(maxLines)
+        return AodMediaLyricPolicy.upcomingLineBudget(lyricMaxLines())
     }
 
     /**

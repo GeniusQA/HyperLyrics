@@ -326,7 +326,10 @@ object RootConstants {
     const val KEY_HOOK_TRANSLATION_ONLY = "key_hook_translation_only"
     const val KEY_HOOK_SWAP_TRANSLATION = "key_hook_swap_translation"
     const val KEY_HOOK_NEXT_LYRIC_LINE = "key_hook_next_lyric_line"
-    const val KEY_HOOK_LYRIC_AREA_HEIGHT = "key_hook_lyric_area_height"
+    const val KEY_HOOK_LYRIC_MAX_LINES = "key_hook_lyric_max_lines"
+    const val MIN_LYRIC_MAX_LINES = 2
+    const val MAX_LYRIC_MAX_LINES = 20
+    const val DEFAULT_HOOK_LYRIC_MAX_LINES = 5
     const val KEY_HOOK_AUTO_SWITCH_TRANSLATION = "key_hook_auto_switch_translation"
     const val KEY_HOOK_ADJACENT_BACKGROUND_TRANSLATION =
         "key_hook_adjacent_background_translation"
@@ -756,14 +759,6 @@ object RootConstants {
     const val DEFAULT_HOOK_TRANSLATION_ONLY = false
     const val DEFAULT_HOOK_SWAP_TRANSLATION = false
     const val DEFAULT_HOOK_NEXT_LYRIC_LINE = false
-
-    // ================= 后续歌词条数上限 =================
-    // 横向跑马灯方案下，当前句与翻译各占固定 1 行，不再按高度/字号反推行数，
-    // 该偏好仅约束「后续歌词」最多展示几条（单行 marquee 滚动）。
-    const val MIN_LYRIC_AREA_HEIGHT = 2
-    const val MAX_LYRIC_AREA_HEIGHT = 12
-    const val DEFAULT_HOOK_LYRIC_AREA_HEIGHT = 5
-
     const val DEFAULT_HOOK_AUTO_SWITCH_TRANSLATION = false
     const val DEFAULT_HOOK_ADJACENT_BACKGROUND_TRANSLATION = false
     const val DEFAULT_HOOK_EXTRACT_COVER_TEXT_COLOR = false

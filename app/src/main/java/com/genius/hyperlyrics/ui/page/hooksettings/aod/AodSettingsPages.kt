@@ -343,8 +343,8 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
     }
     var lyricAreaHeight by remember {
         mutableIntStateOf(
-            (prefs.all[RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT] as? Int)
-                ?: RootConstants.DEFAULT_HOOK_LYRIC_AREA_HEIGHT
+            (prefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
+                ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
         )
     }
     var nextLyricStyle by remember(spec.nextLyricStyleKey) {
@@ -660,20 +660,20 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                                         onValueChange = {
                                             lyricAreaHeight = it.roundToInt()
                                                 .coerceIn(
-                                                    RootConstants.MIN_LYRIC_AREA_HEIGHT,
-                                                    RootConstants.MAX_LYRIC_AREA_HEIGHT
+                                                    RootConstants.MIN_LYRIC_MAX_LINES,
+                                                    RootConstants.MAX_LYRIC_MAX_LINES
                                                 )
                                         },
                                         onValueChangeFinished = {
                                             saveConfig(
-                                                RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT,
+                                                RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
                                                 lyricAreaHeight
                                             )
                                         },
-                                        valueRange = RootConstants.MIN_LYRIC_AREA_HEIGHT.toFloat()
-                                            ..RootConstants.MAX_LYRIC_AREA_HEIGHT.toFloat(),
-                                        steps = (RootConstants.MAX_LYRIC_AREA_HEIGHT
-                                            - RootConstants.MIN_LYRIC_AREA_HEIGHT) - 1,
+                                        valueRange = RootConstants.MIN_LYRIC_MAX_LINES.toFloat()
+                                            ..RootConstants.MAX_LYRIC_MAX_LINES.toFloat(),
+                                        steps = (RootConstants.MAX_LYRIC_MAX_LINES
+                                            - RootConstants.MIN_LYRIC_MAX_LINES) - 1,
                                     )
                                 }
                             )
