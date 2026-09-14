@@ -3732,7 +3732,7 @@ object NotificationMediaAodLyricHooker {
             { it }
         }
         return upcoming.asSequence()
-            .map { transform(it.text) }
+            .mapNotNull { transform(it.text) }
             .filter { it.isNotBlank() }
             .take(budget)
             .joinToString("\n")
