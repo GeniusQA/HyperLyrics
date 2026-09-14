@@ -1,7 +1,7 @@
 package com.genius.hyperlyrics.root.aitrans
 
 import com.genius.hyperlyrics.root.utils.HookLogger
-import com.genius.hyperlyrics.common.extensions.json
+import io.github.proify.extensions.json
 
 internal object AITranslationResponseParser {
     private const val TAG = "AITranslationResponseParser"

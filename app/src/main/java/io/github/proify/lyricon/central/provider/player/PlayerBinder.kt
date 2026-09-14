@@ -14,9 +14,9 @@ import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.common.media.NextTrackMetadataCache
 import com.genius.hyperlyrics.provider.OfficialProviderControlProtocol
 import com.genius.hyperlyrics.root.utils.HookLogger
-import io.github.proify.lyricon.central.inflate
-import io.github.proify.lyricon.central.json
-import io.github.proify.lyricon.central.util.ScreenStateMonitor
+import io.github.proify.extensions.android.ScreenStateMonitor
+import io.github.proify.extensions.inflate
+import io.github.proify.extensions.json
 import io.github.proify.lyricon.lyric.model.Song
 import io.github.proify.lyricon.provider.IRemotePlayer
 import io.github.proify.lyricon.provider.ProviderConstants

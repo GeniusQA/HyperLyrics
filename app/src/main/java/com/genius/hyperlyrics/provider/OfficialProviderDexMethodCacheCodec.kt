@@ -6,7 +6,7 @@
 
 package com.genius.hyperlyrics.provider
 
-import java.security.MessageDigest
+import com.genius.hyperlyrics.common.extensions.sha256Hex
 import java.util.Base64
 
 internal object OfficialProviderDexMethodCacheCodec {
@@ -65,7 +65,7 @@ internal object OfficialProviderDexMethodCacheCodec {
             append(query.declaringClassFieldTypeNames.joinToString("\u0001"))
             append('\u0000')
             append(query.declaringClassFieldReferences.joinToString("\u0001") { it.fingerprint() })
-        }.sha256()
+        }.sha256Hex()
         return "hle_dex_method_v1:$packageName:$processName:$versionCode:$lastUpdateTime:$fingerprint"
     }
 
@@ -132,7 +132,4 @@ internal object OfficialProviderDexMethodCacheCodec {
         Charsets.UTF_8,
     )
 
-    private fun String.sha256(): String = MessageDigest.getInstance("SHA-256")
-        .digest(toByteArray(Charsets.UTF_8))
-        .joinToString("") { "%02x".format(it) }
 }

@@ -1,5 +1,6 @@
 package com.genius.hyperlyrics.root.island
 
+import com.genius.hyperlyrics.root.mediacard.CoverRotationGeometry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -69,7 +70,7 @@ class IslandGradientCoverLayoutTest {
     @Test
     fun rotatingCoverUsesItsMeasuredCenterAfterGradientPivotReset() {
         val pivot = requireNotNull(
-            IslandAlbumCoverRotationGeometry.centeredPivot(width = 60, height = 60)
+            CoverRotationGeometry.centeredPivot(width = 60, height = 60)
         )
 
         assertEquals(30f, pivot.x)
@@ -78,8 +79,8 @@ class IslandGradientCoverLayoutTest {
 
     @Test
     fun rotatingCoverWaitsForAValidLayoutBeforeSettingPivot() {
-        assertEquals(null, IslandAlbumCoverRotationGeometry.centeredPivot(width = 0, height = 60))
-        assertEquals(null, IslandAlbumCoverRotationGeometry.centeredPivot(width = 60, height = 0))
+        assertEquals(null, CoverRotationGeometry.centeredPivot(width = 0, height = 60))
+        assertEquals(null, CoverRotationGeometry.centeredPivot(width = 60, height = 0))
     }
 
     @Test

@@ -1,7 +1,7 @@
 package com.genius.hyperlyrics.root.aitrans
 
 import com.genius.hyperlyrics.root.utils.HookLogger
-import com.genius.hyperlyrics.common.extensions.json
+import io.github.proify.extensions.json
 import com.genius.hyperlyrics.common.extensions.toJson
 import com.genius.hyperlyrics.lyric.model.Song
 import com.genius.hyperlyrics.lyric.style.AiTranslationConfigs

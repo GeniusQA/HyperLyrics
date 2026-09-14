@@ -17,6 +17,7 @@ import com.genius.hyperlyrics.root.LyriconDataBridge
 import com.genius.hyperlyrics.root.SystemUiEnhancementGate
 import com.genius.hyperlyrics.root.mediacard.MediaAmbientFlowPalette
 import com.genius.hyperlyrics.root.mediacard.MediaAmbientFlowPaletteExtractor
+import com.genius.hyperlyrics.root.mediacard.buildMediaAmbientFlowPalette
 import com.genius.hyperlyrics.root.mediacard.MediaArtworkSampler
 import com.genius.hyperlyrics.root.mediacard.background.MediaFlowArtwork
 import com.genius.hyperlyrics.root.mediacard.background.MediaFlowBackgroundView
@@ -1085,18 +1086,8 @@ object NotificationMediaAmbientFlowHooker {
             return createPalette(mainColor)
         }
 
-        fun createPalette(mainColor: Int): MediaAmbientFlowPalette {
-            val colors = intArrayOf(
-                getPaletteColor(mainColor, "primary", 12),
-                getPaletteColor(mainColor, "primary", 10),
-                getPaletteColor(mainColor, "tertiary", 12)
-            )
-            return MediaAmbientFlowPalette(mainColor, colors)
-        }
-
-        private fun getPaletteColor(mainColor: Int, role: String, tone: Int): Int {
-            return getPaletteColorMethod.invoke(null, mainColor, role, tone) as Int
-        }
+        fun createPalette(mainColor: Int): MediaAmbientFlowPalette =
+            buildMediaAmbientFlowPalette(mainColor, getPaletteColorMethod)
 
         companion object {
             fun create(classLoader: ClassLoader): NativeMusicBgApi {

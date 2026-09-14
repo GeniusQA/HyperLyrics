@@ -11,8 +11,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import io.github.proify.extensions.android.ScreenStateMonitor
 import io.github.proify.lyricon.central.provider.player.SystemActiveAudioPlaybackMonitor
-import io.github.proify.lyricon.central.util.ScreenStateMonitor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**

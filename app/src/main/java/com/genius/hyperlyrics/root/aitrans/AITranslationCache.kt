@@ -4,7 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
-import com.genius.hyperlyrics.common.extensions.json
+import io.github.proify.extensions.json
 import com.genius.hyperlyrics.common.extensions.toJson
 import com.genius.hyperlyrics.root.utils.HookLogger
 import kotlinx.coroutines.CoroutineScope
