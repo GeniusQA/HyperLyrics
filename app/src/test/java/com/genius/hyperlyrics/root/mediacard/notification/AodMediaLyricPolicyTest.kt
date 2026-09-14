@@ -429,6 +429,72 @@ class AodMediaLyricPolicyTest {
     }
 
     @Test
+    fun `ignores invisible action and seek bar geometry when anchoring`() {
+        assertEquals(
+            65,
+            AodMediaLyricPolicy.contentAnchorBottom(
+                albumBottom = 65,
+                artistBottom = 45,
+                actionBottom = 150,
+                seekBarBottom = 200,
+                actionVisible = false,
+                seekBarVisible = false,
+            )
+        )
+        assertEquals(
+            200,
+            AodMediaLyricPolicy.contentAnchorBottom(
+                albumBottom = 65,
+                artistBottom = 45,
+                actionBottom = 150,
+                seekBarBottom = 200,
+                actionVisible = true,
+                seekBarVisible = true,
+            )
+        )
+    }
+
+    @Test
+    fun `centers full aod lyrics between song info and progress top`() {
+        val layout = AodMediaLyricPolicy.lockScreenCenteredLyricLayout(
+            nativeCardHeight = 500,
+            anchorBottom = 100,
+            lyricContentHeight = 80,
+            progressRowHeight = 20,
+            progressRowTopMargin = 4,
+            bottomGap = 4,
+            minTopGap = 4,
+        )
+
+        assertEquals(500, layout.targetCardHeight)
+        assertEquals(104, layout.rootTop)
+        assertEquals(392, layout.rootHeight)
+        assertEquals(368, layout.lyricContainerHeight)
+        // 歌词区中心 = (歌曲信息下缘 + 进度条上缘) / 2
+        val progressTop = layout.rootTop + layout.lyricContainerHeight + 4
+        assertEquals(100 + (progressTop - 100) / 2, layout.rootTop + layout.lyricContainerHeight / 2)
+    }
+
+    @Test
+    fun `grows full aod card when multiline lyrics exceed the native band`() {
+        val layout = AodMediaLyricPolicy.lockScreenCenteredLyricLayout(
+            nativeCardHeight = 500,
+            anchorBottom = 100,
+            lyricContentHeight = 400,
+            progressRowHeight = 20,
+            progressRowTopMargin = 4,
+            bottomGap = 4,
+            minTopGap = 4,
+        )
+
+        assertEquals(532, layout.targetCardHeight)
+        assertEquals(104, layout.rootTop)
+        assertEquals(424, layout.rootHeight)
+        assertEquals(400, layout.lyricContainerHeight)
+        assertTrue(layout.targetCardHeight > 500)
+    }
+
+    @Test
     fun `grows the card below fixed-top tall lyrics`() {
         val lyricTop = AodMediaLyricPolicy.lockScreenLyricTop(
             anchorBottom = 65,

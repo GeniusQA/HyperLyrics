@@ -18,13 +18,12 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.text.SpannableString
-import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
-import android.text.style.RelativeSizeSpan
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -122,6 +121,21 @@ internal data class AodTextStyleConfig(
 internal data class AodHorizontalMargins(
     val left: Int,
     val right: Int,
+)
+
+/**
+ * 锁屏 AOD 歌词居中布局结果（单位：px，坐标相对 player）。
+ *
+ * - [rootTop]：歌词根容器顶部（歌曲信息下缘 + 最小间距）。
+ * - [rootHeight]：歌词根容器高度（歌词容器 + 进度条块）。
+ * - [lyricContainerHeight]：歌词容器高度，歌词行在其中垂直居中。
+ * - [targetCardHeight]：卡片目标高度（原生不够时向下撑高）。
+ */
+internal data class LockScreenLyricLayout(
+    val targetCardHeight: Int,
+    val rootTop: Int,
+    val rootHeight: Int,
+    val lyricContainerHeight: Int,
 )
 
 internal object AodMediaLyricPolicy {
@@ -254,11 +268,13 @@ internal object AodMediaLyricPolicy {
         artistBottom: Int,
         actionBottom: Int = 0,
         seekBarBottom: Int = 0,
+        actionVisible: Boolean = true,
+        seekBarVisible: Boolean = true,
     ): Int = maxOf(
         albumBottom.coerceAtLeast(0),
         artistBottom.coerceAtLeast(0),
-        actionBottom.coerceAtLeast(0),
-        seekBarBottom.coerceAtLeast(0),
+        if (actionVisible) actionBottom.coerceAtLeast(0) else 0,
+        if (seekBarVisible) seekBarBottom.coerceAtLeast(0) else 0,
     )
 
     /**
@@ -279,6 +295,51 @@ internal object AodMediaLyricPolicy {
         if (actionVisible) anchor = maxOf(anchor, actionBottom.coerceAtLeast(0))
         if (seekBarVisible) anchor = maxOf(anchor, seekBarBottom.coerceAtLeast(0))
         return anchor
+    }
+
+    /**
+     * 计算锁屏 AOD 歌词区的居中布局。
+     *
+     * 上边界取可见歌曲信息下缘 [anchorBottom]，下边界取进度条上缘；
+     * 歌词容器在两者之间垂直居中，进度条贴卡片底部（仅保留 [bottomGap]）。
+     * 当歌词内容高于原生卡片剩余空间时，向下撑高卡片以保证多行歌词/翻译不重叠。
+     */
+    fun lockScreenCenteredLyricLayout(
+        nativeCardHeight: Int,
+        anchorBottom: Int,
+        lyricContentHeight: Int,
+        progressRowHeight: Int,
+        progressRowTopMargin: Int,
+        bottomGap: Int,
+        minTopGap: Int,
+    ): LockScreenLyricLayout {
+        val safeNative = nativeCardHeight.coerceAtLeast(0)
+        val safeAnchor = anchorBottom.coerceAtLeast(0)
+        val safeLyric = lyricContentHeight.coerceAtLeast(0)
+        val safeProgress = progressRowHeight.coerceAtLeast(0)
+        val safeProgressMargin = progressRowTopMargin.coerceAtLeast(0)
+        val safeBottomGap = bottomGap.coerceAtLeast(0)
+        val safeMinTopGap = minTopGap.coerceAtLeast(0)
+
+        val rootTop = safeAnchor + safeMinTopGap
+        val progressBlock = safeProgressMargin + safeProgress
+        val availableInNative = safeNative - safeBottomGap - progressBlock - rootTop
+        return if (availableInNative >= safeLyric) {
+            LockScreenLyricLayout(
+                targetCardHeight = safeNative,
+                rootTop = rootTop,
+                rootHeight = safeNative - safeBottomGap - rootTop,
+                lyricContainerHeight = availableInNative,
+            )
+        } else {
+            val targetCardHeight = rootTop + safeLyric + progressBlock + safeBottomGap
+            LockScreenLyricLayout(
+                targetCardHeight = targetCardHeight,
+                rootTop = rootTop,
+                rootHeight = safeLyric + progressBlock,
+                lyricContainerHeight = safeLyric,
+            )
+        }
     }
 
     fun lockScreenHorizontalMargins(
@@ -637,9 +698,6 @@ object NotificationMediaAodLyricHooker {
     private const val LOCK_SCREEN_AOD_LINE_GAP_DP = 4f
     private const val LOCK_SCREEN_AOD_GROUP_GAP_DP = 8f
     private const val LOCK_SCREEN_AOD_TOP_GAP_DP = 17f
-    // 歌词底部到卡片底的预留高度：需完整容纳贴底显示的进度条区（时间+滑条约40dp）及上下间距，
-    // 防止歌词翻译行与进度条重叠。
-    private const val LOCK_SCREEN_AOD_BOTTOM_RESERVE_DP = 56f
     // 紧凑模式（亮屏锁屏/通知中心）：歌词区与按钮行/进度条行的最小间距
     private const val COMPACT_LYRIC_TOP_GAP_DP = 4f
     private const val SEEK_BAR_CLASS_HINT = "HyperProgressSeekBar"
@@ -1361,6 +1419,10 @@ object NotificationMediaAodLyricHooker {
         } else {
             overlay.waitingForLyrics = false
         }
+        // 紧凑模式排版基准文本：记录原始内容，后续按布局变化重复排版时
+        // 不会把已合并的「歌词 翻译」串再次拼接。
+        overlay.compactSourceMain = overlay.main.text.toString()
+        overlay.compactSourceTranslation = overlay.translation.text.toString()
         // 全屏 AOD：展示自绘进度行（系统该模式无原生进度条）；
         // 紧凑模式由 applyCompactMode 隐藏，无时长数据时也不显示。
         val songDurationMs = LyriconDataBridge.currentSong?.duration?.takeIf { it > 0L }
@@ -1415,8 +1477,9 @@ object NotificationMediaAodLyricHooker {
             ),
         )
         overlay.fullAodActive = state.fullAod
-        // 亮屏场景（锁屏歌词/通知中心）使用紧凑模式：不撑高卡片，
-        // 在按钮与进度条之间的空白区域以单行滚动展示歌词与翻译。
+        // 亮屏场景（锁屏歌词/通知中心焦点通知）使用紧凑模式：不撑高卡片，
+        // 在按钮与进度条之间的空白区域展示歌词与翻译。
+        // 息屏 AOD / 自定义 AOD 保持原有全屏多行布局，不进入紧凑模式。
         val compactMode = interactive && !state.fullAod
         overlay.compactMode = compactMode
         applyCompactMode(overlay, compactMode)
@@ -1480,66 +1543,116 @@ object NotificationMediaAodLyricHooker {
     }
 
     /**
+     * 紧凑模式的延迟重排：卡片（唤醒到锁屏/通知中心展开）重新布局后，
+     * 按钮行与进度条之间的空隙坐标会变化，需要在新一帧把歌词块摆回空隙内。
+     * 用 post 延后到布局完成之后，并以 [LyricOverlay.compactLayoutScheduled] 去重，
+     * 避免「排版 -> 触发布局 -> 再排版」自我循环。
+     */
+    private fun scheduleCompactOverlayLayout(overlay: LyricOverlay) {
+        if (overlay.compactLayoutScheduled) return
+        overlay.compactLayoutScheduled = true
+        overlay.root.post {
+            overlay.compactLayoutScheduled = false
+            if (!overlay.compactMode || !overlay.root.isShown) return@post
+            runCatching { applyCompactOverlayLayout(overlay) }
+                .onFailure { HookLogger.w(TAG, "紧凑歌词重排失败: ${it.message}") }
+        }
+    }
+
+    /** view 是否为 ancestor 的后代（跨父链判断，避免用到已脱离当前卡片的旧视图）。 */
+    private fun isDescendantOf(view: View, ancestor: View): Boolean {
+        var parent: Any? = view.parent
+        while (parent is View) {
+            if (parent === ancestor) return true
+            parent = parent.parent
+        }
+        return false
+    }
+
+    /** 取 view 顶边在 player 坐标系中的 y；任一未挂载/未布局时返回 null。 */
+    private fun viewTopInPlayer(overlay: LyricOverlay, view: View?): Int? {
+        if (view == null || !view.isAttachedToWindow) return null
+        if (!overlay.player.isAttachedToWindow) return null
+        val viewLocation = IntArray(2)
+        val playerLocation = IntArray(2)
+        view.getLocationInWindow(viewLocation)
+        overlay.player.getLocationInWindow(playerLocation)
+        return viewLocation[1] - playerLocation[1]
+    }
+
+    /**
      * 紧凑模式布局：完全不改卡片几何（不加高/不下移进度条/不加 padding），
-     * 歌词区覆盖显示在按钮行与进度条行之间的原生空隙内：
-     * - 空隙足够两行：显示主歌词 + 翻译
-     * - 空隙不足：合并为单行「歌词 翻译」（不同字号颜色，超宽 marquee）
+     * 歌词区覆盖显示在按钮行与进度条行之间的原生空隙内。
+     * 主歌词与翻译始终分行展示，并各自按可用宽度最多折成两行。
      */
     private fun applyCompactOverlayLayout(overlay: LyricOverlay) {
-        val actionsBottom = overlay.actions.maxOfOrNull { it.bottom } ?: return
-        if (actionsBottom <= 0) return
+        // 紧凑模式只服务于亮屏锁屏/通知中心焦点通知，息屏 AOD 不应进入此分支。
+        if (overlay.fullAodActive) return
+
         val density = overlay.root.resources.displayMetrics.density
         val minGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt()
-        val seekBarTop = overlay.seekBar
-            ?.takeIf { it.parent === overlay.player }
-            ?.top
-            ?: overlay.player.height
-        val gap = seekBarTop - actionsBottom
-        if (gap <= minGap * 2) return
+        // 缓存的进度条实例可能已脱离当前 player（卡片重排/系统重新挂载），
+        // 或创建覆盖层时该模式还没有进度条视图；这里重新在视图树里定位，
+        // 并用窗口坐标换算成 player 坐标系，避免 seekBarTop 退化成卡片底部
+        // 而把歌词块居中到进度条上。
+        val seekBar = overlay.seekBar
+            ?.takeIf { it.isAttachedToWindow && isDescendantOf(it, overlay.player) }
+            ?: findSeekBarInTree(overlay.player)
+        val seekBarTop = viewTopInPlayer(overlay, seekBar) ?: overlay.player.height
+        if (seekBarTop <= 0) return
+        // 按钮行在亮屏锁屏/通知中心中已被设为 INVISIBLE，仅保留几何占位；歌词允许覆盖该占位。
+        val actionBottom = overlay.actions.maxOfOrNull { it.bottom }?.takeIf { it > 0 } ?: return
 
         val widthSpec = View.MeasureSpec.makeMeasureSpec(
             overlay.player.width.coerceAtLeast(1),
             View.MeasureSpec.EXACTLY
         )
+        val mainText = overlay.compactSourceMain
+        val translationText = overlay.compactSourceTranslation
+        // 主歌词与翻译始终分行展示，不再合并成单行；超长时由 applyCompactMode 的
+        // maxLines=2 + ellipsize=END 控制各自换行。
+        if (overlay.main.text.toString() != mainText) overlay.main.text = mainText
+        overlay.translation.visibility =
+            if (translationText.isBlank()) View.GONE else View.VISIBLE
+
+        // 息屏 AOD 会把根容器/歌词容器设成固定高度，进入紧凑模式前先恢复为内容高度，
+        // 否则测量结果会沿用上一次 AOD 的固定高度。
+        (overlay.root.layoutParams as? ViewGroup.MarginLayoutParams)?.let { params ->
+            if (params.height != ViewGroup.LayoutParams.WRAP_CONTENT) {
+                params.height = ViewGroup.LayoutParams.WRAP_CONTENT
+                overlay.root.layoutParams = params
+            }
+        }
+        (overlay.lyricContainer.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
+            if (params.height != ViewGroup.LayoutParams.WRAP_CONTENT) {
+                params.height = ViewGroup.LayoutParams.WRAP_CONTENT
+                overlay.lyricContainer.layoutParams = params
+            }
+        }
+
         overlay.root.measure(
             widthSpec,
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         )
-        val mainText = overlay.main.text.toString()
-        val translationText = overlay.translation.text.toString()
-        val singleLine = overlay.root.measuredHeight > gap - minGap * 2 &&
-            translationText.isNotBlank()
-        if (singleLine) {
-            val merged = SpannableStringBuilder(mainText).append("   ")
-            val start = merged.length
-            merged.append(translationText)
-            merged.setSpan(
-                ForegroundColorSpan(overlay.translation.currentTextColor),
-                start,
-                merged.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            merged.setSpan(
-                RelativeSizeSpan(0.78f),
-                start,
-                merged.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            overlay.main.text = merged
-            overlay.translation.visibility = View.GONE
-            overlay.root.measure(
-                widthSpec,
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            )
-        } else {
-            if (overlay.main.text.toString() != mainText) overlay.main.text = mainText
-            overlay.translation.visibility =
-                if (translationText.isBlank()) View.GONE else View.VISIBLE
-        }
         val contentHeight = overlay.root.measuredHeight
         if (contentHeight <= 0) return
-        val topMargin = actionsBottom + ((gap - contentHeight) / 2).coerceAtLeast(minGap) -
-            overlay.album.bottom
+
+        // 统一居中策略：歌词块在「可见歌曲信息下缘 ~ 进度条上缘」之间垂直居中。
+        // 上边界只认可见的专辑图/标题/歌手下缘（按钮已 INVISIBLE，允许覆盖其几何占位）；
+        // 歌词行同属一个纵向容器，折行/翻译只会把容器撑高，行与行不会重叠。
+        val metadataBottom = maxOf(overlay.album.bottom, overlay.artist.bottom).coerceAtLeast(0)
+        val referenceBottom = metadataBottom.takeIf { it > 0 } ?: actionBottom
+        val bandTop = referenceBottom + minGap
+        val bandBottom = (seekBarTop - minGap).coerceAtLeast(bandTop)
+        val available = bandBottom - bandTop
+        // 空间不足时不再把歌词顶到卡片顶部（会压住标题/专辑图），改为贴可见歌曲信息下缘排布，
+        // 宁可让底部逼近进度条，也不遮挡歌曲信息。
+        val top = if (contentHeight <= available) {
+            bandTop + (available - contentHeight) / 2
+        } else {
+            bandTop
+        }
+        val topMargin = top - overlay.album.bottom
         (overlay.root.layoutParams as? ViewGroup.MarginLayoutParams)?.let { params ->
             if (params.topMargin != topMargin ||
                 params.height != ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1571,19 +1684,21 @@ object NotificationMediaAodLyricHooker {
 
     /**
      * 紧凑模式切换：亮屏锁屏/通知中心场景下，
-     * 折叠为「歌词 + 翻译」两行、单行超宽时走 marquee 滚动；其余行隐藏。
+     * 主歌词与翻译各自独立展示，超长时自动换行（最多两行）；其余行隐藏。
      * 息屏 AOD 场景保持多行样式。
      */
     private fun applyCompactMode(overlay: LyricOverlay, compact: Boolean) {
-        fun config(view: TextView, marquee: Boolean) {
-            if (marquee) {
-                // setSingleLine 是触发 marquee 的可靠前提（仅 maxLines 在部分版本不生效）
-                view.setSingleLine(true)
-                view.ellipsize = TextUtils.TruncateAt.MARQUEE
-                view.marqueeRepeatLimit = -1
-                view.isSelected = true
-            } else {
+        fun config(view: TextView, compact: Boolean) {
+            if (compact) {
+                // 紧凑模式：不再合并成单行 marquee，而是主/译分行并各自最多折两行。
                 view.setSingleLine(false)
+                view.maxLines = 2
+                view.ellipsize = TextUtils.TruncateAt.END
+                view.isSelected = false
+            } else {
+                // 全屏 AOD：不限制行数，完整展示多行歌词。
+                view.setSingleLine(false)
+                view.maxLines = Int.MAX_VALUE
                 view.ellipsize = null
                 view.isSelected = false
             }
@@ -2305,7 +2420,10 @@ object NotificationMediaAodLyricHooker {
 
         val params = overlay.root.layoutParams as FrameLayout.LayoutParams
         val leftMargin = leftOnScreen - parentLocation[0]
-        val topMargin = topOnScreen - parentLocation[1]
+        // 歌词块在「锚点下缘 ~ 底部安全区」之间的剩余空间内垂直居中；
+        // 内容高度超过可用高度时退化为贴锚点下缘，不再向下溢出。
+        val topMargin = topOnScreen - parentLocation[1] +
+            ((availableHeight - height) / 2).coerceAtLeast(0)
         if (
             params.width != width ||
             params.height != height ||
@@ -2495,9 +2613,9 @@ object NotificationMediaAodLyricHooker {
                 ),
             )
         }
-        val root = LinearLayout(context).apply {
-            id = View.generateViewId()
-            tag = OVERLAY_TAG
+        // 歌词行单独放进 lyricContainer：全屏 AOD 时歌词容器在「歌曲信息下缘 ~ 进度条上缘」
+        // 之间垂直居中，进度条独立贴卡片底部，避免多行歌词/翻译与进度条重叠。
+        val lyricContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             isClickable = false
@@ -2556,6 +2674,20 @@ object NotificationMediaAodLyricHooker {
             ).apply {
                 topMargin = (LOCK_SCREEN_AOD_LINE_GAP_DP * density).toInt()
             })
+        }
+        val root = LinearLayout(context).apply {
+            id = View.generateViewId()
+            tag = OVERLAY_TAG
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            isClickable = false
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            val density = resources.displayMetrics.density
+            addView(lyricContainer, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
             addView(progressRow, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -2588,6 +2720,7 @@ object NotificationMediaAodLyricHooker {
         }
         val overlay = LyricOverlay(
             root = root,
+            lyricContainer = lyricContainer,
             main = main,
             translation = translation,
             backing = backing,
@@ -2777,14 +2910,24 @@ object NotificationMediaAodLyricHooker {
         overlay: LyricOverlay,
         forceRemeasure: Boolean = false
     ) {
-        // 紧凑模式（亮屏锁屏/通知中心）不撑高卡片：
-        // 布局监听器也会进入这里，必须直接返回，避免与紧凑模式还原逻辑互相拉扯导致卡片闪烁。
-        if (overlay.compactMode) return
+        // 紧凑模式（亮屏锁屏/通知中心）不撑高卡片，避免与紧凑模式还原逻辑互相拉扯导致卡片闪烁；
+        // 但卡片几何会随唤醒/展开变化（息屏 AOD 唤醒到锁屏后原生进度条才出现），
+        // 必须按新几何重排歌词，否则歌词会停在旧空隙坐标上压住进度条。
+        if (overlay.compactMode) {
+            scheduleCompactOverlayLayout(overlay)
+            return
+        }
         if (!overlay.root.isShown) return
         if (updateLockScreenHorizontalMargins(overlay)) {
             overlay.root.post {
                 updateLockScreenCardHeight(overlay, forceRemeasure = true)
             }
+            return
+        }
+        // 全屏 AOD（息屏/锁屏 AOD）：歌词在「可见歌曲信息下缘 ~ 进度条上缘」之间居中，
+        // 进度条贴卡片底部，由独立布局逻辑处理。
+        if (overlay.fullAodActive) {
+            updateFullAodCenteredLyricLayout(overlay)
             return
         }
         if (forceRemeasure) {
@@ -2801,24 +2944,15 @@ object NotificationMediaAodLyricHooker {
             }
         }
         if (overlay.root.measuredHeight <= 0) return
-        val anchorBottom = if (overlay.fullAodActive) {
-            // 全屏 AOD（锁屏 AOD）：封面即整卡背景，锚定标题/歌手下方，忽略不可见控件，
-            // 避免卡片被大幅撑高、歌词悬在卡片中部。
-            AodMediaLyricPolicy.fullScreenAodContentAnchorBottom(
-                artistBottom = overlay.artist.bottom,
-                actionBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0,
-                seekBarBottom = overlay.seekBar?.bottom ?: 0,
-                actionVisible = overlay.actions.any { it.visibility == View.VISIBLE },
-                seekBarVisible = overlay.seekBar?.visibility == View.VISIBLE,
-            )
-        } else {
-            AodMediaLyricPolicy.contentAnchorBottom(
-                albumBottom = overlay.album.bottom,
-                artistBottom = overlay.artist.bottom,
-                actionBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0,
-                seekBarBottom = overlay.seekBar?.bottom ?: 0,
-            )
-        }
+        // 非全屏 AOD 的兜底路径：同样忽略已 INVISIBLE 的按钮/进度条几何占位。
+        val anchorBottom = AodMediaLyricPolicy.contentAnchorBottom(
+            albumBottom = overlay.album.bottom,
+            artistBottom = overlay.artist.bottom,
+            actionBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0,
+            seekBarBottom = overlay.seekBar?.bottom ?: 0,
+            actionVisible = overlay.actions.any { it.visibility == View.VISIBLE },
+            seekBarVisible = overlay.seekBar?.visibility == View.VISIBLE,
+        )
         if (anchorBottom <= 0) return
         if (overlay.playerSize.baseHeight <= 0) {
             overlay.playerSize.baseHeight = overlay.player.height.takeIf { it > 0 }
@@ -2832,40 +2966,56 @@ object NotificationMediaAodLyricHooker {
         if (overlay.backgroundSize.baseHeight <= 0) return
 
         val density = overlay.root.resources.displayMetrics.density
-        val topGap = (LOCK_SCREEN_AOD_TOP_GAP_DP * density).toInt()
-        val bottomReserveMin = (LOCK_SCREEN_AOD_BOTTOM_RESERVE_DP * density).toInt()
         val nativeCardHeight = AodMediaLyricPolicy.lockScreenNativeCardHeight(
             fullAod = overlay.fullAodActive,
             fullAodBaseHeight = overlay.backgroundSize.baseHeight,
             playerBaseHeight = overlay.playerSize.baseHeight,
         )
-        if (overlay.fullAodActive) {
-            overlay.backgroundConstraints?.pinToParentTop(overlay.player)
+        overlay.backgroundConstraints?.restore()
+
+        // 与全屏 AOD 一致的居中策略：歌词块在「可见歌曲信息下缘 ~ 自绘进度条上缘」之间垂直居中，
+        // 内容高于可用区间时向下撑高卡片，保证多行歌词/翻译不与进度条、歌曲信息重叠。
+        val measuredWidth = (overlay.root.width.takeIf { it > 0 }
+            ?: overlay.root.measuredWidth).coerceAtLeast(1)
+        val widthSpec = View.MeasureSpec.makeMeasureSpec(measuredWidth, View.MeasureSpec.EXACTLY)
+        val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        overlay.lyricContainer.measure(widthSpec, heightSpec)
+        val lyricContentHeight = overlay.lyricContainer.measuredHeight.coerceAtLeast(0)
+        val progressVisible = overlay.progressRow.visibility == View.VISIBLE
+        val progressRowHeight = if (progressVisible) {
+            overlay.progressRow.measure(widthSpec, heightSpec)
+            overlay.progressRow.measuredHeight.coerceAtLeast(0)
         } else {
-            overlay.backgroundConstraints?.restore()
+            0
         }
-        val lyricTop = AodMediaLyricPolicy.lockScreenLyricTop(
+        val progressRowTopMargin = if (progressVisible) {
+            (overlay.progressRow.layoutParams as? LinearLayout.LayoutParams)?.topMargin ?: 0
+        } else {
+            0
+        }
+        val layout = AodMediaLyricPolicy.lockScreenCenteredLyricLayout(
+            nativeCardHeight = nativeCardHeight,
             anchorBottom = anchorBottom,
-            topGap = topGap
+            lyricContentHeight = lyricContentHeight,
+            progressRowHeight = progressRowHeight,
+            progressRowTopMargin = progressRowTopMargin,
+            bottomGap = (LOCK_SCREEN_AOD_LINE_GAP_DP * density).toInt(),
+            minTopGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt(),
         )
-        val params = overlay.root.layoutParams as? ViewGroup.MarginLayoutParams
-        val targetTopMargin = lyricTop - overlay.album.bottom
-        if (params != null && params.topMargin != targetTopMargin) {
+        val params = overlay.root.layoutParams as? ViewGroup.MarginLayoutParams ?: return
+        val targetTopMargin = layout.rootTop - overlay.album.bottom
+        if (params.topMargin != targetTopMargin || params.height != layout.rootHeight) {
             params.topMargin = targetTopMargin
+            params.height = layout.rootHeight
             overlay.root.layoutParams = params
         }
-        val lyricBottom = lyricTop + overlay.root.measuredHeight
-        // 歌词底部到卡片底部的预留：至少容纳贴底进度条区（含时间与滑条），
-        // 并取原生卡片中锚点到卡片底距离的较大值，保证按钮/进度条始终位于歌词下方且互不重叠。
-        val bottomReserve = maxOf(
-            bottomReserveMin,
-            nativeCardHeight - anchorBottom,
-        )
-        val targetHeight = AodMediaLyricPolicy.lockScreenTargetCardHeight(
-            nativeCardHeight = nativeCardHeight,
-            lyricBottom = lyricBottom,
-            bottomPadding = bottomReserve,
-        )
+        (overlay.lyricContainer.layoutParams as? LinearLayout.LayoutParams)?.let { lyricParams ->
+            if (lyricParams.height != layout.lyricContainerHeight) {
+                lyricParams.height = layout.lyricContainerHeight
+                overlay.lyricContainer.layoutParams = lyricParams
+            }
+        }
+        val targetHeight = layout.targetCardHeight
         val backgroundTargetHeight = AodMediaLyricPolicy.lockScreenBackgroundTargetHeight(
             targetCardHeight = targetHeight,
         )
@@ -2879,13 +3029,12 @@ object NotificationMediaAodLyricHooker {
             overlay.appliedCardHeight = targetHeight
             HookLogger.i(
                 TAG,
-                "锁屏 AOD 媒体卡片高度动画开始: " +
-                    "lyricTop=$lyricTop, lyricBottom=$lyricBottom, " +
-                    "albumBottom=${overlay.album.bottom}, artistBottom=${overlay.artist.bottom}, " +
-                    "topGap=$topGap, bottomReserve=$bottomReserve, " +
-                    "nativeBackgroundHeight=$nativeCardHeight, " +
-                    "targetHeight=$targetHeight, " +
-                    "backgroundTargetHeight=$backgroundTargetHeight"
+                "锁屏媒体卡片歌词居中布局: " +
+                    "anchorBottom=$anchorBottom, lyricContentHeight=$lyricContentHeight, " +
+                    "rootTop=${layout.rootTop}, rootHeight=${layout.rootHeight}, " +
+                    "lyricContainerHeight=${layout.lyricContainerHeight}, " +
+                    "progressRowHeight=$progressRowHeight, " +
+                    "nativeCardHeight=$nativeCardHeight, targetHeight=$targetHeight"
             )
         }
         val appliedHeight = overlay.appliedCardHeight
@@ -2926,6 +3075,159 @@ object NotificationMediaAodLyricHooker {
                 append(", ").append(overlay.backgroundConstraints?.snapshot().orEmpty())
                 append(", player=${overlay.player.height}/${overlay.player.measuredHeight}/${overlay.player.layoutParams?.height}")
                 append(", ").append(overlay.headerHeightController?.actualHeightSnapshot().orEmpty())
+            }
+            if (driftKey != overlay.lastHeightDriftKey) {
+                overlay.lastHeightDriftKey = driftKey
+                HookLogger.i(TAG, "AOD_HEIGHT_VERIFY $driftKey shown=${overlay.root.isShown}")
+            }
+        }
+    }
+
+    /**
+     * 全屏 AOD（息屏/锁屏 AOD）歌词居中布局：
+     *
+     * - 上边界：可见歌曲信息下缘（标题/歌手），已 INVISIBLE 的按钮/进度条几何占位不参与，
+     *   允许歌词覆盖这些占位。
+     * - 下边界：自绘进度条上缘。
+     * - 歌词容器在上、下边界之间垂直居中；进度条独立贴卡片底部（仅保留 [LOCK_SCREEN_AOD_LINE_GAP_DP]）。
+     * - 多行歌词/翻译超过原生卡片可用高度时向下撑高卡片，保证行与行、歌词与进度条不重叠。
+     */
+    private fun updateFullAodCenteredLyricLayout(overlay: LyricOverlay) {
+        if (overlay.playerSize.baseHeight <= 0) {
+            overlay.playerSize.baseHeight = overlay.player.height.takeIf { it > 0 }
+                ?: overlay.player.measuredHeight
+        }
+        if (overlay.playerSize.baseHeight <= 0) return
+        if (overlay.backgroundSize.baseHeight <= 0) {
+            overlay.backgroundSize.baseHeight = overlay.backgroundSize.view.height.takeIf { it > 0 }
+                ?: overlay.backgroundSize.view.measuredHeight
+        }
+        if (overlay.backgroundSize.baseHeight <= 0) return
+
+        // 上边界：可见歌曲信息下缘，忽略已 INVISIBLE 的按钮/进度条几何占位。
+        val anchorBottom = AodMediaLyricPolicy.fullScreenAodContentAnchorBottom(
+            artistBottom = overlay.artist.bottom,
+            actionBottom = overlay.actions.maxOfOrNull { it.bottom } ?: 0,
+            seekBarBottom = overlay.seekBar?.bottom ?: 0,
+            actionVisible = overlay.actions.any { it.visibility == View.VISIBLE },
+            seekBarVisible = overlay.seekBar?.visibility == View.VISIBLE,
+        )
+        if (anchorBottom <= 0) return
+
+        val density = overlay.root.resources.displayMetrics.density
+        val nativeCardHeight = AodMediaLyricPolicy.lockScreenNativeCardHeight(
+            fullAod = true,
+            fullAodBaseHeight = overlay.backgroundSize.baseHeight,
+            playerBaseHeight = overlay.playerSize.baseHeight,
+        )
+        overlay.backgroundConstraints?.pinToParentTop(overlay.player)
+
+        val rootParams = overlay.root.layoutParams as? ViewGroup.MarginLayoutParams ?: return
+        val lyricParams = overlay.lyricContainer.layoutParams as? LinearLayout.LayoutParams
+            ?: return
+
+        // 直接以 UNSPECIFIED 高度测量歌词容器，拿到内容自然高度，
+        // 不修改 layoutParams、不触发 requestLayout，避免与布局回调形成死循环。
+        val measuredWidth = (overlay.root.width.takeIf { it > 0 }
+            ?: overlay.root.measuredWidth).coerceAtLeast(1)
+        val widthSpec = View.MeasureSpec.makeMeasureSpec(measuredWidth, View.MeasureSpec.EXACTLY)
+        val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        overlay.lyricContainer.measure(widthSpec, heightSpec)
+        val lyricContentHeight = overlay.lyricContainer.measuredHeight.coerceAtLeast(0)
+        val progressVisible = overlay.progressRow.visibility == View.VISIBLE
+        val progressRowHeight = if (progressVisible) {
+            overlay.progressRow.measure(widthSpec, heightSpec)
+            overlay.progressRow.measuredHeight.coerceAtLeast(0)
+        } else {
+            0
+        }
+        val progressRowTopMargin = if (progressVisible) {
+            (overlay.progressRow.layoutParams as? LinearLayout.LayoutParams)?.topMargin ?: 0
+        } else {
+            0
+        }
+
+        val layout = AodMediaLyricPolicy.lockScreenCenteredLyricLayout(
+            nativeCardHeight = nativeCardHeight,
+            anchorBottom = anchorBottom,
+            lyricContentHeight = lyricContentHeight,
+            progressRowHeight = progressRowHeight,
+            progressRowTopMargin = progressRowTopMargin,
+            bottomGap = (LOCK_SCREEN_AOD_LINE_GAP_DP * density).toInt(),
+            minTopGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt(),
+        )
+
+        val targetTopMargin = layout.rootTop - overlay.album.bottom
+        if (rootParams.topMargin != targetTopMargin ||
+            rootParams.height != layout.rootHeight
+        ) {
+            rootParams.topMargin = targetTopMargin
+            rootParams.height = layout.rootHeight
+            overlay.root.layoutParams = rootParams
+        }
+        if (lyricParams.height != layout.lyricContainerHeight) {
+            lyricParams.height = layout.lyricContainerHeight
+            overlay.lyricContainer.layoutParams = lyricParams
+        }
+
+        val targetHeight = layout.targetCardHeight
+        val backgroundTargetHeight = AodMediaLyricPolicy.lockScreenBackgroundTargetHeight(
+            targetCardHeight = targetHeight,
+        )
+        if (overlay.appliedCardHeight != targetHeight) {
+            animateLockScreenCardHeight(
+                overlay = overlay,
+                targetHeight = targetHeight,
+                backgroundTargetHeight = backgroundTargetHeight,
+            )
+            overlay.appliedCardHeight = targetHeight
+            HookLogger.i(
+                TAG,
+                "锁屏 AOD 歌词居中布局: " +
+                    "anchorBottom=$anchorBottom, lyricContentHeight=$lyricContentHeight, " +
+                    "rootTop=${layout.rootTop}, rootHeight=${layout.rootHeight}, " +
+                    "lyricContainerHeight=${layout.lyricContainerHeight}, " +
+                    "progressRowHeight=$progressRowHeight, " +
+                    "nativeCardHeight=$nativeCardHeight, targetHeight=$targetHeight"
+            )
+        }
+        val appliedHeight = overlay.appliedCardHeight
+        if (
+            overlay.heightAnimator?.isRunning != true &&
+            (
+                AodMediaLyricPolicy.lockScreenHeightNeedsReassert(
+                    if (overlay.backgroundConstraints?.isPinned == true) {
+                        backgroundTargetHeight
+                    } else {
+                        appliedHeight
+                    },
+                    overlay.backgroundSize.view.layoutParams?.height,
+                ) ||
+                    AodMediaLyricPolicy.lockScreenHeightNeedsReassert(
+                        appliedHeight,
+                        overlay.player.layoutParams?.height,
+                    )
+            )
+        ) {
+            appliedHeight?.let { height ->
+                animateLockScreenCardHeight(
+                    overlay = overlay,
+                    targetHeight = height,
+                    backgroundTargetHeight = AodMediaLyricPolicy
+                        .lockScreenBackgroundTargetHeight(height),
+                )
+            }
+        }
+        if (BuildConfig.DEBUG) {
+            val background = overlay.backgroundSize.view
+            val driftKey = buildString {
+                append("applied=${overlay.appliedCardHeight}, target=$targetHeight")
+                append(", bgTarget=$backgroundTargetHeight")
+                append(", bg=${background.height}/${background.measuredHeight}/${background.layoutParams?.height}")
+                append(", rootTop=${overlay.root.top}, rootH=${overlay.root.height}/${overlay.root.layoutParams?.height}")
+                append(", lyricH=${overlay.lyricContainer.height}/${overlay.lyricContainer.layoutParams?.height}")
+                append(", ").append(overlay.backgroundConstraints?.snapshot().orEmpty())
+                append(", player=${overlay.player.height}/${overlay.player.measuredHeight}/${overlay.player.layoutParams?.height}")
             }
             if (driftKey != overlay.lastHeightDriftKey) {
                 overlay.lastHeightDriftKey = driftKey
@@ -3257,11 +3559,14 @@ object NotificationMediaAodLyricHooker {
                 isTextMode = LyriconDataBridge.isTextMode,
                 hasActualLyrics = currentActualLyrics().isNotEmpty(),
             )
+        // 只要桥里存在当前行（哪怕整首歌被折叠成一行、完整歌词列表为空），
+        // 就不能把它当作「无歌词」抑制掉——否则无时间轴歌词会整片空白。
+        val hasCurrentLine = currentLine != null
         val line = LyriconDataBridge.currentLyricLine.takeUnless {
-            suppressNoLyricPlaceholder
+            suppressNoLyricPlaceholder && !hasCurrentLine
         }
         val nextLine = LyriconDataBridge.currentNextLyricLine.takeUnless {
-            suppressNoLyricPlaceholder
+            suppressNoLyricPlaceholder && !hasCurrentLine
         }
         val metadata = line?.metadata
         val isOverlappingGroup = metadata?.getBoolean(
@@ -3316,6 +3621,7 @@ object NotificationMediaAodLyricHooker {
             LyriconDataBridge.currentSong != null &&
             !LyriconDataBridge.currentSong?.name.isNullOrBlank() &&
             currentActualLyrics().isEmpty() &&
+            currentLine == null &&
             LyriconDataBridge.currentSong?.metadata
                 ?.getString(LyricMetadataKeys.LYRIC_ERROR_MESSAGE).isNullOrBlank()
         val assembled = AodMediaLyricPolicy.assembleContent(
@@ -4030,7 +4336,7 @@ object NotificationMediaAodLyricHooker {
         swapTranslation: Boolean,
     ) {
         reorderLyricViews(
-            root = overlay.root,
+            root = overlay.lyricContainer,
             orderedViews = orderedLyricViews(overlay, swapTranslation),
         )
     }
@@ -4178,6 +4484,7 @@ object NotificationMediaAodLyricHooker {
 
     private class LyricOverlay(
         val root: LinearLayout,
+        val lyricContainer: LinearLayout,
         val main: TextView,
         val translation: TextView,
         val backing: TextView,
@@ -4213,6 +4520,11 @@ object NotificationMediaAodLyricHooker {
         var heightAnimator: ValueAnimator? = null,
         var compactMode: Boolean = false,
         var waitingForLyrics: Boolean = false,
+        /** 紧凑模式排版的原始歌词文本：单行合并后可幂等重算，避免重复拼接。 */
+        var compactSourceMain: String = "",
+        var compactSourceTranslation: String = "",
+        /** 紧凑模式重排去重标志，避免布局回调自我触发死循环。 */
+        var compactLayoutScheduled: Boolean = false,
     )
 
     private class MediaHeaderHeightController private constructor(

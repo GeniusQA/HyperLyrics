@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
+import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -86,8 +87,13 @@ object IslandExpandedLyricHooker {
         val backingTranslation: TextView,
         val player: ViewGroup,
         val expandedView: View,
+        val seekBar: View?,
+        val lyricParams: ViewGroup.MarginLayoutParams?,
+        /** true=歌词靠 topMargin 挂在进度条下方；false=FrameLayout 贴底，用 bottomMargin 定位。 */
+        val centerByTopMargin: Boolean,
         var playerBaseHeight: Int = -1,
         var appliedDelta: Int = 0,
+        var appliedCenterExtra: Int = -1,
     )
 
     fun initialize(xposedModule: XposedModule) {
@@ -493,7 +499,9 @@ object IslandExpandedLyricHooker {
                 this.typeface = typeface
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp.toFloat())
                 setTextColor(color)
-                maxLines = 1
+                setSingleLine(false)
+                maxLines = 2
+                ellipsize = TextUtils.TruncateAt.END
             }
         val main = lyricText(
             mainTextSize(),
@@ -542,8 +550,9 @@ object IslandExpandedLyricHooker {
         }
         val seekBar = runCatching { api.getSeekBar(holder) }.getOrNull()
         val topGap = (LYRIC_TOP_GAP_DP * density).toInt()
+        val useConstraintParams = player.javaClass.name.contains("ConstraintLayout")
         val lp = runCatching {
-            if (player.javaClass.name.contains("ConstraintLayout")) {
+            if (useConstraintParams) {
                 val loader = requireNotNull(player.javaClass.classLoader)
                 val paramsClass = loader.loadClass(
                     "androidx.constraintlayout.widget.ConstraintLayout\$LayoutParams"
@@ -590,6 +599,9 @@ object IslandExpandedLyricHooker {
             backingTranslation = backingTranslation,
             player = player,
             expandedView = expandedView,
+            seekBar = seekBar,
+            lyricParams = lp,
+            centerByTopMargin = useConstraintParams,
             playerBaseHeight = baseHeight,
         )
         synchronized(binderStates) { binderStates[binder] = state }
@@ -605,21 +617,26 @@ object IslandExpandedLyricHooker {
 
     private fun updateExpandedHeight(state: BinderLyricState) {
         val density = state.player.resources.displayMetrics.density
-        val measuredHeight = state.overlay.measuredHeight.takeIf { it > 0 } ?: run {
-            state.overlay.measure(
-                View.MeasureSpec.makeMeasureSpec(
-                    state.player.width.takeIf { it > 0 }
-                        ?: state.player.measuredWidth,
-                    View.MeasureSpec.EXACTLY
-                ),
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            )
-            state.overlay.measuredHeight
-        }
+        // 每次都按当前文本重新测量：多行歌词/翻译会改变内容高度，
+        // 沿用上一次的 measuredHeight 会让定位滞后一拍，出现歌词与进度条互相挤压。
+        val widthSpec = View.MeasureSpec.makeMeasureSpec(
+            (state.player.width.takeIf { it > 0 } ?: state.player.measuredWidth)
+                .coerceAtLeast(1),
+            View.MeasureSpec.EXACTLY
+        )
+        state.overlay.measure(
+            widthSpec,
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val measuredHeight = state.overlay.measuredHeight
         if (measuredHeight <= 0) return
-        val delta = measuredHeight +
-            (LYRIC_TOP_GAP_DP * density).toInt() +
-            (LYRIC_BOTTOM_GAP_DP * density).toInt()
+        val topGap = (LYRIC_TOP_GAP_DP * density).toInt()
+        val bottomGap = (LYRIC_BOTTOM_GAP_DP * density).toInt()
+        val delta = measuredHeight + topGap + bottomGap
+        // 歌词块在「进度条下缘 ~ 卡片底部」的剩余空间内垂直居中：
+        // 撑高量保持不变，只把歌词整体下移剩余空间的一半；
+        // 多行折行与翻译都在同一个纵向容器内，只会把容器撑高，不会出现行间重叠。
+        val extra = centeredOffsetExtra(state)
         if (state.appliedDelta != delta) {
             synchronized(heightDeltas) { heightDeltas[state.expandedView] = delta }
             state.appliedDelta = delta
@@ -632,6 +649,36 @@ object IslandExpandedLyricHooker {
             state.expandedView.requestLayout()
             HookLogger.i(TAG, "大岛歌词撑高: delta=$delta")
         }
+        if (state.appliedCenterExtra != extra) {
+            state.appliedCenterExtra = extra
+            state.lyricParams?.let { params ->
+                if (state.centerByTopMargin) {
+                    params.topMargin = topGap + extra
+                } else {
+                    params.bottomMargin = (bottomGap - extra).coerceAtLeast(0)
+                }
+                state.overlay.layoutParams = params
+            }
+        }
+    }
+
+    /**
+     * 歌词块居中所需的额外下移量：取「原生卡片中进度条下缘到卡片底部」剩余空间的一半。
+     * 进度条缺失或尚未布局时返回 0，保持原有紧贴进度条下方的行为。
+     */
+    private fun centeredOffsetExtra(state: BinderLyricState): Int {
+        val seekBar = state.seekBar ?: return 0
+        if (!seekBar.isAttachedToWindow || !state.player.isAttachedToWindow) return 0
+        val base = state.playerBaseHeight
+        if (base <= 0) return 0
+        return runCatching {
+            val seekBarLocation = IntArray(2)
+            val playerLocation = IntArray(2)
+            seekBar.getLocationInWindow(seekBarLocation)
+            state.player.getLocationInWindow(playerLocation)
+            val seekBarBottom = seekBarLocation[1] - playerLocation[1] + seekBar.height
+            ((base - seekBarBottom) / 2).coerceIn(0, base)
+        }.getOrDefault(0)
     }
 
     private fun hideOverlay(state: BinderLyricState) {
