@@ -832,4 +832,10 @@
     <string name="setup_completion_lyricinfo">安装歌词获取模块后，在 LSPosed 中启用并勾选音乐软件，重启系统界面即可使用</string>
     <string name="setup_completion_restart_hint">添加完插件请重启系统界面与对应的音乐 App 进程，你可以在主页右上角点击“一键刷新”按钮进行重启。</string>
     <string name="no_lyric_data">歌词源无数据</string>
+    <string name="manual_match_result_no_song">二次匹配失败：当前没有三方播放歌曲</string>
+    <string name="manual_match_result_switched">二次匹配已忽略：当前歌曲已切换为 %1$s</string>
+    <string name="manual_match_result_no_lyrics">二次匹配失败：未取到歌词</string>
+    <string name="manual_match_result_no_translation">二次匹配完成：已获取 %1$d 行原词，但未找到翻译</string>
+    <string name="manual_match_result_success">二次匹配成功：%1$d 行歌词，%2$d 行翻译</string>
+    <string name="manual_match_result_exception">二次匹配异常：%1$s：%2$s</string>
 </resources>
