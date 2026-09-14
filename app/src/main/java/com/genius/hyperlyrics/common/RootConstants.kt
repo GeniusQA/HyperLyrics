@@ -757,12 +757,12 @@ object RootConstants {
     const val DEFAULT_HOOK_SWAP_TRANSLATION = false
     const val DEFAULT_HOOK_NEXT_LYRIC_LINE = false
 
-    // ================= 多行歌词区域高度上限 =================
-    // 不再使用离散行数，而是让用户设定歌词区域的「高度上限」(dp)，
-    // 系统按当前字号反推可显示的最大行数（贴近 LyricFocus 的高度模型）。
-    const val MIN_LYRIC_AREA_HEIGHT = 120
-    const val MAX_LYRIC_AREA_HEIGHT = 500
-    const val DEFAULT_HOOK_LYRIC_AREA_HEIGHT = 300
+    // ================= 后续歌词条数上限 =================
+    // 横向跑马灯方案下，当前句与翻译各占固定 1 行，不再按高度/字号反推行数，
+    // 该偏好仅约束「后续歌词」最多展示几条（单行 marquee 滚动）。
+    const val MIN_LYRIC_AREA_HEIGHT = 2
+    const val MAX_LYRIC_AREA_HEIGHT = 12
+    const val DEFAULT_HOOK_LYRIC_AREA_HEIGHT = 5
 
     const val DEFAULT_HOOK_AUTO_SWITCH_TRANSLATION = false
     const val DEFAULT_HOOK_ADJACENT_BACKGROUND_TRANSLATION = false

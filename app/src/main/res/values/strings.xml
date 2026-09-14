@@ -437,9 +437,9 @@
     <string name="title_swap_translation">原词翻译对调位置</string>
     <string name="title_next_lyric_line">多行歌词</string>
     <string name="summary_next_lyric_line">开启后在歌词块内显示后续歌词；显示翻译时将不显示下句歌词</string>
-    <string name="title_lyric_area_height">歌词区域高度</string>
-    <string name="summary_lyric_area_height">歌词块的最大高度上限，系统按字号反推可显示的行数</string>
-    <string name="format_lyric_area_height">%d dp</string>
+    <string name="title_lyric_area_height">后续歌词行数</string>
+    <string name="summary_lyric_area_height">开启多行歌词后，最多显示的后续歌词条数（当前句固定单行展示）</string>
+    <string name="format_lyric_area_height">%d 行</string>
     <string name="title_aod_main_text_size">主句字号</string>
     <string name="title_aod_backing_text_size">伴唱字号</string>
     <string name="title_aod_translation_text_size">翻译字号</string>
