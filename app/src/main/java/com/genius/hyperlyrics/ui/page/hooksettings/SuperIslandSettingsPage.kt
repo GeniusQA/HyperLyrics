@@ -247,10 +247,8 @@ fun SuperIslandSettingsPage() {
             R.string.option_island_next_song_preview_half
         )
     }.map { stringResource(id = it) }
-    val lyricMaxLinesLabels = remember {
-        RootConstants.LYRIC_MAX_LINES_OPTIONS.map {
-            stringResource(id = R.string.option_lyric_max_lines_format, it)
-        }
+    val lyricMaxLinesLabels = RootConstants.LYRIC_MAX_LINES_OPTIONS.map {
+        stringResource(id = R.string.option_lyric_max_lines_format, it)
     }
     val nextSongPreviewPositionOptions = remember {
         listOf(
