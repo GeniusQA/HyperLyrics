@@ -2420,10 +2420,9 @@ object NotificationMediaAodLyricHooker {
 
         val params = overlay.root.layoutParams as FrameLayout.LayoutParams
         val leftMargin = leftOnScreen - parentLocation[0]
-        // 歌词块在「锚点下缘 ~ 底部安全区」之间的剩余空间内垂直居中；
-        // 内容高度超过可用高度时退化为贴锚点下缘，不再向下溢出。
-        val topMargin = topOnScreen - parentLocation[1] +
-            ((availableHeight - height) / 2).coerceAtLeast(0)
+        // 自定义 AOD（时钟/日期浮层）保持原有定位：歌词紧贴锚点下缘显示，
+        // 不做垂直居中——居中会把歌词推到屏幕中下部，与时钟样式差异过大。
+        val topMargin = topOnScreen - parentLocation[1]
         if (
             params.width != width ||
             params.height != height ||
