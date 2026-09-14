@@ -739,6 +739,27 @@
     <string name="module_logs_level">日志等级</string>
     <string name="no_logs_found">暂无日志</string>
     <string name="no_root_permission">应用未获取root权限，无法获取lsposed日志</string>
+
+    <!-- 日志自动清理（LogCleanupScheduler / 清理记录弹窗） -->
+    <string name="auto_cleanup_logs">自动清理</string>
+    <string name="auto_cleanup_off">关闭</string>
+    <string name="auto_cleanup_24h">每 24 小时</string>
+    <string name="auto_cleanup_7d">每 7 天</string>
+    <string name="cleanup_history">清理记录</string>
+    <string name="cleanup_history_title">清理记录</string>
+    <string name="cleanup_history_empty">暂无清理记录</string>
+    <string name="cleanup_trigger_scheduled">定时</string>
+    <string name="cleanup_trigger_manual">手动</string>
+    <string name="cleanup_time_label">清理时间</string>
+    <string name="cleanup_file_path">文件</string>
+    <string name="cleanup_status_label">结果</string>
+    <string name="cleanup_status_no_files">（%1$s）无文件</string>
+    <string name="cleanup_status_all_success">（%1$s）全部成功</string>
+    <string name="cleanup_status_all_failed">（%1$s）全部失败</string>
+    <string name="cleanup_status_partial_failed">（%1$s）部分失败：%2$s</string>
+    <string name="cleanup_status_failed_files">失败文件：%1$s</string>
+    <string name="cleanup_failure_solution">部分文件因被占用或权限不足未能清理，可重启系统或手动删除。</string>
+
     <string name="title_log_detail">日志详情</string>
     <string name="export_success">导出成功</string>
     <string name="format_export_failed">导出失败: %1$s</string>
