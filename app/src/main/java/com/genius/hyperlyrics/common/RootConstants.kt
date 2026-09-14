@@ -760,10 +760,15 @@ object RootConstants {
     // ================= 多行歌词行数上限 =================
     // 同时约束两件事：歌词块最多渲染 N 行（长句自动换行也计入），
     // 以及最多显示 N 条歌词（当前行 + 后续 N-1 句），超出部分从末尾丢弃。
+    const val LYRIC_MAX_LINES_TWO = 2
     const val LYRIC_MAX_LINES_THREE = 3
     const val LYRIC_MAX_LINES_FIVE = 5
     const val DEFAULT_HOOK_LYRIC_MAX_LINES = LYRIC_MAX_LINES_THREE
-    val LYRIC_MAX_LINES_OPTIONS = intArrayOf(LYRIC_MAX_LINES_THREE, LYRIC_MAX_LINES_FIVE)
+    val LYRIC_MAX_LINES_OPTIONS = intArrayOf(
+        LYRIC_MAX_LINES_TWO,
+        LYRIC_MAX_LINES_THREE,
+        LYRIC_MAX_LINES_FIVE,
+    )
 
     const val DEFAULT_HOOK_AUTO_SWITCH_TRANSLATION = false
     const val DEFAULT_HOOK_ADJACENT_BACKGROUND_TRANSLATION = false
