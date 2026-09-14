@@ -3687,7 +3687,7 @@ object NotificationMediaAodLyricHooker {
             overlappingTranslation = displayText(overlappingTranslation),
             overlappingBacking = displayText(overlappingBacking),
             overlappingBackingTranslation = displayText(overlappingBackingTranslation),
-            next = buildUpcomingLyricText(upcomingLines, style.lyricMaxLines),
+            next = buildUpcomingLyricText(upcomingLines, style.lyricMaxLines, removeCjkLyricSpaces),
             showNext = style.showNextLyric,
             mainAlignedRight = mainAlignedRight,
             backingAlignedRight = mainAlignedRight,
@@ -3721,12 +3721,18 @@ object NotificationMediaAodLyricHooker {
      */
     private fun buildUpcomingLyricText(
         upcoming: List<IRichLyricLine>,
-        maxLines: Int
+        maxLines: Int,
+        removeCjkSpaces: Boolean
     ): String {
         val budget = AodMediaLyricPolicy.upcomingLineBudget(maxLines)
         if (budget <= 0) return ""
+        val transform: (String?) -> String? = if (removeCjkSpaces) {
+            { CjkLyricWhitespacePolicy.transformText(it) }
+        } else {
+            { it }
+        }
         return upcoming.asSequence()
-            .map { displayText(it.text) }
+            .map { transform(it.text) }
             .filter { it.isNotBlank() }
             .take(budget)
             .joinToString("\n")
