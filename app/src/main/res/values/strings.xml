@@ -718,7 +718,6 @@
     <string name="title_custom_prompt">自定义提示词</string>
 
     <!-- Main Page & General Content Descriptions -->
-    <string name="content_description_avatar">头像</string>
     <string name="content_description_go">前往</string>
     <string name="version_unknown">v 未知</string>
 
@@ -731,7 +730,6 @@
     <string name="clear_logs">清空日志</string>
     <string name="clear_logs_confirm">确定要清空应用日志以及模块日志吗？</string>
     <string name="auto_cleanup_logs">定时清理</string>
-    <string name="auto_cleanup_logs_summary">选择自动清理周期，到期后自动清空应用日志与模块日志</string>
     <string name="auto_cleanup_off">关闭</string>
     <string name="auto_cleanup_24h">每 24 小时</string>
     <string name="auto_cleanup_7d">每 7 天</string>
@@ -741,8 +739,6 @@
     <string name="cleanup_trigger_manual">手动清理</string>
     <string name="cleanup_trigger_scheduled">定时清理</string>
     <string name="cleanup_time_label">清理时间</string>
-    <string name="cleanup_status_success">成功</string>
-    <string name="cleanup_status_failed">失败</string>
     <string name="cleanup_file_path">文件路径</string>
     <string name="cleanup_status_label">状态</string>
     <string name="cleanup_status_no_files">%s：无文件</string>

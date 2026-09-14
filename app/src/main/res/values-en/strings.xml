@@ -665,7 +665,6 @@
     <string name="title_custom_prompt">Custom Prompt</string>
 
     <!-- Main Page & General Content Descriptions -->
-    <string name="content_description_avatar">Avatar</string>
     <string name="content_description_go">Go</string>
     <string name="version_unknown">v Unknown</string>
 
@@ -677,7 +676,6 @@
     <string name="clear_logs">Clear Logs</string>
     <string name="clear_logs_confirm">Clear app and module logs?</string>
     <string name="auto_cleanup_logs">Scheduled Cleanup</string>
-    <string name="auto_cleanup_logs_summary">Choose how often to automatically clear app and module logs</string>
     <string name="auto_cleanup_off">Off</string>
     <string name="auto_cleanup_24h">Every 24 hours</string>
     <string name="auto_cleanup_7d">Every 7 days</string>
@@ -687,8 +685,6 @@
     <string name="cleanup_trigger_manual">Manual</string>
     <string name="cleanup_trigger_scheduled">Scheduled</string>
     <string name="cleanup_time_label">Cleanup Time</string>
-    <string name="cleanup_status_success">Success</string>
-    <string name="cleanup_status_failed">Failed</string>
     <string name="cleanup_file_path">File Path</string>
     <string name="cleanup_status_label">Status</string>
     <string name="cleanup_status_no_files">%s: No files</string>
