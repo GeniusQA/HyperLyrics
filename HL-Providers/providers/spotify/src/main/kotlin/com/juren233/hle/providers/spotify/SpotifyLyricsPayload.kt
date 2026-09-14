@@ -135,21 +135,48 @@ internal object SpotifyLyricsTimelineMapper {
     fun map(
         payload: SpotifyLyricsPayload,
         durationMs: Long = -1L,
-    ): List<SpotifyTimelineLine> = payload.lines.mapIndexed { index, line ->
-        val nextBegin = payload.lines.getOrNull(index + 1)?.startMs
-        val end = when {
-            nextBegin != null && nextBegin > line.startMs -> nextBegin
-            durationMs > line.startMs -> durationMs
-            else -> line.startMs + DEFAULT_LINE_DURATION_MS
+    ): List<SpotifyTimelineLine> {
+        val lines = payload.lines
+        if (lines.isEmpty()) return emptyList()
+        // 部分曲目 Spotify 返回的逐行 startTime 全为 0（syncType 标成同步但实际无时间轴），
+        // 这类歌词若原样发布，所有行 begin/end 都塌成 0~整曲时长，渲染层按进度取当前行时
+        // 永远只命中第一行且无法滚动，整片歌词画不出来。无时间轴时按歌曲时长均匀重排时间戳，
+        // 让歌词变成可同步滚动的普通时间轴歌词。
+        val hasTimeaxis = lines.any { it.startMs > 0L }
+        if (!hasTimeaxis) return redistributeEvenly(lines, durationMs)
+        return lines.mapIndexed { index, line ->
+            val nextBegin = payload.lines.getOrNull(index + 1)?.startMs
+            val end = when {
+                nextBegin != null && nextBegin > line.startMs -> nextBegin
+                durationMs > line.startMs -> durationMs
+                else -> line.startMs + DEFAULT_LINE_DURATION_MS
+            }
+            // Spotify 自带翻译刻意不发布：translation 槽位必须留给模块的三方在线
+            // 翻译源，模块只按行补空槽，Provider 先占位会让在线翻译补不进去。
+            SpotifyTimelineLine(
+                begin = line.startMs,
+                end = end,
+                text = line.text,
+                words = mapSyllables(line, end),
+            )
         }
-        // Spotify 自带翻译刻意不发布：translation 槽位必须留给模块的三方在线
-        // 翻译源，模块只按行补空槽，Provider 先占位会让在线翻译补不进去。
-        SpotifyTimelineLine(
-            begin = line.startMs,
-            end = end,
-            text = line.text,
-            words = mapSyllables(line, end),
-        )
+    }
+
+    /**
+     * 无时间轴兜底：把 N 行歌词按 [0, durationMs] 均匀切分，得到单调递增的时间戳。
+     * durationMs 不可用时退化为每行固定 [DEFAULT_LINE_DURATION_MS]，仍保证可滚动。
+     */
+    private fun redistributeEvenly(
+        lines: List<SpotifyApiLyricLine>,
+        durationMs: Long,
+    ): List<SpotifyTimelineLine> {
+        val n = lines.size
+        val total = if (durationMs > 0L) durationMs else (n * DEFAULT_LINE_DURATION_MS)
+        return lines.mapIndexed { i, line ->
+            val begin = total * i / n
+            val end = (total * (i + 1) / n).coerceAtLeast(begin + 1L)
+            SpotifyTimelineLine(begin = begin, end = end, text = line.text, words = emptyList())
+        }
     }
 
     private fun mapSyllables(

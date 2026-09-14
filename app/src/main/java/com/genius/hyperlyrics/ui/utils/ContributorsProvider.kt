@@ -8,7 +8,7 @@ data class ContributorItem(
 )
 
 object ContributorsProvider {
-    val maintainer = ContributorItem("QuanTum2088", "@QuanTum2088", "https://github.com/QuanTum2088", com.genius.hyperlyrics.R.drawable.contributor_quantum2088)
+    val maintainer = ContributorItem("QuanTum2088", "@QuanTum2088", "https://github.com/QuanTum2088", android.R.drawable.sym_def_app_icon)
     val developmentContributors = listOf<ContributorItem>(
 
     )
