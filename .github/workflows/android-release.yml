@@ -171,7 +171,7 @@ jobs:
         if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel == 'canary'
         uses: actions/upload-artifact@v7
         with:
-          name: canary-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
+          name: debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
           path: HyperLyrics-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
           if-no-files-found: error
           compression-level: 0
