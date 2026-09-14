@@ -148,7 +148,7 @@ internal object AodMediaLyricPolicy {
     private const val NO_LYRIC_PREVIEW_DURATION_MS = 5_000L
 
     /** 多行歌词里为主句预留的行数（主句最长折两行）。 */
-    private const val MAIN_LYRIC_LINES_RESERVED = 2
+    private const val MAIN_LYRIC_LINES_RESERVED = 1
 
     fun embeddedSongInfoGravity(position: Int): Int = when (position) {
         RootConstants.AOD_SONG_INFO_POSITION_LEFT ->
