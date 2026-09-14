@@ -1730,26 +1730,31 @@ object NotificationMediaAodLyricHooker {
     }
 
     /**
-     * 紧凑模式切换：亮屏锁屏/通知中心场景下，
-     * 主歌词与翻译各自独立展示，超长时自动换行（最多两行）；其余行隐藏。
-     * 息屏 AOD 场景保持多行样式。
+     * 把歌词 TextView 设为横向跑马灯：单行展示，超宽内容横向滚动，永不截断、不换行撑高卡片。
+     * 需要 [TextView.isSelected] = true 才能在无焦点覆盖层上持续滚动。
+     */
+    private fun applyLyricMarquee(view: TextView) {
+        view.setSingleLine(true)
+        view.ellipsize = TextUtils.TruncateAt.MARQUEE
+        view.marqueeRepeatLimit = -1
+        view.isSelected = true
+        view.isHorizontalFadingEdgeEnabled = false
+    }
+
+    /**
+     * 紧凑模式 / 锁屏 AOD 展开态切换：
+     * 焦点通知、亮屏锁屏卡片、锁屏 AOD 展开态统一采用「横向跑马灯」展示当前句与翻译，
+     * 单行滚动保证完整且不撑高卡片。仅「自定义 AOD 息屏全屏」(classic 插件) 走内部垂直滚动，
+     * 不进入此路径 ([applyAodPluginState])。
      */
     private fun applyCompactMode(
         overlay: LyricOverlay,
         compact: Boolean,
         style: AodTextStyleConfig,
     ) {
-        val rowMaxLines = AodMediaLyricPolicy.lyricRowMaxLines(style.lyricMaxLines)
-        fun config(view: TextView) {
-            // 主/译分行展示，各自最多折两行；同时受总行数上限约束，
-            // 长句自动换行后超出预算的部分以省略号截断，不会无限撑高卡片。
-            view.setSingleLine(false)
-            view.maxLines = rowMaxLines
-            view.ellipsize = TextUtils.TruncateAt.END
-            view.isSelected = false
-        }
-        config(overlay.main)
-        config(overlay.translation)
+        // 当前句与翻译：横向跑马灯，超宽滚动，不截断。
+        applyLyricMarquee(overlay.main)
+        applyLyricMarquee(overlay.translation)
         listOf(
             overlay.backing,
             overlay.backingTranslation,
@@ -1764,11 +1769,12 @@ object NotificationMediaAodLyricHooker {
                 view.visibility = View.VISIBLE
             }
         }
-        // 后续歌词行（多行歌词）在紧凑模式同样放行，可见性只取决于有没有内容。
+        // 后续歌词行（多行歌词）同样单行跑马灯，避免多句换行撑高卡片。
         if (overlay.next.text.isBlank()) {
             overlay.next.visibility = View.GONE
-        } else if (overlay.next.visibility == View.GONE) {
-            overlay.next.visibility = View.VISIBLE
+        } else {
+            if (overlay.next.visibility == View.GONE) overlay.next.visibility = View.VISIBLE
+            applyLyricMarquee(overlay.next)
         }
         // 进度行是 View 而非 TextView：紧凑模式一律隐藏，
         // 非紧凑（全屏 AOD）下由 applyState 按是否有时长数据决定可见性。
