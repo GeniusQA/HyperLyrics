@@ -2,6 +2,7 @@
 
 package com.genius.hyperlyrics.ui.page
 
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -27,9 +28,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.genius.hyperlyrics.R
+import com.genius.hyperlyrics.common.UIConstants
+import com.genius.hyperlyrics.ui.component.CleanupHistoryDialog
 import com.genius.hyperlyrics.ui.component.SimpleDialog
 import com.genius.hyperlyrics.utils.LogManager
 import com.genius.hyperlyrics.ui.navigation.LocalNavigator
+import com.genius.hyperlyrics.worker.LogCleanupScheduler
 import com.genius.hyperlyrics.ui.page.log.LogEntry
 import com.genius.hyperlyrics.ui.page.log.LogTabContent
 import com.genius.hyperlyrics.ui.utils.BlurredBar
@@ -39,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -95,7 +100,28 @@ fun LogPage() {
 
     var showMorePopup by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var showCleanupHistoryDialog by remember { mutableStateOf(false) }
     var pendingExportRequest by remember { mutableStateOf<LogExportRequest?>(null) }
+
+    val cleanupHistory = remember { mutableStateListOf<LogManager.CleanupRecord>() }
+    LaunchedEffect(showCleanupHistoryDialog) {
+        if (showCleanupHistoryDialog) {
+            cleanupHistory.clear()
+            cleanupHistory.addAll(LogManager.getCleanupHistory(context))
+        }
+    }
+
+    val prefs = remember(context) {
+        context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE)
+    }
+    var autoCleanupIntervalHours by remember {
+        mutableStateOf(
+            prefs.getInt(
+                UIConstants.KEY_LOG_AUTO_CLEANUP_INTERVAL,
+                UIConstants.DEFAULT_LOG_AUTO_CLEANUP_INTERVAL
+            )
+        )
+    }
 
     val copiedMsg = stringResource(R.string.copied)
     val exportHeader = stringResource(R.string.export_header)
@@ -204,6 +230,10 @@ fun LogPage() {
     val filterLabel = stringResource(R.string.module_logs_level)
     val exportLabel = stringResource(R.string.export_all)
     val clearLabel = stringResource(R.string.clear_logs)
+    val autoCleanupLabel = stringResource(R.string.auto_cleanup_logs)
+    val autoCleanupOffLabel = stringResource(R.string.auto_cleanup_off)
+    val autoCleanup24hLabel = stringResource(R.string.auto_cleanup_24h)
+    val autoCleanup7dLabel = stringResource(R.string.auto_cleanup_7d)
     val allLabel = stringResource(R.string.all)
     val levelDebug = stringResource(R.string.level_debug)
     val levelInfo = stringResource(R.string.level_info)
@@ -211,10 +241,25 @@ fun LogPage() {
     val levelError = stringResource(R.string.level_error)
     val levelCrash = stringResource(R.string.level_crash)
 
+    val autoCleanupSummary = remember(autoCleanupIntervalHours) {
+        when (autoCleanupIntervalHours) {
+            24 -> autoCleanup24hLabel
+            168 -> autoCleanup7dLabel
+            else -> autoCleanupOffLabel
+        }
+    }
+
+    val cleanupHistoryLabel = stringResource(R.string.cleanup_history)
     val currentSelectedLevel = if (isAppTab) appSelectedLevel else moduleSelectedLevel
-    val logEntries = remember(currentSelectedLevel, isAppTab, filterLabel, exportLabel, clearLabel, allLabel, levelDebug, levelInfo, levelWarn, levelError, levelCrash) {
+    val logEntries = remember(
+        currentSelectedLevel, isAppTab, filterLabel, exportLabel, clearLabel,
+        autoCleanupLabel, autoCleanupSummary, cleanupHistoryLabel, allLabel, levelDebug,
+        levelInfo, levelWarn, levelError, levelCrash
+    ) {
         val levels = listOf("ALL", "D", "I", "W", "E", "C")
         val levelNames = listOf(allLabel, levelDebug, levelInfo, levelWarn, levelError, levelCrash)
+        val cleanupOptionValues = listOf(0, 24, 168)
+        val cleanupOptionLabels = listOf(autoCleanupOffLabel, autoCleanup24hLabel, autoCleanup7dLabel)
         listOf(
             DropdownEntry(
                 items = listOf(
@@ -249,6 +294,27 @@ fun LogPage() {
                     DropdownItem(
                         text = clearLabel,
                         onClick = { showClearDialog = true }
+                    ),
+                    DropdownItem(
+                        text = autoCleanupLabel,
+                        summary = autoCleanupSummary,
+                        children = cleanupOptionValues.mapIndexed { index, value ->
+                            DropdownItem(
+                                text = cleanupOptionLabels[index],
+                                selected = autoCleanupIntervalHours == value,
+                                onClick = {
+                                    autoCleanupIntervalHours = value
+                                    prefs.edit()
+                                        .putInt(UIConstants.KEY_LOG_AUTO_CLEANUP_INTERVAL, value)
+                                        .apply()
+                                    LogCleanupScheduler.schedule(context, value)
+                                }
+                            )
+                        }
+                    ),
+                    DropdownItem(
+                        text = cleanupHistoryLabel,
+                        onClick = { showCleanupHistoryDialog = true }
                     )
                 )
             )
@@ -278,7 +344,11 @@ fun LogPage() {
                                 entries = logEntries,
                                 alignment = PopupPositionProvider.Align.TopEnd,
                                 popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-                                onDismissRequest = { showMorePopup = false }
+                                onDismissRequest = { showMorePopup = false },
+                                dropdownColors = DropdownDefaults.dropdownColors(
+                                    summaryColor = Color(0xFFF44336),
+                                    selectedSummaryColor = Color(0xFFF44336)
+                                )
                             )
                         }
                     },
@@ -334,8 +404,17 @@ fun LogPage() {
         summary = stringResource(R.string.clear_logs_confirm),
         onDismiss = { showClearDialog = false },
         onConfirm = {
-            LogManager.clearLogs()
+            LogManager.clearAllLogs(context, LogManager.TRIGGER_MANUAL)
             reloadAppLogs()
+            reloadModuleLogs()
+            cleanupHistory.clear()
+            cleanupHistory.addAll(LogManager.getCleanupHistory(context))
         }
+    )
+
+    CleanupHistoryDialog(
+        show = showCleanupHistoryDialog,
+        records = cleanupHistory,
+        onDismiss = { showCleanupHistoryDialog = false }
     )
 }

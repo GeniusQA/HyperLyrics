@@ -14,6 +14,7 @@ import com.genius.hyperlyrics.ui.navigation.Route
 import com.genius.hyperlyrics.ui.utils.LocaleUtils
 import com.genius.hyperlyrics.ui.utils.ThemeUtils
 import com.genius.hyperlyrics.utils.UpdateData
+import com.genius.hyperlyrics.worker.LogCleanupScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,7 +41,10 @@ class MainActivity : ComponentActivity() {
         window.setBackgroundDrawable(ColorDrawable(if (isDark) Color.BLACK else 0xFFF7F7F7.toInt()))
 
         val setupCompleted = prefs.getBoolean(UIConstants.KEY_SETUP_COMPLETED, UIConstants.DEFAULT_SETUP_COMPLETED)
-        
+
+        // 恢复日志自动清理任务（WorkManager 已持久化的任务会在重启后继续，但更新 APK 后重新确认一次）
+        LogCleanupScheduler.schedule(this)
+
         val excludeFromRecents = prefs.getBoolean(UIConstants.KEY_EXCLUDE_FROM_RECENTS, UIConstants.DEFAULT_EXCLUDE_FROM_RECENTS)
         if (excludeFromRecents) {
             try {

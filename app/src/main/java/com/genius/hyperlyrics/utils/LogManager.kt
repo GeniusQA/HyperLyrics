@@ -10,6 +10,8 @@ import com.genius.hyperlyrics.ui.page.log.LogEntry
 import com.genius.hyperlyrics.common.UIConstants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -69,6 +71,80 @@ object LogManager : HyperLogger {
         val files: List<String>
     )
 
+    data class CleanupFileResult(
+        val path: String,
+        val success: Boolean
+    )
+
+    data class CleanupRecord(
+        val timestamp: Long,
+        val trigger: String,
+        val files: List<CleanupFileResult>
+    ) {
+        fun overallSuccess(): Boolean = files.isNotEmpty() && files.all { it.success }
+    }
+
+    const val TRIGGER_MANUAL = "manual"
+    const val TRIGGER_SCHEDULED = "scheduled"
+    private const val MAX_HISTORY_RECORDS = 50
+
+    /** 读取已保存的清理历史。 */
+    fun getCleanupHistory(context: Context): List<CleanupRecord> {
+            return try {
+                val file = File(context.filesDir, "cleanup_history.json")
+                if (!file.exists() || file.length() == 0L) return emptyList()
+                val json = JSONObject(file.readText())
+                val array = json.optJSONArray("records") ?: return emptyList()
+                (0 until array.length()).mapNotNull { index ->
+                    val obj = array.optJSONObject(index) ?: return@mapNotNull null
+                    val timestamp = obj.optLong("timestamp", 0L)
+                    val trigger = obj.optString("trigger", TRIGGER_MANUAL)
+                    val filesArray = obj.optJSONArray("files") ?: JSONArray()
+                    val files = (0 until filesArray.length()).mapNotNull { fIndex ->
+                        val fObj = filesArray.optJSONObject(fIndex) ?: return@mapNotNull null
+                        CleanupFileResult(
+                            path = fObj.optString("path", ""),
+                            success = fObj.optBoolean("success", false)
+                        )
+                    }
+                    if (timestamp > 0L) CleanupRecord(timestamp, trigger, files) else null
+                }
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+
+        /** 保存一条新的清理记录，并截断到最大条数。 */
+        private fun saveCleanupRecord(context: Context, record: CleanupRecord) {
+            val existing = getCleanupHistory(context).toMutableList()
+            existing.add(0, record)
+            while (existing.size > MAX_HISTORY_RECORDS) existing.removeAt(existing.lastIndex)
+            try {
+                val array = JSONArray()
+                existing.forEach { r ->
+                    val filesArray = JSONArray()
+                    r.files.forEach { f ->
+                        filesArray.put(
+                            JSONObject().apply {
+                                put("path", f.path)
+                                put("success", f.success)
+                            }
+                        )
+                    }
+                    array.put(
+                        JSONObject().apply {
+                            put("timestamp", r.timestamp)
+                            put("trigger", r.trigger)
+                            put("files", filesArray)
+                        }
+                    )
+                }
+                val file = File(context.filesDir, "cleanup_history.json")
+                file.writeText(JSONObject().put("records", array).toString())
+            } catch (_: Exception) {
+            }
+        }
+
     private class LogSourceException(message: String) : Exception(message)
 
     fun init(context: Context) {
@@ -106,14 +182,76 @@ object LogManager : HyperLogger {
         writeLog("E", tag, fullMsg)
     }
 
-    fun clearLogs() {
-        val file = logFile ?: return
-        lock.write {
+    fun clearLogs(): Boolean {
+        val file = logFile ?: return false
+        return lock.write {
             try {
                 if (file.exists()) file.writeText("")
+                true
             } catch (_: Exception) {
+                false
             }
         }
+    }
+
+    /**
+     * 清空 LSPosed 模块日志（/data/adb/lspd/log/modules*.log）。
+     * 需要 root 权限；无 root 或日志文件不存在时静默失败。
+     * 返回每个文件的成功/失败状态。
+     */
+    fun clearModuleLogs(context: Context): List<CleanupFileResult> {
+        val source = try {
+            findXposedLogFiles(context)
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val files = source.files
+        if (files.isEmpty()) return emptyList()
+        val filesArg = files.joinToString(" ") { shellQuote(it) }
+        val cmd = "for f in $filesArg; do if > \"\$f\" 2>/dev/null; then echo \"OK:\$f\"; else echo \"FAIL:\$f\"; fi; done"
+        val results = mutableListOf<CleanupFileResult>()
+        runCatching {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+            BufferedReader(InputStreamReader(process.inputStream)).useLines { lines ->
+                lines.forEach { line ->
+                    when {
+                        line.startsWith("OK:") ->
+                            results.add(CleanupFileResult(line.removePrefix("OK:"), true))
+                        line.startsWith("FAIL:") ->
+                            results.add(CleanupFileResult(line.removePrefix("FAIL:"), false))
+                    }
+                }
+            }
+            process.waitFor()
+        }.onFailure {
+            // root 或 su 不可用：所有文件标记为失败。
+            results.clear()
+            files.forEach { results.add(CleanupFileResult(it, false)) }
+        }
+        if (results.isEmpty()) {
+            files.forEach { results.add(CleanupFileResult(it, false)) }
+        }
+        return results
+    }
+
+    /**
+     * 同时清空应用日志与 LSPosed 模块日志，并记录清理历史。
+     */
+    fun clearAllLogs(context: Context, trigger: String = TRIGGER_MANUAL): CleanupRecord {
+        val appSuccess = clearLogs()
+        val appFile = logFile?.absolutePath ?: ""
+        val results = mutableListOf<CleanupFileResult>()
+        if (appFile.isNotBlank()) {
+            results.add(CleanupFileResult(appFile, appSuccess))
+        }
+        results.addAll(clearModuleLogs(context))
+        val record = CleanupRecord(
+            timestamp = System.currentTimeMillis(),
+            trigger = trigger,
+            files = results
+        )
+        saveCleanupRecord(context, record)
+        return record
     }
 
     private fun shouldWrite(level: String): Boolean {
