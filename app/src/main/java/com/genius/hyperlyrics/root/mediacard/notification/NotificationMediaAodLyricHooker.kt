@@ -3720,7 +3720,9 @@ object NotificationMediaAodLyricHooker {
             translationFallback = style.translationFallback,
         )
         return if (waitingForLyrics) {
-            assembled.copy(main = WAITING_DOTS_PLACEHOLDER, waitingForLyrics = true)
+            // 等待匹配阶段只展示动态圆点，不要把后续歌词拼接行也带进来，
+            // 否则开启多行歌词时会出现圆点与多行歌词挤在一起。
+            assembled.copy(main = WAITING_DOTS_PLACEHOLDER, next = "", waitingForLyrics = true)
         } else {
             assembled
         }
