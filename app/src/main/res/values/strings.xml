@@ -9,7 +9,7 @@
     <string name="app_description">面向 HyperOS 3/4 提供 Apple Music 深度适配与系统级超级岛/锁屏/AOD 息屏歌词</string>
     <string name="label_lyric_listener_service">获取媒体信息权限</string>
     <string name="label_lyric_enable_service">HyperLyrics 媒体信息监听</string>
-    <string name="provider_release_home">https://github.com/GeniusQA/HyperLyrics</string>
+    <string name="provider_release_home">https://github.com/QuanTum2088/HyperLyrics</string>
 
     <string name="add">添加</string>
     <string name="github">GitHub</string>
@@ -230,9 +230,9 @@
     <string name="summary_builtin_youtube_music_provider">HyperLyrics内置提供器，歌词由在线歌词源补全</string>
     <string name="title_official_provider_plugins">已添加的插件</string>
     <string name="title_provider_downloads">未添加的插件</string>
-    <string name="title_legacy_provider_modules">已安装的外置 Provider 模块</string>
-    <string name="title_legacy_provider_repository">点我可跳转原仓库下载外置 Provider 模块</string>
-    <string name="summary_legacy_provider_repository">外置 Provider 模块可以在无需词幕服务模块的情况下直接使用，但插件优先级更高，使用插件可获得针对性维护与更方便的使用体验</string>
+    <string name="title_legacy_provider_modules">已安装的独立 Provider 模块</string>
+    <string name="title_legacy_provider_repository">点我可跳转原仓库下载独立 Provider 模块</string>
+    <string name="summary_legacy_provider_repository">独立 Provider 模块可以在无需词幕服务模块的情况下直接使用，但插件优先级更高，使用插件可获得针对性维护与更方便的使用体验</string>
     <string name="legacy_provider_release_home">https://github.com/tomakino/LyricProvider/releases</string>
     <string name="provider_status_builtin">内置</string>
     <string name="provider_status_universal">通用</string>
@@ -289,7 +289,7 @@
     <string name="provider_error_incompatible">插件与当前版本不兼容，请更新 HyperLyrics</string>
     <string name="provider_error_storage">插件文件保存失败，请检查模块权限后重试</string>
     <string name="provider_error_generic">发生未知错误：%1$s</string>
-    <string name="title_no_legacy_provider">未发现外置 Provider 模块</string>
+    <string name="title_no_legacy_provider">未发现独立 Provider 模块</string>
     <string name="summary_no_legacy_provider">如果你需要，可点击上方跳转原仓库下载</string>
     <string name="title_lyric_delay">歌词延迟</string>
     <string name="summary_lyric_delay">正数延后显示，负数提前显示</string>
@@ -435,16 +435,13 @@
     <string name="title_translation_pronunciation_fallback">无翻译/发音时显示另一个</string>
     <string name="title_translation_only">仅显示翻译</string>
     <string name="title_swap_translation">原词翻译对调位置</string>
-    <string name="title_next_lyric_line">多行歌词</string>
-    <string name="summary_next_lyric_line">开启后在歌词块内显示后续歌词；显示翻译时将不显示下句歌词</string>
-    <string name="title_lyric_area_height">后续歌词行数</string>
-    <string name="summary_lyric_area_height">开启多行歌词后，最多显示的后续歌词条数（当前句固定单行展示）</string>
-    <string name="format_lyric_area_height">%d 行</string>
+    <string name="title_next_lyric_line">显示下一句歌词</string>
+    <string name="summary_next_lyric_line">显示翻译时将不显示下句歌词</string>
     <string name="title_aod_main_text_size">主句字号</string>
     <string name="title_aod_backing_text_size">伴唱字号</string>
     <string name="title_aod_translation_text_size">翻译字号</string>
     <string name="title_aod_next_lyric_style">下句歌词样式</string>
-    <string name="summary_aod_show_next_lyric">开启后在歌词块内显示后续歌词；显示翻译时将不显示下句歌词</string>
+    <string name="summary_aod_show_next_lyric">显示翻译时将不显示下句歌词</string>
     <string name="option_aod_next_lyric_backing">伴唱</string>
     <string name="option_aod_next_lyric_translation">翻译</string>
     <string name="format_aod_text_size_placeholder">默认 %1$d（范围 %2$d-%3$d）</string>
@@ -721,6 +718,7 @@
     <string name="title_custom_prompt">自定义提示词</string>
 
     <!-- Main Page & General Content Descriptions -->
+    <string name="content_description_avatar">头像</string>
     <string name="content_description_go">前往</string>
     <string name="version_unknown">v 未知</string>
 
@@ -731,25 +729,7 @@
     <string name="log_level_normal">一般日志</string>
     <string name="log_level_verbose">调试日志</string>
     <string name="clear_logs">清空日志</string>
-    <string name="clear_logs_confirm">确定要清空应用日志以及模块日志吗？</string>
-    <string name="auto_cleanup_logs">定时清理</string>
-    <string name="auto_cleanup_off">关闭</string>
-    <string name="auto_cleanup_24h">每 24 小时</string>
-    <string name="auto_cleanup_7d">每 7 天</string>
-    <string name="cleanup_history">清理历史</string>
-    <string name="cleanup_history_title">清理历史</string>
-    <string name="cleanup_history_empty">暂无清理记录</string>
-    <string name="cleanup_trigger_manual">手动清理</string>
-    <string name="cleanup_trigger_scheduled">定时清理</string>
-    <string name="cleanup_time_label">清理时间</string>
-    <string name="cleanup_file_path">文件路径</string>
-    <string name="cleanup_status_label">状态</string>
-    <string name="cleanup_status_no_files">%s：无文件</string>
-    <string name="cleanup_status_all_success">%s全部成功</string>
-    <string name="cleanup_status_all_failed">%s全部失败</string>
-    <string name="cleanup_status_partial_failed">%s部分失败——%s</string>
-    <string name="cleanup_status_failed_files">失败文件：%s</string>
-    <string name="cleanup_failure_solution">请检查 Root 权限（模块日志）与应用存储权限（应用日志），确认文件存在后重试。</string>
+    <string name="clear_logs_confirm">确定要清空应用日志吗？\n此操作不会清除模块日志。</string>
     <string name="level_debug">Debug</string>
     <string name="level_info">Info</string>
     <string name="level_warn">Warn</string>
@@ -814,7 +794,7 @@
 
     <string name="setup_select_lyric_source">选择歌词源</string>
     <string name="setup_apple_music_ready">HyperLyrics 独家插件</string>
-    <string name="setup_apple_music_ready_summary">现在 HyperLyrics 已将 Lyricon 的词幕服务模块与主流音乐平台的 Provider 模块整合在一起，作为插件功能，实现无需额外模块，还能满足各取所需的需求。\n\n进入主页并正式开始使用之前，可提前在下方添加你所使用的音乐 App 插件。（添加完插件后需要在 lsp 管理器的作用域勾选上对应的音乐 App （汽水音乐除外），并重启你的系统界面与对应的音乐 App 进程，否则无法正常生效！）\n\n如果以下列表未包含你使用的音乐 App 插件，你依旧可以使用经典的外置 Provider 模块，而且无需额外的词幕服务模块，即可使用。</string>
+    <string name="setup_apple_music_ready_summary">现在 HyperLyrics 已将 Lyricon 的词幕服务模块与主流音乐平台的 Provider 模块整合在一起，作为插件功能，实现无需额外模块，还能满足各取所需的需求。\n\n进入主页并正式开始使用之前，可提前在下方添加你所使用的音乐 App 插件。（添加完插件后需要在 lsp 管理器的作用域勾选上对应的音乐 App （汽水音乐除外），并重启你的系统界面与对应的音乐 App 进程，否则无法正常生效！）\n\n如果以下列表未包含你使用的音乐 App 插件，你依旧可以使用经典的独立 Provider 模块，而且无需额外的词幕服务模块，即可使用。</string>
     <string name="setup_available_provider_plugins">可添加的插件</string>
     <string name="setup_apple_music_plugin_summary">已预先内置，无需重复添加</string>
     <string name="setup_provider_added">已添加</string>
@@ -832,10 +812,7 @@
     <string name="setup_completion_lyricinfo">安装歌词获取模块后，在 LSPosed 中启用并勾选音乐软件，重启系统界面即可使用</string>
     <string name="setup_completion_restart_hint">添加完插件请重启系统界面与对应的音乐 App 进程，你可以在主页右上角点击“一键刷新”按钮进行重启。</string>
     <string name="no_lyric_data">歌词源无数据</string>
-    <string name="manual_match_result_no_song">二次匹配失败：当前没有三方播放歌曲</string>
-    <string name="manual_match_result_switched">二次匹配已忽略：当前歌曲已切换为 %1$s</string>
-    <string name="manual_match_result_no_lyrics">二次匹配失败：未取到歌词</string>
-    <string name="manual_match_result_no_translation">二次匹配完成：已获取 %1$d 行原词，但未找到翻译</string>
-    <string name="manual_match_result_success">二次匹配成功：%1$d 行歌词，%2$d 行翻译</string>
-    <string name="manual_match_result_exception">二次匹配异常：%1$s：%2$s</string>
+    <string name="title_lyric_area_height">歌词行数</string>
+    <string name="summary_lyric_area_height">歌词块总行数上限，同时约束单句最大折行数与后续歌词条数</string>
+    <string name="format_lyric_area_height">%d 行</string>
 </resources>

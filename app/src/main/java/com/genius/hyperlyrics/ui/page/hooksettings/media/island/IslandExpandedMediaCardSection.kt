@@ -68,8 +68,8 @@ fun LazyListScope.islandExpandedMediaCardSection(
         }
         var lyricAreaHeight by remember {
             mutableIntStateOf(
-                (sectionPrefs.all[RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT] as? Int)
-                    ?: RootConstants.DEFAULT_HOOK_LYRIC_AREA_HEIGHT
+                (sectionPrefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
+                    ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
             )
         }
 
@@ -152,26 +152,26 @@ fun LazyListScope.islandExpandedMediaCardSection(
                                     onValueChange = {
                                         lyricAreaHeight = it.roundToInt()
                                             .coerceIn(
-                                                RootConstants.MIN_LYRIC_AREA_HEIGHT,
-                                                RootConstants.MAX_LYRIC_AREA_HEIGHT
+                                                RootConstants.MIN_LYRIC_MAX_LINES,
+                                                RootConstants.MAX_LYRIC_MAX_LINES
                                             )
                                     },
                                     onValueChangeFinished = {
                                         sectionPrefs.edit()
                                             .putInt(
-                                                RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT,
+                                                RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
                                                 lyricAreaHeight
                                             )
                                             .apply()
                                         PrefsBridge.putInt(
-                                            RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT,
+                                            RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
                                             lyricAreaHeight
                                         )
                                     },
-                                    valueRange = RootConstants.MIN_LYRIC_AREA_HEIGHT.toFloat()
-                                        ..RootConstants.MAX_LYRIC_AREA_HEIGHT.toFloat(),
-                                    steps = (RootConstants.MAX_LYRIC_AREA_HEIGHT
-                                        - RootConstants.MIN_LYRIC_AREA_HEIGHT) - 1,
+                                    valueRange = RootConstants.MIN_LYRIC_MAX_LINES.toFloat()
+                                        ..RootConstants.MAX_LYRIC_MAX_LINES.toFloat(),
+                                    steps = (RootConstants.MAX_LYRIC_MAX_LINES
+                                        - RootConstants.MIN_LYRIC_MAX_LINES) - 1,
                                 )
                             }
                         )

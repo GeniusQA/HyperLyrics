@@ -129,7 +129,7 @@ class HookEntry : XposedModule() {
             RootConstants.KEY_HOOK_TRANSLATION_ONLY,
             RootConstants.KEY_HOOK_SWAP_TRANSLATION,
             RootConstants.KEY_HOOK_NEXT_LYRIC_LINE,
-            RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT,
+            RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
             RootConstants.KEY_HOOK_AUTO_SWITCH_TRANSLATION,
             RootConstants.KEY_HOOK_ADJACENT_BACKGROUND_TRANSLATION,
             RootConstants.KEY_HOOK_EXTRACT_COVER_TEXT_COLOR,
