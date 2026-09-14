@@ -314,7 +314,8 @@ internal object AodMediaLyricPolicy {
      *
      * 上边界取可见歌曲信息下缘 [anchorBottom]，下边界取进度条上缘；
      * 歌词容器在两者之间垂直居中，进度条贴卡片底部（仅保留 [bottomGap]）。
-     * 当歌词内容高于原生卡片剩余空间时，向下撑高卡片以保证多行歌词/翻译不重叠。
+     * 歌词容器高度固定为原生卡片剩余空间，超出部分由内部 TextView 的 maxLines 截断，
+     * 不再向下撑高卡片，避免多行歌词/翻译压住进度条或溢出屏幕。
      */
     fun lockScreenCenteredLyricLayout(
         nativeCardHeight: Int,
@@ -327,7 +328,6 @@ internal object AodMediaLyricPolicy {
     ): LockScreenLyricLayout {
         val safeNative = nativeCardHeight.coerceAtLeast(0)
         val safeAnchor = anchorBottom.coerceAtLeast(0)
-        val safeLyric = lyricContentHeight.coerceAtLeast(0)
         val safeProgress = progressRowHeight.coerceAtLeast(0)
         val safeProgressMargin = progressRowTopMargin.coerceAtLeast(0)
         val safeBottomGap = bottomGap.coerceAtLeast(0)
@@ -335,23 +335,14 @@ internal object AodMediaLyricPolicy {
 
         val rootTop = safeAnchor + safeMinTopGap
         val progressBlock = safeProgressMargin + safeProgress
-        val availableInNative = safeNative - safeBottomGap - progressBlock - rootTop
-        return if (availableInNative >= safeLyric) {
-            LockScreenLyricLayout(
-                targetCardHeight = safeNative,
-                rootTop = rootTop,
-                rootHeight = safeNative - safeBottomGap - rootTop,
-                lyricContainerHeight = availableInNative,
-            )
-        } else {
-            val targetCardHeight = rootTop + safeLyric + progressBlock + safeBottomGap
-            LockScreenLyricLayout(
-                targetCardHeight = targetCardHeight,
-                rootTop = rootTop,
-                rootHeight = safeLyric + progressBlock,
-                lyricContainerHeight = safeLyric,
-            )
-        }
+        val availableInNative = (safeNative - safeBottomGap - progressBlock - rootTop).coerceAtLeast(0)
+
+        return LockScreenLyricLayout(
+            targetCardHeight = safeNative,
+            rootTop = rootTop,
+            rootHeight = safeNative - safeBottomGap - rootTop,
+            lyricContainerHeight = availableInNative,
+        )
     }
 
     fun lockScreenHorizontalMargins(
