@@ -1308,4 +1308,30 @@ class AodMediaLyricPolicyTest {
         )
         assertEquals("", lineOff.translation)
     }
+
+    @Test
+    fun `supports 2 3 and 5 lyric max line options`() {
+        assertEquals(0, AodMediaLyricPolicy.upcomingLineBudget(2))
+        assertEquals(1, AodMediaLyricPolicy.upcomingLineBudget(3))
+        assertEquals(3, AodMediaLyricPolicy.upcomingLineBudget(5))
+
+        assertEquals(2, AodMediaLyricPolicy.lyricRowMaxLines(2))
+        assertEquals(2, AodMediaLyricPolicy.lyricRowMaxLines(3))
+        assertEquals(2, AodMediaLyricPolicy.lyricRowMaxLines(5))
+    }
+
+    @Test
+    fun `normalizes lyric max lines to allowed options`() {
+        assertEquals(
+            RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES,
+            AodMediaLyricPolicy.sanitizeLyricMaxLines(null)
+        )
+        assertEquals(2, AodMediaLyricPolicy.sanitizeLyricMaxLines(2))
+        assertEquals(3, AodMediaLyricPolicy.sanitizeLyricMaxLines(3))
+        assertEquals(5, AodMediaLyricPolicy.sanitizeLyricMaxLines(5))
+        assertEquals(
+            RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES,
+            AodMediaLyricPolicy.sanitizeLyricMaxLines(4)
+        )
+    }
 }
