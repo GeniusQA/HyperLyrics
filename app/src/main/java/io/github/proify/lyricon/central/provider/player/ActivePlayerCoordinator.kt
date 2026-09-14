@@ -37,6 +37,12 @@ internal class ActivePlayerCoordinator(
     private val loggedSourceDecisions = ConcurrentHashMap<String, String>()
     private val audioSuppressedPlayers = HashSet<String>()
     private val audioConflictFirstSeenAt = HashMap<String, Long>()
+    /** 同包名下所有已知 recorder（含低优先级源），供无歌词降级时挑选下一跳。 */
+    private val recordersByPlayer = HashMap<String, MutableSet<PlayerRecorder>>()
+    /** 当前曲目已在降级链中被判无歌词、不应再回退的源。 */
+    private val exhaustedProviders = HashSet<ProviderInfo>()
+    /** 最近一次消费方发起降级所针对的曲目标识，跨曲切换时重置 exhaustedProviders。 */
+    private var lastDemandIdentity: String? = null
 
     @Volatile
     private var activeRecorder: PlayerRecorder? = null
@@ -71,6 +77,8 @@ internal class ActivePlayerCoordinator(
 
     fun notifyProviderInvalid(provider: ProviderInfo) {
         val shouldNotify = lock.write {
+            recordersByPlayer.values.forEach { it.removeIf { r -> r.providerInfo == provider } }
+            exhaustedProviders.remove(provider)
             if (activeInfo == provider) {
                 audioSuppressedPlayers.remove(provider.playerPackageName)
                 audioConflictFirstSeenAt.remove(provider.playerPackageName)
@@ -88,6 +96,50 @@ internal class ActivePlayerCoordinator(
                 it.onPlaybackStateChanged(false)
             }
         }
+    }
+
+    /**
+     * 消费方判定当前 active 原生源无歌词时，请求降级到同播放器下一更低优先级的源。
+     *
+     * 任意时刻仅保留一个 active provider（切换时立即替换 [activeRecorder] 并广播快照），
+     * 因此不会出现多源同时发布歌词/翻译导致的竞争。降级按优先级链逐跳进行：
+     * 官方插件 → 外置模块 → 通用兜底 →（仍无歌词）由消费方走在线 MetaData 平台源兜底。
+     *
+     * @param songIdentity 当前曲目标识；跨曲切换（标识变化）会重置已耗尽的源集合，避免误跳过。
+     * @return true=已降级到下一源（消费方应暂停在线兜底，等待新源数据）；false=无更低源可降级。
+     */
+    fun tryDemoteActiveSource(songIdentity: String): Boolean {
+        var switched: PlayerRecorder? = null
+        lock.write {
+            if (songIdentity != lastDemandIdentity) {
+                lastDemandIdentity = songIdentity
+                exhaustedProviders.clear()
+            }
+            val current = activeRecorder ?: return false
+            val currentInfo = current.providerInfo
+            val currentRank = ProviderSourcePriorityResolver.resolve(currentInfo).rank
+            val candidate = recordersByPlayer[currentInfo.playerPackageName].orEmpty()
+                .filter { other ->
+                    other.providerInfo != currentInfo &&
+                        isProviderAllowed(other.providerInfo) &&
+                        other.isPlaying &&
+                        ProviderSourcePriorityResolver.resolve(other.providerInfo).rank < currentRank &&
+                        !exhaustedProviders.contains(other.providerInfo)
+                }
+                .maxByOrNull { ProviderSourcePriorityResolver.resolve(it.providerInfo).rank }
+                ?: return false
+            exhaustedProviders.add(currentInfo)
+            activeRecorder = candidate
+            activeIsPlaying = candidate.isPlaying
+            switched = candidate
+            decisionLogger(
+                "Provider 来源降级: from=${currentInfo.providerPackageName}, " +
+                    "to=${candidate.providerInfo.providerPackageName}, " +
+                    "player=${currentInfo.playerPackageName}, reason=active_no_lyrics",
+            )
+        }
+        switched?.let { rec -> broadcast { syncNewProviderState(rec, it) } }
+        return true
     }
 
     /** Reconciles an already active source immediately after official Pack preferences change. */
@@ -221,6 +273,7 @@ internal class ActivePlayerCoordinator(
         var invalidActiveCleared = false
 
         lock.write {
+            recordersByPlayer.getOrPut(recorderInfo.playerPackageName) { HashSet<PlayerRecorder>() }.add(recorder)
             when (audioConflict) {
                 true -> {
                     val firstSeenAt = audioConflictFirstSeenAt.getOrPut(
@@ -254,6 +307,7 @@ internal class ActivePlayerCoordinator(
             if (!isProviderAllowed(recorderInfo)) {
                 decision = when (ProviderSourcePriorityResolver.resolve(recorderInfo)) {
                     ProviderSourcePriority.OFFICIAL_PLUGIN -> "dropped_official_pack_disabled"
+                    ProviderSourcePriority.STANDALONE_MODULE -> "dropped_standalone_pack_disabled"
                     ProviderSourcePriority.LEGACY_APK -> "dropped_legacy_official_pack_preferred"
                     ProviderSourcePriority.BUILT_IN -> "dropped_source_not_allowed"
                 }
@@ -373,6 +427,7 @@ internal class ActivePlayerCoordinator(
         return when (ProviderSourcePriorityResolver.resolve(providerInfo)) {
             ProviderSourcePriority.BUILT_IN -> true
             ProviderSourcePriority.OFFICIAL_PLUGIN -> preference
+            ProviderSourcePriority.STANDALONE_MODULE -> preference
             ProviderSourcePriority.LEGACY_APK -> !preference
         }
     }

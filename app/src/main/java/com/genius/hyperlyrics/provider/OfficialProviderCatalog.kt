@@ -34,6 +34,16 @@ object OfficialProviderCatalog {
     const val OFFICIAL_PROVIDER_RUNTIME_PACKAGE_PREFIX =
         "com.genius.hyperlyrics.provider."
 
+    /**
+     * 外置 Provider 模块的包名前缀。
+     *
+     * 外置模块是跳原 GitHub 仓库下载安装的另一类原生歌词 Provider 包，与官方 .hlp 插件并列
+     * 但渠道不同；其 providerPackageName 必须以此前缀开头才会被识别为 [STANDALONE_MODULE]
+     * 优先级档（介于官方插件与通用兜底之间）。请保持外置模块仓库编译期写死的包名与此一致。
+     */
+    const val STANDALONE_PROVIDER_PACKAGE_PREFIX =
+        "com.genius.hyperlyrics.standalone.provider."
+
     private val OFFICIAL_PROVIDER_PACKAGE_PREFIXES = listOf(
         OFFICIAL_PROVIDER_PACKAGE_PREFIX,
         OFFICIAL_PROVIDER_RUNTIME_PACKAGE_PREFIX,

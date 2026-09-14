@@ -29,6 +29,9 @@
 # --- Shizuku User Service ---
 -keep class com.genius.hyperlyrics.service.utils.shizuku.PrivilegedServiceImpl { *; }
 
+# --- WorkManager Worker ---
+-keep class com.genius.hyperlyrics.worker.LogCleanupWorker { *; }
+
 # --- SuperLyric API ---
 -keep class com.hchen.superlyricapi.* { *; }
 -dontwarn android.os.ServiceManager

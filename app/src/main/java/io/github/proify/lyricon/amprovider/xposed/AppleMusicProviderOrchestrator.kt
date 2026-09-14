@@ -53,6 +53,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.common.UIConstants
 import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.common.dexkit.DexKitNativeLibrary
 import com.genius.hyperlyrics.common.lyric.AppleOriginalMetadataPolicy
 import com.genius.hyperlyrics.common.lyric.AppleLyricsBlurPolicy
 import com.genius.hyperlyrics.common.lyric.ApplePronunciationVisibilityPolicy
@@ -197,10 +198,13 @@ internal object AppleMusicProviderOrchestrator {
         }.getOrElse {
             AppleMusicVersion(versionName = null, versionCode = null)
         }
+        val moduleInfo = module.getModuleApplicationInfo()
         val hookResolver = AppleMusicHookResolver(
             version = appleMusicVersion,
             application = app,
-            nativeLibraryDir = module.getModuleApplicationInfo().nativeLibraryDir,
+            // 目标 App 进程可能是 32 位，按进程 ABI 选 libdexkit.so 所在目录。
+            nativeLibraryDir = DexKitNativeLibrary.resolveDirectory(moduleInfo)
+                ?: moduleInfo.nativeLibraryDir,
         )
         runtime.attach(app, hookResolver)
         ProviderLogger.info(
