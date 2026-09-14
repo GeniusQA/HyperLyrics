@@ -122,9 +122,9 @@ fun LazyListScope.islandExpandedMediaCardSection(
                         checked = showNextLyric,
                         onCheckedChange = {
                             showNextLyric = it
-                            sectionPrefs.edit {
-                                putBoolean(RootConstants.KEY_HOOK_NEXT_LYRIC_LINE, it)
-                            }
+                            sectionPrefs.edit()
+                                .putBoolean(RootConstants.KEY_HOOK_NEXT_LYRIC_LINE, it)
+                                .apply()
                             PrefsBridge.putBoolean(
                                 RootConstants.KEY_HOOK_NEXT_LYRIC_LINE,
                                 it
@@ -156,12 +156,12 @@ fun LazyListScope.islandExpandedMediaCardSection(
                                             )
                                     },
                                     onValueChangeFinished = {
-                                        sectionPrefs.edit {
-                                            putInt(
+                                        sectionPrefs.edit()
+                                            .putInt(
                                                 RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT,
                                                 lyricAreaHeight
                                             )
-                                        }
+                                            .apply()
                                         PrefsBridge.putInt(
                                             RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT,
                                             lyricAreaHeight
