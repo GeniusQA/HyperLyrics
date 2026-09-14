@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import android.content.Context
 import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.PrefsBridge
 import com.genius.hyperlyrics.common.RootConstants
@@ -52,26 +53,26 @@ fun LazyListScope.islandExpandedMediaCardSection(
     ambientFlowMode: Int,
     onAmbientFlowModeChange: (Int) -> Unit
 ) {
-    val context = LocalContext.current
-    val sectionPrefs = remember {
-        context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE)
-    }
-    var showNextLyric by remember {
-        mutableStateOf(
-            sectionPrefs.getBoolean(
-                RootConstants.KEY_HOOK_NEXT_LYRIC_LINE,
-                RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
-            )
-        )
-    }
-    var lyricAreaHeight by remember {
-        mutableIntStateOf(
-            (sectionPrefs.all[RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT] as? Int)
-                ?: RootConstants.DEFAULT_HOOK_LYRIC_AREA_HEIGHT
-        )
-    }
-
     item(key = "island_expanded_media_card") {
+        val context = LocalContext.current
+        val sectionPrefs = remember {
+            context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE)
+        }
+        var showNextLyric by remember {
+            mutableStateOf(
+                sectionPrefs.getBoolean(
+                    RootConstants.KEY_HOOK_NEXT_LYRIC_LINE,
+                    RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
+                )
+            )
+        }
+        var lyricAreaHeight by remember {
+            mutableIntStateOf(
+                (sectionPrefs.all[RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT] as? Int)
+                    ?: RootConstants.DEFAULT_HOOK_LYRIC_AREA_HEIGHT
+            )
+        }
+
         SmallTitle(text = stringResource(R.string.title_island_expanded_media_card))
         Card(
             modifier = Modifier
