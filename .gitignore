@@ -35,3 +35,4 @@ build.bat
 build_release.bat
 /signing-private.pem
 /dist/
+generated-images/
