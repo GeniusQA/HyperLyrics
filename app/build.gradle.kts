@@ -52,7 +52,13 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
+            // 目标进程按自身 ABI 从模块 nativeLibraryDir 加载 libdexkit.so：
+            // SystemUI 与主流音乐 App 是 64 位，但酷狗概念版（com.kugou.android.lite）
+            // 等轻量/车机/老版本包仍可能只有 32 位，只打包 arm64 会导致这些进程
+            // dlopen 报 "libdexkit.so is 64-bit instead of 32-bit"（DexKit 功能不可用）。
+            // DexKit AAR 本身自带 v7a，代价仅约 +250KB（so 253KB）。
             abiFilters.add("arm64-v8a")
+            abiFilters.add("armeabi-v7a")
         }
     }
 
@@ -146,6 +152,9 @@ dependencies {
     // Lyricon Subscriber SDK
     implementation(libs.lyricon.subscriber)
     implementation(libs.lyricon.provider)
+
+    // WorkManager（日志定时清理）
+    implementation(libs.androidx.work.runtime.ktx)
 
     testImplementation(libs.junit)
     testImplementation("org.json:json:20180813")
