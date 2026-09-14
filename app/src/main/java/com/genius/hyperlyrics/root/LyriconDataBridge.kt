@@ -21,8 +21,8 @@ object LyriconDataBridge : StateResetter {
 
     private val playbackPositionEstimator = PlaybackPositionEstimator()
 
-    /** 后续歌词最多缓存条数（渲染层再按用户设置的「歌词行数上限」裁剪）。 */
-    private const val MAX_UPCOMING_LYRIC_LINES = 8
+    /** 后续歌词最多缓存条数（渲染层再按「歌词区域高度」反推的可显示行数裁剪）。 */
+    private const val MAX_UPCOMING_LYRIC_LINES = 24
 
     val versionCounter = java.util.concurrent.atomic.AtomicInteger(0)
 

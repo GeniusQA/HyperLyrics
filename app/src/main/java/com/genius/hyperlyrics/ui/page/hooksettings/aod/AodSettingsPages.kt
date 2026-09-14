@@ -40,12 +40,15 @@ import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.common.XposedLyricSett
 import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.common.rememberHookConfigSaver
 import com.genius.hyperlyrics.ui.page.hooksettings.lyrics.common.rememberHookPrefs
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.roundToInt
 
 private data class AodSettingsSpec(
     val titleRes: Int,
@@ -338,16 +341,11 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
             )
         )
     }
-    val lyricMaxLinesValues = RootConstants.LYRIC_MAX_LINES_OPTIONS.toList()
-    var lyricMaxLines by remember {
+    var lyricAreaHeight by remember {
         mutableIntStateOf(
-            lyricMaxLinesValues.firstOrNull {
-                it == (prefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
-            } ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
+            (prefs.all[RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT] as? Int)
+                ?: RootConstants.DEFAULT_HOOK_LYRIC_AREA_HEIGHT
         )
-    }
-    val lyricMaxLinesLabels = lyricMaxLinesValues.map {
-        stringResource(id = R.string.option_lyric_max_lines_format, it)
     }
     var nextLyricStyle by remember(spec.nextLyricStyleKey) {
         mutableIntStateOf(
@@ -643,20 +641,39 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                     )
                     AnimatedVisibility(visible = showNextLyric) {
                         Column {
-                            OverlayDropdownPreference(
-                                title = stringResource(R.string.title_lyric_max_lines),
-                                summary = stringResource(R.string.summary_lyric_max_lines),
-                                items = lyricMaxLinesLabels,
-                                selectedIndex = lyricMaxLinesValues
-                                    .indexOf(lyricMaxLines)
-                                    .coerceAtLeast(0),
-                                onSelectedIndexChange = { index ->
-                                    val value = lyricMaxLinesValues.getOrNull(index)
-                                        ?: return@OverlayDropdownPreference
-                                    lyricMaxLines = value
-                                    saveConfig(
-                                        RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
-                                        value
+                            BasicComponent(
+                                title = stringResource(R.string.title_lyric_area_height),
+                                summary = stringResource(R.string.summary_lyric_area_height),
+                                endActions = {
+                                    Text(
+                                        text = stringResource(
+                                            R.string.format_lyric_area_height,
+                                            lyricAreaHeight
+                                        ),
+                                        fontSize = MiuixTheme.textStyles.body2.fontSize,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    )
+                                },
+                                bottomAction = {
+                                    Slider(
+                                        value = lyricAreaHeight.toFloat(),
+                                        onValueChange = {
+                                            lyricAreaHeight = it.roundToInt()
+                                                .coerceIn(
+                                                    RootConstants.MIN_LYRIC_AREA_HEIGHT,
+                                                    RootConstants.MAX_LYRIC_AREA_HEIGHT
+                                                )
+                                        },
+                                        onValueChangeFinished = {
+                                            saveConfig(
+                                                RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT,
+                                                lyricAreaHeight
+                                            )
+                                        },
+                                        valueRange = RootConstants.MIN_LYRIC_AREA_HEIGHT.toFloat()
+                                            ..RootConstants.MAX_LYRIC_AREA_HEIGHT.toFloat(),
+                                        steps = ((RootConstants.MAX_LYRIC_AREA_HEIGHT
+                                            - RootConstants.MIN_LYRIC_AREA_HEIGHT) / 10) - 1,
                                     )
                                 }
                             )

@@ -1310,7 +1310,7 @@ class AodMediaLyricPolicyTest {
     }
 
     @Test
-    fun `supports 2 3 and 5 lyric max line options`() {
+    fun `derives upcoming budget from total line count`() {
         assertEquals(0, AodMediaLyricPolicy.upcomingLineBudget(2))
         assertEquals(1, AodMediaLyricPolicy.upcomingLineBudget(3))
         assertEquals(3, AodMediaLyricPolicy.upcomingLineBudget(5))
@@ -1321,17 +1321,27 @@ class AodMediaLyricPolicyTest {
     }
 
     @Test
-    fun `normalizes lyric max lines to allowed options`() {
+    fun `sanitizes lyric area height into allowed range`() {
         assertEquals(
-            RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES,
-            AodMediaLyricPolicy.sanitizeLyricMaxLines(null)
+            RootConstants.DEFAULT_HOOK_LYRIC_AREA_HEIGHT,
+            AodMediaLyricPolicy.sanitizeLyricAreaHeight(null)
         )
-        assertEquals(2, AodMediaLyricPolicy.sanitizeLyricMaxLines(2))
-        assertEquals(3, AodMediaLyricPolicy.sanitizeLyricMaxLines(3))
-        assertEquals(5, AodMediaLyricPolicy.sanitizeLyricMaxLines(5))
-        assertEquals(
-            RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES,
-            AodMediaLyricPolicy.sanitizeLyricMaxLines(4)
+        assertEquals(120, AodMediaLyricPolicy.sanitizeLyricAreaHeight(120))
+        assertEquals(300, AodMediaLyricPolicy.sanitizeLyricAreaHeight(300))
+        assertEquals(500, AodMediaLyricPolicy.sanitizeLyricAreaHeight(500))
+        assertEquals(120, AodMediaLyricPolicy.sanitizeLyricAreaHeight(50))
+        assertEquals(500, AodMediaLyricPolicy.sanitizeLyricAreaHeight(999))
+    }
+
+    @Test
+    fun `derives max lines from area height and line height`() {
+        // 300dp / (20sp * 1.2 倍率) ≈ 12 行
+        val maxLines = AodMediaLyricPolicy.lyricAreaMaxLines(
+            300,
+            (20f * AodMediaLyricPolicy.LYRIC_LINE_HEIGHT_MULTIPLIER).toInt()
         )
+        assertTrue(maxLines in 10..14)
+        // 可用空间过小或字号过大时，至少保留主句预留行数
+        assertEquals(2, AodMediaLyricPolicy.lyricAreaMaxLines(10, 100))
     }
 }

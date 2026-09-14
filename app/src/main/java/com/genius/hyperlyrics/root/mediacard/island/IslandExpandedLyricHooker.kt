@@ -762,7 +762,9 @@ object IslandExpandedLyricHooker {
     }
 
     /**
-     * 后续歌词可用行数：关闭「多行歌词」时为 0，开启时按总行数上限减去主句预留行数。
+     * 后续歌词可用行数：关闭「多行歌词」时为 0；开启时按「歌词区域高度上限」
+     * 结合当前字号反推总行数，再减去主句预留行数。当前行存在翻译/发音/伴唱时，
+     * 优先显示这些附加内容，不占用下一句位置。
      */
     private fun upcomingLineBudget(): Int {
         val multiLine = prefs?.getBoolean(
@@ -776,8 +778,14 @@ object IslandExpandedLyricHooker {
             !line?.roma.isNullOrBlank() ||
             !line?.secondary.isNullOrBlank()
         if (hasDisplayedExtra) return 0
-        val maxLines = AodMediaLyricPolicy.sanitizeLyricMaxLines(
-            prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_MAX_LINES)
+        val areaHeightDp = AodMediaLyricPolicy.sanitizeLyricAreaHeight(
+            prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_AREA_HEIGHT)
+        )
+        val density = android.content.res.Resources.getSystem().displayMetrics.density
+        val lineHeightPx = (mainTextSize() * density * AodMediaLyricPolicy.LYRIC_LINE_HEIGHT_MULTIPLIER).toInt()
+        val maxLines = AodMediaLyricPolicy.lyricAreaMaxLines(
+            (areaHeightDp * density).toInt(),
+            lineHeightPx,
         )
         return AodMediaLyricPolicy.upcomingLineBudget(maxLines)
     }
