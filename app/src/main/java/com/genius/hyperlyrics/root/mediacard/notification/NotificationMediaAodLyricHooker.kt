@@ -664,7 +664,7 @@ internal object AodMediaLyricPolicy {
         value.takeIf { it in min..max } ?: defaultValue
 
     /**
-     * 归一化「歌词行数上限」：只允许 3 / 5 两档，非法或越界值回落到默认。
+     * 归一化「歌词行数上限」：只允许 2 / 3 / 5 三档，非法或越界值回落到默认。
      * 偏好里可能是 Int / Long / Float / String（跨进程同步会丢类型），这里统一兜底。
      */
     fun sanitizeLyricMaxLines(value: Any?): Int = when (value) {
