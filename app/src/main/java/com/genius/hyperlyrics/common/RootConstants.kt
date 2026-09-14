@@ -326,7 +326,7 @@ object RootConstants {
     const val KEY_HOOK_TRANSLATION_ONLY = "key_hook_translation_only"
     const val KEY_HOOK_SWAP_TRANSLATION = "key_hook_swap_translation"
     const val KEY_HOOK_NEXT_LYRIC_LINE = "key_hook_next_lyric_line"
-    const val KEY_HOOK_LYRIC_MAX_LINES = "key_hook_lyric_max_lines"
+    const val KEY_HOOK_LYRIC_AREA_HEIGHT = "key_hook_lyric_area_height"
     const val KEY_HOOK_AUTO_SWITCH_TRANSLATION = "key_hook_auto_switch_translation"
     const val KEY_HOOK_ADJACENT_BACKGROUND_TRANSLATION =
         "key_hook_adjacent_background_translation"
@@ -757,18 +757,12 @@ object RootConstants {
     const val DEFAULT_HOOK_SWAP_TRANSLATION = false
     const val DEFAULT_HOOK_NEXT_LYRIC_LINE = false
 
-    // ================= 多行歌词行数上限 =================
-    // 同时约束两件事：歌词块最多渲染 N 行（长句自动换行也计入），
-    // 以及最多显示 N 条歌词（当前行 + 后续 N-1 句），超出部分从末尾丢弃。
-    const val LYRIC_MAX_LINES_TWO = 2
-    const val LYRIC_MAX_LINES_THREE = 3
-    const val LYRIC_MAX_LINES_FIVE = 5
-    const val DEFAULT_HOOK_LYRIC_MAX_LINES = LYRIC_MAX_LINES_THREE
-    val LYRIC_MAX_LINES_OPTIONS = intArrayOf(
-        LYRIC_MAX_LINES_TWO,
-        LYRIC_MAX_LINES_THREE,
-        LYRIC_MAX_LINES_FIVE,
-    )
+    // ================= 多行歌词区域高度上限 =================
+    // 不再使用离散行数，而是让用户设定歌词区域的「高度上限」(dp)，
+    // 系统按当前字号反推可显示的最大行数（贴近 LyricFocus 的高度模型）。
+    const val MIN_LYRIC_AREA_HEIGHT = 120
+    const val MAX_LYRIC_AREA_HEIGHT = 500
+    const val DEFAULT_HOOK_LYRIC_AREA_HEIGHT = 300
 
     const val DEFAULT_HOOK_AUTO_SWITCH_TRANSLATION = false
     const val DEFAULT_HOOK_ADJACENT_BACKGROUND_TRANSLATION = false
