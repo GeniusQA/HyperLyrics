@@ -82,14 +82,6 @@ fun SuperIslandSettingsPage() {
             )
         )
     }
-    val lyricMaxLinesValues = RootConstants.LYRIC_MAX_LINES_OPTIONS.toList()
-    var lyricMaxLines by remember {
-        mutableIntStateOf(
-            lyricMaxLinesValues.firstOrNull {
-                it == (prefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
-            } ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
-        )
-    }
     var audioCover by remember { mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ISLAND_LEFT_ALBUM, RootConstants.DEFAULT_HOOK_ISLAND_LEFT_ALBUM)) }
     var audioCoverStyle by remember {
         mutableIntStateOf(
@@ -247,9 +239,6 @@ fun SuperIslandSettingsPage() {
             R.string.option_island_next_song_preview_half
         )
     }.map { stringResource(id = it) }
-    val lyricMaxLinesLabels = RootConstants.LYRIC_MAX_LINES_OPTIONS.map {
-        stringResource(id = R.string.option_lyric_max_lines_format, it)
-    }
     val nextSongPreviewPositionOptions = remember {
         listOf(
             R.string.option_island_next_song_preview_other_side,
@@ -560,23 +549,6 @@ fun SuperIslandSettingsPage() {
                                         onCheckedChange = {
                                             nextLyricLine = it
                                             saveConfig(RootConstants.KEY_HOOK_NEXT_LYRIC_LINE, it)
-                                        }
-                                    )
-                                    OverlayDropdownPreference(
-                                        title = stringResource(id = R.string.title_lyric_max_lines),
-                                        summary = stringResource(id = R.string.summary_lyric_max_lines),
-                                        items = lyricMaxLinesLabels,
-                                        selectedIndex = lyricMaxLinesValues
-                                            .indexOf(lyricMaxLines)
-                                            .coerceAtLeast(0),
-                                        onSelectedIndexChange = { index ->
-                                            val value = lyricMaxLinesValues.getOrNull(index)
-                                                ?: return@OverlayDropdownPreference
-                                            lyricMaxLines = value
-                                            saveConfig(
-                                                RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
-                                                value
-                                            )
                                         }
                                     )
                                 }

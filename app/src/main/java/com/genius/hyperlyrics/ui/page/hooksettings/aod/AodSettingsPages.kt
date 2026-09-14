@@ -338,6 +338,17 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
             )
         )
     }
+    val lyricMaxLinesValues = RootConstants.LYRIC_MAX_LINES_OPTIONS.toList()
+    var lyricMaxLines by remember {
+        mutableIntStateOf(
+            lyricMaxLinesValues.firstOrNull {
+                it == (prefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
+            } ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
+        )
+    }
+    val lyricMaxLinesLabels = lyricMaxLinesValues.map {
+        stringResource(id = R.string.option_lyric_max_lines_format, it)
+    }
     var nextLyricStyle by remember(spec.nextLyricStyleKey) {
         mutableIntStateOf(
             prefs.getInt(
@@ -631,18 +642,37 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                         },
                     )
                     AnimatedVisibility(visible = showNextLyric) {
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.title_aod_next_lyric_style),
-                            items = listOf(
-                                stringResource(R.string.option_aod_next_lyric_backing),
-                                stringResource(R.string.option_aod_next_lyric_translation),
-                            ),
-                            selectedIndex = nextLyricStyle,
-                            onSelectedIndexChange = {
-                                nextLyricStyle = it
-                                saveConfig(spec.nextLyricStyleKey, it)
-                            },
-                        )
+                        Column {
+                            OverlayDropdownPreference(
+                                title = stringResource(R.string.title_lyric_max_lines),
+                                summary = stringResource(R.string.summary_lyric_max_lines),
+                                items = lyricMaxLinesLabels,
+                                selectedIndex = lyricMaxLinesValues
+                                    .indexOf(lyricMaxLines)
+                                    .coerceAtLeast(0),
+                                onSelectedIndexChange = { index ->
+                                    val value = lyricMaxLinesValues.getOrNull(index)
+                                        ?: return@OverlayDropdownPreference
+                                    lyricMaxLines = value
+                                    saveConfig(
+                                        RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
+                                        value
+                                    )
+                                }
+                            )
+                            OverlayDropdownPreference(
+                                title = stringResource(R.string.title_aod_next_lyric_style),
+                                items = listOf(
+                                    stringResource(R.string.option_aod_next_lyric_backing),
+                                    stringResource(R.string.option_aod_next_lyric_translation),
+                                ),
+                                selectedIndex = nextLyricStyle,
+                                onSelectedIndexChange = {
+                                    nextLyricStyle = it
+                                    saveConfig(spec.nextLyricStyleKey, it)
+                                },
+                            )
+                        }
                     }
                 }
             }

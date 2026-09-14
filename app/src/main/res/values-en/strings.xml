@@ -429,7 +429,7 @@
     <string name="title_translation_only">Translation Only</string>
     <string name="title_swap_translation">Swap Lyric and Translation</string>
     <string name="title_next_lyric_line">Multi-line Lyrics</string>
-    <string name="summary_next_lyric_line">Show upcoming lyric lines inside the lyric block; translation takes priority when shown</string>
+    <string name="summary_next_lyric_line">Show upcoming lyric lines inside the lyric block; next line is hidden when translation is shown</string>
     <string name="title_lyric_max_lines">Lyric Line Count</string>
     <string name="summary_lyric_max_lines">Maximum rendered lyric lines (wrapped long lines included); extra lines are truncated</string>
     <string name="option_lyric_max_lines_format">%d lines</string>
@@ -437,7 +437,7 @@
     <string name="title_aod_backing_text_size">Backing Vocal Size</string>
     <string name="title_aod_translation_text_size">Translation Size</string>
     <string name="title_aod_next_lyric_style">Next Lyric Style</string>
-    <string name="summary_aod_show_next_lyric">Show upcoming lyric lines inside the lyric block; translation takes priority when shown</string>
+    <string name="summary_aod_show_next_lyric">Show upcoming lyric lines inside the lyric block; next line is hidden when translation is shown</string>
     <string name="option_aod_next_lyric_backing">Backing Vocal</string>
     <string name="option_aod_next_lyric_translation">Translation</string>
     <string name="format_aod_text_size_placeholder">Default %1$d (Range %2$d-%3$d)</string>

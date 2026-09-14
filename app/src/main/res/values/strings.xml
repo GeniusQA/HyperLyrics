@@ -436,7 +436,7 @@
     <string name="title_translation_only">仅显示翻译</string>
     <string name="title_swap_translation">原词翻译对调位置</string>
     <string name="title_next_lyric_line">多行歌词</string>
-    <string name="summary_next_lyric_line">开启后在歌词块内显示后续歌词；显示翻译时翻译优先占用行数</string>
+    <string name="summary_next_lyric_line">开启后在歌词块内显示后续歌词；显示翻译时将不显示下句歌词</string>
     <string name="title_lyric_max_lines">歌词行数</string>
     <string name="summary_lyric_max_lines">歌词块最多渲染的行数，长句自动换行也计入，超出部分截断</string>
     <string name="option_lyric_max_lines_format">%d 行</string>
@@ -444,7 +444,7 @@
     <string name="title_aod_backing_text_size">伴唱字号</string>
     <string name="title_aod_translation_text_size">翻译字号</string>
     <string name="title_aod_next_lyric_style">下句歌词样式</string>
-    <string name="summary_aod_show_next_lyric">开启后在歌词块内显示后续歌词；显示翻译时翻译优先占用行数</string>
+    <string name="summary_aod_show_next_lyric">开启后在歌词块内显示后续歌词；显示翻译时将不显示下句歌词</string>
     <string name="option_aod_next_lyric_backing">伴唱</string>
     <string name="option_aod_next_lyric_translation">翻译</string>
     <string name="format_aod_text_size_placeholder">默认 %1$d（范围 %2$d-%3$d）</string>

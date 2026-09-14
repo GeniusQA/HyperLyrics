@@ -7,13 +7,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.genius.hyperlyrics.R
+import com.genius.hyperlyrics.common.PrefsBridge
 import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.common.UIConstants
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Slider
@@ -48,6 +52,30 @@ fun LazyListScope.islandExpandedMediaCardSection(
     ambientFlowMode: Int,
     onAmbientFlowModeChange: (Int) -> Unit
 ) {
+    val context = LocalContext.current
+    val sectionPrefs = remember {
+        context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE)
+    }
+    val lyricMaxLinesValues = RootConstants.LYRIC_MAX_LINES_OPTIONS.toList()
+    var showNextLyric by remember {
+        mutableStateOf(
+            sectionPrefs.getBoolean(
+                RootConstants.KEY_HOOK_NEXT_LYRIC_LINE,
+                RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
+            )
+        )
+    }
+    var lyricMaxLines by remember {
+        mutableIntStateOf(
+            lyricMaxLinesValues.firstOrNull {
+                it == (sectionPrefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
+            } ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
+        )
+    }
+    val lyricMaxLinesLabels = lyricMaxLinesValues.map {
+        stringResource(id = R.string.option_lyric_max_lines_format, it)
+    }
+
     item(key = "island_expanded_media_card") {
         SmallTitle(text = stringResource(R.string.title_island_expanded_media_card))
         Card(
@@ -91,6 +119,47 @@ fun LazyListScope.islandExpandedMediaCardSection(
                 checked = hideDeviceSwitch,
                 onCheckedChange = onHideDeviceSwitchChange
             )
+            AnimatedVisibility(visible = lyricsEnabled) {
+                Column {
+                    SwitchPreference(
+                        title = stringResource(R.string.title_next_lyric_line),
+                        summary = stringResource(R.string.summary_next_lyric_line),
+                        checked = showNextLyric,
+                        onCheckedChange = {
+                            showNextLyric = it
+                            sectionPrefs.edit {
+                                putBoolean(RootConstants.KEY_HOOK_NEXT_LYRIC_LINE, it)
+                            }
+                            PrefsBridge.putBoolean(
+                                RootConstants.KEY_HOOK_NEXT_LYRIC_LINE,
+                                it
+                            )
+                        }
+                    )
+                    AnimatedVisibility(visible = showNextLyric) {
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.title_lyric_max_lines),
+                            summary = stringResource(R.string.summary_lyric_max_lines),
+                            items = lyricMaxLinesLabels,
+                            selectedIndex = lyricMaxLinesValues
+                                .indexOf(lyricMaxLines)
+                                .coerceAtLeast(0),
+                            onSelectedIndexChange = { index ->
+                                val value = lyricMaxLinesValues.getOrNull(index)
+                                    ?: return@OverlayDropdownPreference
+                                lyricMaxLines = value
+                                sectionPrefs.edit {
+                                    putInt(RootConstants.KEY_HOOK_LYRIC_MAX_LINES, value)
+                                }
+                                PrefsBridge.putInt(
+                                    RootConstants.KEY_HOOK_LYRIC_MAX_LINES,
+                                    value
+                                )
+                            }
+                        )
+                    }
+                }
+            }
         }
         Card(
             modifier = Modifier
