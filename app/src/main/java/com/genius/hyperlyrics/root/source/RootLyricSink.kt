@@ -129,7 +129,6 @@ class RootLyricSink(
             LyriconDataBridge.updateLyricLine(line)
             renderer.updateLyricLine()
             NotificationMediaAodLyricHooker.onLyricChanged()
-        IslandExpandedLyricHooker.refresh()
             IslandExpandedLyricHooker.refresh()
             MediaCardDiagnosticLogger.log(
                 stage = "root_sink",
@@ -232,7 +231,6 @@ class RootLyricSink(
         if (lyricChanged) {
             renderer.updateLyricLine()
             NotificationMediaAodLyricHooker.onLyricChanged()
-        IslandExpandedLyricHooker.refresh()
             IslandExpandedLyricHooker.refresh()
         }
         MediaCardDiagnosticLogger.log(
@@ -273,7 +271,6 @@ class RootLyricSink(
         if (lyricChanged) {
             renderer.updateLyricLine()
             NotificationMediaAodLyricHooker.onLyricChanged()
-        IslandExpandedLyricHooker.refresh()
             IslandExpandedLyricHooker.refresh()
         }
         renderer.seekTo(position)

@@ -1,11 +1,15 @@
 package com.genius.hyperlyrics.service
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.service.notification.NotificationListenerService
+import androidx.core.content.ContextCompat
 import com.genius.hyperlyrics.common.lyric.LyricSplitter
 import com.genius.hyperlyrics.lyric.ConfigRepository
 import com.genius.hyperlyrics.lyric.DynamicLyricData
@@ -26,6 +30,7 @@ class LiveLyricService : NotificationListenerService() {
     private lateinit var metadataSource: MetadataSource
     private lateinit var appLyricSink: AppLyricSink
     private lateinit var notificationPresenter: NotificationPresenter
+    private var screenStateReceiver: BroadcastReceiver? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -63,17 +68,28 @@ class LiveLyricService : NotificationListenerService() {
             }
         }
 
-        serviceScope.launch {
-            var lastInteractive = DisplayStateResolver.isInteractive(this@LiveLyricService)
-            while (isActive) {
-                val interactive = DisplayStateResolver.isInteractive(this@LiveLyricService)
-                if (interactive != lastInteractive) {
-                    lastInteractive = interactive
-                    notificationPresenter.refreshClassicAodSongInfo()
+        // 亮灭屏刷新改由系统广播驱动：原先用 500ms 常驻轮询检测亮灭屏，
+        // 每次都取 DisplayManager/PowerManager，服务常驻期间等于永久 2Hz 唤醒。
+        screenStateReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_ON,
+                    Intent.ACTION_SCREEN_OFF,
+                    Intent.ACTION_USER_PRESENT,
+                    -> notificationPresenter.refreshClassicAodSongInfo()
                 }
-                kotlinx.coroutines.delay(500L)
             }
         }
+        ContextCompat.registerReceiver(
+            this,
+            screenStateReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_USER_PRESENT)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     override fun onListenerConnected() {
@@ -87,6 +103,8 @@ class LiveLyricService : NotificationListenerService() {
             activeInstance = null
         }
         appLyricSink.stop()
+        screenStateReceiver?.let { runCatching { unregisterReceiver(it) } }
+        screenStateReceiver = null
         metadataSource.disconnect()
         notificationPresenter.unregister()
         notificationPresenter.clearNotifications()

@@ -87,7 +87,15 @@ class MetadataSource(
 
             mediaSessionPollJob = scope.launch {
                 while (true) {
-                    delay(mediaSessionPollIntervalMs.milliseconds)
+                    // 自适应兜底轮询：亮屏或有歌曲正在播放时保持 1s 灵敏度；
+                    // 息屏且未播放时降到 5s，避免服务常驻期间永久 1Hz 的
+                    // getActiveSessions() Binder 唤醒（原先空跑约 3600 次/小时）。
+                    val idle = !com.genius.hyperlyrics.service.DisplayStateResolver
+                        .isInteractive(context) && !DynamicLyricData.currentState.isPlaying
+                    delay(
+                        (if (idle) idleMediaSessionPollIntervalMs else mediaSessionPollIntervalMs)
+                            .milliseconds
+                    )
                     refreshTrackedMediaSession()
                 }
             }
@@ -437,6 +445,9 @@ class MetadataSource(
     companion object {
         private const val TAG = "MetadataSource"
         private const val mediaSessionPollIntervalMs = 1000L
+
+        /** 息屏且未播放时的兜底轮询间隔，降低常驻唤醒与发热。 */
+        private const val idleMediaSessionPollIntervalMs = 5000L
         private const val emptySessionGracePeriodMs = 5000L
         private const val mediaSessionRecoveryFailureThreshold = 2
         private const val mediaSessionRecoveryCooldownMs = 15000L
