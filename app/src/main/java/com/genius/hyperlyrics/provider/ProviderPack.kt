@@ -8,13 +8,13 @@ package com.genius.hyperlyrics.provider
 
 import android.util.Log
 import com.genius.hyperlyrics.BuildConfig
-import com.genius.hyperlyrics.common.extensions.sha256Hex
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.security.MessageDigest
 import java.security.spec.InvalidKeySpecException
 import java.util.Base64
 import java.util.zip.ZipInputStream
@@ -110,7 +110,7 @@ object ProviderPackVerifier {
             }
         }
 
-        require(classesDex.sha256Hex().equals(manifest.classesSha256, ignoreCase = true)) {
+        require(sha256(classesDex).equals(manifest.classesSha256, ignoreCase = true)) {
             "Provider DEX 摘要不匹配"
         }
         require(
@@ -176,7 +176,7 @@ object ProviderPackVerifier {
                 Log.e(
                     TAG,
                     "Ed25519 verification failed before result " +
-                        "payloadSha256=${payload.sha256Hex()} signatureBytes=${signatureBytes.size}",
+                        "payloadSha256=${sha256(payload)} signatureBytes=${signatureBytes.size}",
                     result.exceptionOrNull(),
                 )
             }
@@ -186,7 +186,7 @@ object ProviderPackVerifier {
                 Log.d(
                     TAG,
                     "verify implementation=BouncyCastle-Ed25519Signer result=${result.getOrNull()} " +
-                        "payloadSha256=${payload.sha256Hex()} signatureBytes=${signatureBytes.size}",
+                        "payloadSha256=${sha256(payload)} signatureBytes=${signatureBytes.size}",
                 )
             }
         }

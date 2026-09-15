@@ -148,7 +148,7 @@ internal object AodMediaLyricPolicy {
     private const val NO_LYRIC_PREVIEW_DURATION_MS = 5_000L
 
     /** 多行歌词里为主句预留的行数（主句最长折两行）。 */
-    private const val MAIN_LYRIC_LINES_RESERVED = 1
+    private const val MAIN_LYRIC_LINES_RESERVED = 2
 
     fun embeddedSongInfoGravity(position: Int): Int = when (position) {
         RootConstants.AOD_SONG_INFO_POSITION_LEFT ->
@@ -1416,8 +1416,15 @@ object NotificationMediaAodLyricHooker {
         setOptionalText(overlay.next, content.next)
         // 当前句（主句/翻译/伴唱/重叠行）按总行数上限折行，单句最多占预留行数。
         val rowMaxLines = AodMediaLyricPolicy.lyricRowMaxLines(textStyle.lyricMaxLines)
+        // 歌曲级判断：只要这首歌有任意一行带翻译，所有行统一不滚动；
+        // 整首歌无翻译时才启用横向跑马灯，避免部分行有翻译部分没有导致的溢出。
+        val songHasAnyTranslation = LyriconDataBridge.currentSong?.lyrics
+            .orEmpty().any { it.translation.isNotBlank() }
+        val mainShouldScroll = !songHasAnyTranslation &&
+            textStyle.showNextLyric &&
+            content.main.isNotBlank()
+        applyMainLyricRowMode(overlay.main, mainShouldScroll, rowMaxLines)
         listOf(
-            overlay.main,
             overlay.translation,
             overlay.backing,
             overlay.backingTranslation,
@@ -1533,7 +1540,7 @@ object NotificationMediaAodLyricHooker {
         // 息屏 AOD / 自定义 AOD 保持原有全屏多行布局，不进入紧凑模式。
         val compactMode = interactive && !state.fullAod
         overlay.compactMode = compactMode
-        applyCompactMode(overlay, compactMode, textStyle)
+        applyCompactMode(overlay, compactMode, textStyle, mainShouldScroll)
         if (overlay.root.visibility == View.GONE) {
             overlay.root.visibility = View.INVISIBLE
         }
@@ -1742,8 +1749,11 @@ object NotificationMediaAodLyricHooker {
         overlay: LyricOverlay,
         compact: Boolean,
         style: AodTextStyleConfig,
+        mainShouldScroll: Boolean,
     ) {
         val rowMaxLines = AodMediaLyricPolicy.lyricRowMaxLines(style.lyricMaxLines)
+        // 主句：无翻译且开启多行歌词时单行横向滚动，其余情况照常折行。
+        applyMainLyricRowMode(overlay.main, mainShouldScroll, rowMaxLines)
         fun config(view: TextView) {
             // 主/译分行展示，各自最多折两行；同时受总行数上限约束，
             // 长句自动换行后超出预算的部分以省略号截断，不会无限撑高卡片。
@@ -1752,7 +1762,6 @@ object NotificationMediaAodLyricHooker {
             view.ellipsize = TextUtils.TruncateAt.END
             view.isSelected = false
         }
-        config(overlay.main)
         config(overlay.translation)
         listOf(
             overlay.backing,
@@ -1777,6 +1786,33 @@ object NotificationMediaAodLyricHooker {
         // 进度行是 View 而非 TextView：紧凑模式一律隐藏，
         // 非紧凑（全屏 AOD）下由 applyState 按是否有时长数据决定可见性。
         overlay.progressRow.visibility = if (compact) View.GONE else overlay.progressRow.visibility
+    }
+
+    /**
+     * 主句展示模式：
+     * - [shouldScroll]=true（开启多行歌词、整首歌无任何翻译、有主句内容）时，主句改为单行
+     *   横向跑马灯，完整滚动显示长句而非省略截断；与自定义绘制歌词位置的 Marquee 行为对齐。
+     * - 其余情况保持按行数上限折行 + END 截断。
+     *
+     * 注意：[shouldScroll] 由调用方按**歌曲级**判断（整首歌是否有任意一行带翻译），
+     * 而非行级判断（当前行是否有翻译），确保同一首歌内所有行行为一致，避免溢出。
+     */
+    private fun applyMainLyricRowMode(view: TextView, shouldScroll: Boolean, rowMaxLines: Int) {
+        if (shouldScroll) {
+            view.setSingleLine(true)
+            view.maxLines = 1
+            view.ellipsize = TextUtils.TruncateAt.MARQUEE
+            view.setHorizontallyScrolling(true)
+            view.marqueeRepeatLimit = -1
+            view.isSelected = true
+        } else {
+            view.setSingleLine(false)
+            view.maxLines = rowMaxLines
+            view.ellipsize = TextUtils.TruncateAt.END
+            view.setHorizontallyScrolling(false)
+            view.marqueeRepeatLimit = 0
+            view.isSelected = false
+        }
     }
 
     private fun refreshAodPluginStates() {
@@ -1957,8 +1993,15 @@ object NotificationMediaAodLyricHooker {
         setOptionalText(overlay.next, content.next)
         // 当前句（主句/翻译/伴唱/重叠行）按总行数上限折行，单句最多占预留行数。
         val rowMaxLines = AodMediaLyricPolicy.lyricRowMaxLines(textStyle.lyricMaxLines)
+        // 歌曲级判断：只要这首歌有任意一行带翻译，所有行统一不滚动；
+        // 整首歌无翻译时才启用横向跑马灯，避免部分行有翻译部分没有导致的溢出。
+        val songHasAnyTranslation = LyriconDataBridge.currentSong?.lyrics
+            .orEmpty().any { it.translation.isNotBlank() }
+        val mainShouldScroll = !songHasAnyTranslation &&
+            textStyle.showNextLyric &&
+            content.main.isNotBlank()
+        applyMainLyricRowMode(overlay.main, mainShouldScroll, rowMaxLines)
         listOf(
-            overlay.main,
             overlay.translation,
             overlay.backing,
             overlay.backingTranslation,
@@ -1978,7 +2021,7 @@ object NotificationMediaAodLyricHooker {
             .upcomingLineBudget(textStyle.lyricMaxLines)
             .coerceAtLeast(1)
         applyContentAlignment(overlay, content)
-        applyClassicTextStyle(overlay, textStyle)
+        applyClassicTextStyle(overlay, textStyle, mainShouldScroll)
         applyLyricRowOrder(overlay, textStyle.swapTranslation)
         updateClassicEmbeddedSongInfo(overlay, songInfo)
         updateClassicLineSpacing(overlay)
@@ -4158,6 +4201,7 @@ object NotificationMediaAodLyricHooker {
     private fun applyClassicTextStyle(
         overlay: AodPluginOverlay,
         style: AodTextStyleConfig,
+        mainShouldScroll: Boolean,
     ) {
         overlay.songInfo.typeface = overlay.translation.typeface
         overlay.songInfo.setTextColor(0xCCFFFFFF.toInt())
@@ -4210,8 +4254,8 @@ object NotificationMediaAodLyricHooker {
             },
         )
         val rowMaxLines = AodMediaLyricPolicy.lyricRowMaxLines(style.lyricMaxLines)
+        applyMainLyricRowMode(overlay.main, mainShouldScroll, rowMaxLines)
         listOf(
-            overlay.main,
             overlay.backing,
             overlay.overlappingMain,
             overlay.overlappingBacking,
