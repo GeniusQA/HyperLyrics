@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -43,7 +45,9 @@ fun LazyListScope.homePageSections(
 ) {
     // Root / LSPosed 模式下通知型灵动岛歌词（无 root 方案）不可用；
     // 非 Root 模式下 SystemUI 增强类功能不可用。
-    val isModuleActive = RootApplication.xposedService != null
+    // 注意：必须收集响应式绑定状态。直接读 RootApplication.xposedService 会在
+    // 服务绑定晚于首帧时把本应可用的开关误置灰，且绑定完成不会触发重组恢复。
+    val isModuleActive by RootApplication.xposedServiceBound.collectAsState()
 
     item(key = "enhanced_version_notice") {
         EnhancedVersionNotice(
