@@ -1408,6 +1408,25 @@ class LyriconSource : LyricSource {
                 ?.putString(RootConstants.KEY_HOOK_TRANSLATION_ORIGIN, translationOrigin)
                 ?.apply()
         }
+        // 远程偏好只有 App→hook 单向可靠，hook 侧写入不落盘；
+        // 因此额外用显式广播把来源推给模块 App，由 App 落到自己的本地偏好。
+        HookLogger.i(
+            TAG,
+            "LYRIC_ORIGIN content=$contentOrigin translation=$translationOrigin " +
+                "provider=$activeProviderPackageName song=${song?.id}",
+        )
+        runCatching {
+            app?.sendBroadcast(
+                Intent(RootConstants.ACTION_LYRIC_ORIGIN_CHANGED)
+                    .setPackage(APP_PACKAGE_NAME)
+                    .putExtra(RootConstants.EXTRA_LYRIC_CONTENT_ORIGIN, contentOrigin)
+                    .putExtra(RootConstants.EXTRA_LYRIC_TRANSLATION_ORIGIN, translationOrigin)
+                    .putExtra(
+                        RootConstants.EXTRA_LYRIC_PROVIDER_PACKAGE,
+                        activeProviderPackageName,
+                    )
+            )
+        }
     }
 
     private fun applySimplifiedLyricsPreferenceChange() {
