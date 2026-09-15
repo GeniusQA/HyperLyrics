@@ -4221,13 +4221,10 @@ object NotificationMediaAodLyricHooker {
             style.translationTextSize.toFloat(),
         )
         overlay.next.typeface = translationTypefaceView.typeface
+        // 后续歌词行固定用译文样式（已移除「下句歌词样式」开关）。
         overlay.next.setTextSize(
             TypedValue.COMPLEX_UNIT_SP,
-            if (nextUsesBackingStyle) {
-                style.backingTextSize.toFloat()
-            } else {
-                style.translationTextSize.toFloat()
-            },
+            style.translationTextSize.toFloat(),
         )
         overlay.appliedTextStyle = style
     }
@@ -4270,16 +4267,11 @@ object NotificationMediaAodLyricHooker {
             style.translationTextSize.toFloat(),
         )
         overlay.next.typeface = overlay.translation.typeface
-        overlay.next.setTextColor(
-            if (nextUsesBackingStyle) 0xFFFFFFFF.toInt() else 0xCCFFFFFF.toInt()
-        )
+        // 后续歌词行固定用译文样式（已移除「下句歌词样式」开关）。
+        overlay.next.setTextColor(0xCCFFFFFF.toInt())
         overlay.next.setTextSize(
             TypedValue.COMPLEX_UNIT_SP,
-            if (nextUsesBackingStyle) {
-                style.backingTextSize.toFloat()
-            } else {
-                style.translationTextSize.toFloat()
-            },
+            style.translationTextSize.toFloat(),
         )
         val rowMaxLines = AodMediaLyricPolicy.lyricRowMaxLines(style.lyricMaxLines)
         applyMainLyricRowMode(overlay.main, mainShouldScroll, rowMaxLines)
