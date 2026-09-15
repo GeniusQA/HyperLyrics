@@ -50,7 +50,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalDensity
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.layout.ContentScale
 
@@ -162,13 +165,24 @@ private fun LazyListScope.contributorsPageSections() {
 @Composable
 private fun ContributorEntry(contributor: ContributorItem) {
     val context = LocalContext.current
+    val avatarSizePx = with(LocalDensity.current) { 40.dp.roundToPx() }
+    // 不用 painterResource：系统/非 vector 的 XML drawable（如 android.R.drawable.*）
+    // 会让它抛 IllegalArgumentException("Only VectorDrawables and rasterized asset types ...")，
+    // 这里统一把 drawable 解码成位图再画，任何类型都不会崩。
+    val avatarBitmap = remember(contributor.avatarRes, avatarSizePx) {
+        contributor.avatarRes?.let { res ->
+            runCatching {
+                ContextCompat.getDrawable(context, res)?.toBitmap(avatarSizePx, avatarSizePx)
+            }.getOrNull()
+        }
+    }
     ArrowPreference(
         title = contributor.name,
         summary = contributor.summary.ifEmpty { null },
         startAction = {
-            contributor.avatarRes?.let { res ->
+            if (avatarBitmap != null) {
                 Image(
-                    painter = painterResource(id = res),
+                    bitmap = avatarBitmap.asImageBitmap(),
                     contentDescription = contributor.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
