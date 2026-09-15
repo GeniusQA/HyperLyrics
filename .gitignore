@@ -36,3 +36,7 @@ build_release.bat
 /signing-private.pem
 /dist/
 generated-images/
+
+# 诊断/临时产物
+*.apk
+_apk/
