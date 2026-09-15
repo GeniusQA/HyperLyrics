@@ -68,6 +68,8 @@ import com.genius.hyperlyrics.common.ClassicAodSongInfoConfig
 import com.genius.hyperlyrics.common.UIConstants
 import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.PrefsBridge
+import com.genius.hyperlyrics.lyric.ConfigRepository
+import com.genius.hyperlyrics.provider.OfficialProviderCatalog
 import com.genius.hyperlyrics.root.RootApplication
 import com.genius.hyperlyrics.ui.component.EnhancedVersionNotice
 import com.genius.hyperlyrics.utils.MigrationData
@@ -125,6 +127,11 @@ import java.io.InputStreamReader
 @Composable
 fun MainPage() {
     val context = LocalContext.current
+    LaunchedEffect(Unit) { ConfigRepository.initWhitelist(context) }
+    val whitelistSet by ConfigRepository.whitelistState.collectAsState()
+    val showAppleMusicNav = remember(whitelistSet) {
+        OfficialProviderCatalog.APPLE_MUSIC_PACKAGE_NAME in whitelistSet
+    }
     val navigator = LocalNavigator.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -132,7 +139,7 @@ fun MainPage() {
     val availableUpdate by UpdateData.availableUpdate.collectAsState()
 
     // --- pager ---
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val pagerState = rememberPagerState(pageCount = { if (showAppleMusicNav) 3 else 2 })
     val mainPagerState = rememberMainPagerState(pagerState)
     val pagerOverscrollEffect = rememberOverscrollEffect()
     val pagerOverscrollEvents = remember(pagerOverscrollEffect) {
@@ -479,12 +486,19 @@ fun MainPage() {
     val homeLabel = stringResource(R.string.home)
     val appleMusicOptimizationLabel = stringResource(R.string.apple_music_optimization_nav)
     val aboutLabel = stringResource(R.string.about)
-    val navItems = remember(homeLabel, appleMusicOptimizationLabel, aboutLabel) {
-        listOf(
-            NavigationItem(homeLabel, MiuixIcons.Settings),
-            NavigationItem(appleMusicOptimizationLabel, MiuixIcons.Music),
-            NavigationItem(aboutLabel, MiuixIcons.Info),
-        )
+    val navItems = remember(homeLabel, appleMusicOptimizationLabel, aboutLabel, showAppleMusicNav) {
+        if (showAppleMusicNav) {
+            listOf(
+                NavigationItem(homeLabel, MiuixIcons.Settings),
+                NavigationItem(appleMusicOptimizationLabel, MiuixIcons.Music),
+                NavigationItem(aboutLabel, MiuixIcons.Info),
+            )
+        } else {
+            listOf(
+                NavigationItem(homeLabel, MiuixIcons.Settings),
+                NavigationItem(aboutLabel, MiuixIcons.Info),
+            )
+        }
     }
 
     // --- outer backdrop (bottom bar blur) ---
@@ -493,7 +507,7 @@ fun MainPage() {
     val outerBarColor = if (outerBlurActive) Color.Transparent else MiuixTheme.colorScheme.surface
     val appName = stringResource(R.string.app_name)
     val darkMode = isSystemInDarkTheme()
-    val aboutPageIndex = 2
+    val aboutPageIndex = if (showAppleMusicNav) 2 else 1
     val aboutPageOffsetFraction =
         (pagerState.currentPage - aboutPageIndex + pagerState.currentPageOffsetFraction)
             .coerceIn(-1f, 1f)
@@ -716,76 +730,142 @@ fun MainPage() {
                 verticalAlignment = Alignment.Top,
                 overscrollEffect = pagerOverscrollEvents,
             ) { page ->
-                if (page == 0) {
-                    HomePage(
-                        outerPadding = innerPadding,
-                        availableUpdateVersion = availableUpdate?.displayVersion,
-                        enableSuperIsland = enableSuperIsland,
-                        onSuperIslandToggle = toggleSuperIsland,
-                        enableDynamicIsland = enableDynamicIsland,
-                        onDynamicIslandToggle = toggleDynamicIsland,
-                        enableLsposedSuperIsland = enableLsposedSuperIsland,
-                        onLsposedSuperIslandToggle = toggleLsposedSuperIsland,
-                        enableAodLyrics = enableAodLyrics,
-                        onAodLyricsToggle = toggleAodLyrics,
-                        enableLockScreenLyrics = enableLockScreenLyrics,
-                        onLockScreenLyricsToggle = toggleLockScreenLyrics,
-                        onSuperIslandConfigClick = { navigator.navigate(Route.HookSettings) },
-                        onMediaCardConfigClick = { navigator.navigate(Route.MediaCardSettings) },
-                        onDynamicIslandConfigClick = { navigator.navigate(Route.DynamicIslandNotification) },
-                        onLockScreenAodConfigClick = { navigator.navigate(Route.LockScreenAodSettings) },
-                        onLockScreenLyricsConfigClick = { navigator.navigate(Route.LockScreenLyricsSettings) },
-                        onClassicAodConfigClick = { navigator.navigate(Route.ClassicAodSettings) },
-                        onLyricSettingsClick = { navigator.navigate(Route.LyricSettings) },
-                        onRefreshClick = {
-                            // 每次打开对话框恢复默认勾选（系统界面 + 所有音乐App）
-                            oneTapRefreshSelectedIds = setOf(
-                                OneTapRefreshSelectionPolicy.SYSTEM_UI_ID,
-                                OneTapRefreshSelectionPolicy.ALL_MUSIC_APPS_ID,
-                            )
-                            oneTapRefreshMusicApps =
-                                OneTapRefreshCatalog.installedMusicApps(context.packageManager)
-                            oneTapRefreshHasRoot = null
-                            showOneTapRefreshDialog = true
-                            val rootCheckSequence = oneTapRefreshRootCheckSequence + 1L
-                            oneTapRefreshRootCheckSequence = rootCheckSequence
-                            scope.launch {
-                                val hasRootAccess = ShellUtils.hasRootAccess()
-                                if (oneTapRefreshRootCheckSequence == rootCheckSequence) {
-                                    oneTapRefreshHasRoot = hasRootAccess
+                if (showAppleMusicNav) {
+                    when (page) {
+                        0 -> HomePage(
+                            outerPadding = innerPadding,
+                            availableUpdateVersion = availableUpdate?.displayVersion,
+                            enableSuperIsland = enableSuperIsland,
+                            onSuperIslandToggle = toggleSuperIsland,
+                            enableDynamicIsland = enableDynamicIsland,
+                            onDynamicIslandToggle = toggleDynamicIsland,
+                            enableLsposedSuperIsland = enableLsposedSuperIsland,
+                            onLsposedSuperIslandToggle = toggleLsposedSuperIsland,
+                            enableAodLyrics = enableAodLyrics,
+                            onAodLyricsToggle = toggleAodLyrics,
+                            enableLockScreenLyrics = enableLockScreenLyrics,
+                            onLockScreenLyricsToggle = toggleLockScreenLyrics,
+                            onSuperIslandConfigClick = { navigator.navigate(Route.HookSettings) },
+                            onMediaCardConfigClick = { navigator.navigate(Route.MediaCardSettings) },
+                            onDynamicIslandConfigClick = { navigator.navigate(Route.DynamicIslandNotification) },
+                            onLockScreenAodConfigClick = { navigator.navigate(Route.LockScreenAodSettings) },
+                            onLockScreenLyricsConfigClick = { navigator.navigate(Route.LockScreenLyricsSettings) },
+                            onClassicAodConfigClick = { navigator.navigate(Route.ClassicAodSettings) },
+                            onLyricSettingsClick = { navigator.navigate(Route.LyricSettings) },
+                            onRefreshClick = {
+                                // 每次打开对话框恢复默认勾选（系统界面 + 所有音乐App）
+                                oneTapRefreshSelectedIds = setOf(
+                                    OneTapRefreshSelectionPolicy.SYSTEM_UI_ID,
+                                    OneTapRefreshSelectionPolicy.ALL_MUSIC_APPS_ID,
+                                )
+                                oneTapRefreshMusicApps =
+                                    OneTapRefreshCatalog.installedMusicApps(context.packageManager)
+                                oneTapRefreshHasRoot = null
+                                showOneTapRefreshDialog = true
+                                val rootCheckSequence = oneTapRefreshRootCheckSequence + 1L
+                                oneTapRefreshRootCheckSequence = rootCheckSequence
+                                scope.launch {
+                                    val hasRootAccess = ShellUtils.hasRootAccess()
+                                    if (oneTapRefreshRootCheckSequence == rootCheckSequence) {
+                                        oneTapRefreshHasRoot = hasRootAccess
+                                    }
                                 }
-                            }
-                        },
-                        removeFocusWhitelist = removeFocusWhitelist,
-                        onRemoveFocusWhitelistToggle = toggleRemoveFocusWhitelist,
-                        removeIslandWhitelist = removeIslandWhitelist,
-                        onRemoveIslandWhitelistToggle = toggleRemoveIslandWhitelist,
-                        onAppSettingsClick = { navigator.navigate(Route.Settings) },
-                    )
-                } else if (page == 1) {
-                    AppleMusicOptimizationPage(
-                        outerPadding = innerPadding,
-                        showNavigationIcon = false,
-                    )
+                            },
+                            removeFocusWhitelist = removeFocusWhitelist,
+                            onRemoveFocusWhitelistToggle = toggleRemoveFocusWhitelist,
+                            removeIslandWhitelist = removeIslandWhitelist,
+                            onRemoveIslandWhitelistToggle = toggleRemoveIslandWhitelist,
+                            onAppSettingsClick = { navigator.navigate(Route.Settings) },
+                        )
+                        1 -> AppleMusicOptimizationPage(
+                            outerPadding = innerPadding,
+                            showNavigationIcon = false,
+                        )
+                        else -> AboutPage(
+                            outerPadding = innerPadding,
+                            aboutAppVersion = aboutAppVersion,
+                            availableUpdateVersion = availableUpdate?.displayVersion,
+                            aboutDeviceName = aboutDeviceName,
+                            aboutDeviceModel = aboutDeviceModel,
+                            aboutOsVersion = aboutOsVersion,
+                            aboutAndroidVersion = aboutAndroidVersion,
+                            onHelpClick = { navigator.navigate(Route.Help) },
+                            onLicensesClick = { navigator.navigate(Route.Licenses) },
+                            onChangelogClick = { navigator.navigate(Route.Changelog) },
+                            onContributorsClick = { navigator.navigate(Route.Contributors) },
+                            onHeroStateChanged = { state ->
+                                if (aboutHeroVisualState != state) {
+                                    aboutHeroVisualState = state
+                                }
+                            },
+                        )
+                    }
                 } else {
-                    AboutPage(
-                        outerPadding = innerPadding,
-                        aboutAppVersion = aboutAppVersion,
-                        availableUpdateVersion = availableUpdate?.displayVersion,
-                        aboutDeviceName = aboutDeviceName,
-                        aboutDeviceModel = aboutDeviceModel,
-                        aboutOsVersion = aboutOsVersion,
-                        aboutAndroidVersion = aboutAndroidVersion,
-                        onHelpClick = { navigator.navigate(Route.Help) },
-                        onLicensesClick = { navigator.navigate(Route.Licenses) },
-                        onChangelogClick = { navigator.navigate(Route.Changelog) },
-                        onContributorsClick = { navigator.navigate(Route.Contributors) },
-                        onHeroStateChanged = { state ->
-                            if (aboutHeroVisualState != state) {
-                                aboutHeroVisualState = state
-                            }
-                        },
-                    )
+                    when (page) {
+                        0 -> HomePage(
+                            outerPadding = innerPadding,
+                            availableUpdateVersion = availableUpdate?.displayVersion,
+                            enableSuperIsland = enableSuperIsland,
+                            onSuperIslandToggle = toggleSuperIsland,
+                            enableDynamicIsland = enableDynamicIsland,
+                            onDynamicIslandToggle = toggleDynamicIsland,
+                            enableLsposedSuperIsland = enableLsposedSuperIsland,
+                            onLsposedSuperIslandToggle = toggleLsposedSuperIsland,
+                            enableAodLyrics = enableAodLyrics,
+                            onAodLyricsToggle = toggleAodLyrics,
+                            enableLockScreenLyrics = enableLockScreenLyrics,
+                            onLockScreenLyricsToggle = toggleLockScreenLyrics,
+                            onSuperIslandConfigClick = { navigator.navigate(Route.HookSettings) },
+                            onMediaCardConfigClick = { navigator.navigate(Route.MediaCardSettings) },
+                            onDynamicIslandConfigClick = { navigator.navigate(Route.DynamicIslandNotification) },
+                            onLockScreenAodConfigClick = { navigator.navigate(Route.LockScreenAodSettings) },
+                            onLockScreenLyricsConfigClick = { navigator.navigate(Route.LockScreenLyricsSettings) },
+                            onClassicAodConfigClick = { navigator.navigate(Route.ClassicAodSettings) },
+                            onLyricSettingsClick = { navigator.navigate(Route.LyricSettings) },
+                            onRefreshClick = {
+                                // 每次打开对话框恢复默认勾选（系统界面 + 所有音乐App）
+                                oneTapRefreshSelectedIds = setOf(
+                                    OneTapRefreshSelectionPolicy.SYSTEM_UI_ID,
+                                    OneTapRefreshSelectionPolicy.ALL_MUSIC_APPS_ID,
+                                )
+                                oneTapRefreshMusicApps =
+                                    OneTapRefreshCatalog.installedMusicApps(context.packageManager)
+                                oneTapRefreshHasRoot = null
+                                showOneTapRefreshDialog = true
+                                val rootCheckSequence = oneTapRefreshRootCheckSequence + 1L
+                                oneTapRefreshRootCheckSequence = rootCheckSequence
+                                scope.launch {
+                                    val hasRootAccess = ShellUtils.hasRootAccess()
+                                    if (oneTapRefreshRootCheckSequence == rootCheckSequence) {
+                                        oneTapRefreshHasRoot = hasRootAccess
+                                    }
+                                }
+                            },
+                            removeFocusWhitelist = removeFocusWhitelist,
+                            onRemoveFocusWhitelistToggle = toggleRemoveFocusWhitelist,
+                            removeIslandWhitelist = removeIslandWhitelist,
+                            onRemoveIslandWhitelistToggle = toggleRemoveIslandWhitelist,
+                            onAppSettingsClick = { navigator.navigate(Route.Settings) },
+                        )
+                        else -> AboutPage(
+                            outerPadding = innerPadding,
+                            aboutAppVersion = aboutAppVersion,
+                            availableUpdateVersion = availableUpdate?.displayVersion,
+                            aboutDeviceName = aboutDeviceName,
+                            aboutDeviceModel = aboutDeviceModel,
+                            aboutOsVersion = aboutOsVersion,
+                            aboutAndroidVersion = aboutAndroidVersion,
+                            onHelpClick = { navigator.navigate(Route.Help) },
+                            onLicensesClick = { navigator.navigate(Route.Licenses) },
+                            onChangelogClick = { navigator.navigate(Route.Changelog) },
+                            onContributorsClick = { navigator.navigate(Route.Contributors) },
+                            onHeroStateChanged = { state ->
+                                if (aboutHeroVisualState != state) {
+                                    aboutHeroVisualState = state
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }
