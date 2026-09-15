@@ -1332,7 +1332,9 @@ object OnlineLyricTargeter {
      * 对二次匹配搜索结果进行本地相关性评分与排序。
      *
      * 评分维度：标题（最高 55）、歌手（最高 35）、专辑（最高 15）。
-     * 最终按分数降序排列，并剔除既未命中标题也未命中歌手的完全无关项。
+     *
+     * 过滤门槛（硬性）：**歌名与歌手必须同时命中**，专辑为选填、只参与加分，
+     * 不参与硬过滤。这样可避免出现「歌名对上但歌手完全是别人」的无关候选。
      */
     private fun rankManualMatchCandidates(
         context: Context,
@@ -1349,6 +1351,8 @@ object OnlineLyricTargeter {
         data class Scored(
             val result: SongSearchResult,
             val score: Int,
+            val titleHit: Boolean,
+            val artistHit: Boolean,
         )
 
         val scored = candidates.map { candidate ->
@@ -1359,16 +1363,26 @@ object OnlineLyricTargeter {
             val candidateCompactAlbum = compactWhitespace(candidateAlbum)
 
             var score = 0
+            var titleHit = false
 
             // 标题匹配：支持完全相等、包含关系、紧凑去空白
             when {
-                candidateTitle == cleanTitle -> score += 50
-                candidateTitle.contains(cleanTitle) || cleanTitle.contains(candidateTitle) -> score += 40
+                candidateTitle == cleanTitle -> {
+                    score += 50
+                    titleHit = true
+                }
+                candidateTitle.contains(cleanTitle) || cleanTitle.contains(candidateTitle) -> {
+                    score += 40
+                    titleHit = true
+                }
                 compactTitle.isNotEmpty() && (
                     candidateCompactTitle == compactTitle ||
                         candidateCompactTitle.contains(compactTitle) ||
                         compactTitle.contains(candidateCompactTitle)
-                    ) -> score += 35
+                    ) -> {
+                    score += 35
+                    titleHit = true
+                }
             }
             // 原始大小写不敏感的精确相等给予小幅加分，用于区分同名不同曲
             if (candidate.title.trim().equals(queryTitle.trim(), ignoreCase = true)) {
@@ -1376,7 +1390,8 @@ object OnlineLyricTargeter {
             }
 
             // 歌手匹配
-            if (hasCommonArtist(cleanArtists, candidateArtists)) {
+            val artistHit = hasCommonArtist(cleanArtists, candidateArtists)
+            if (artistHit) {
                 score += 30
             }
             if (candidate.artist.trim().equals(queryArtist.trim(), ignoreCase = true)) {
@@ -1394,16 +1409,15 @@ object OnlineLyricTargeter {
                 }
             }
 
-            Scored(candidate, score)
+            Scored(candidate, score, titleHit, artistHit)
         }
 
-        // 只保留至少标题或歌手命中其一的候选，避免展示完全无关歌曲
-        val minScore = 20
-        val filtered = scored.filter { it.score >= minScore }
+        // 硬性门槛：歌名 + 歌手必须同时命中，避免展示「只对上歌名」的无关歌曲。
+        val filtered = scored.filter { it.titleHit && it.artistHit }
         LogManager.d(
             "OnlineTargeter",
             "二次匹配本地筛选: 原始=${candidates.size}, 保留=${filtered.size}, " +
-                "最高分=${filtered.maxOfOrNull { it.score } ?: 0}",
+                "标题+歌手同时命中, 最高分=${filtered.maxOfOrNull { it.score } ?: 0}",
         )
         return filtered
             .sortedWith(
