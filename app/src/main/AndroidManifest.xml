@@ -76,6 +76,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- hook（SystemUI）上报「歌词/翻译实际来源」：LSPosed 远程偏好只有 App→hook 单向可靠，
+             hook 侧写入不落盘，所以改用显式广播，由本 Receiver 落到 App 本地偏好。
+             exported 才能接收来自 SystemUI 进程的广播（仅影响只读诊断展示）。 -->
+        <receiver
+            android:name=".service.LyricOriginReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.genius.hyperlyrics.action.LYRIC_ORIGIN_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <!-- 备用入口：隐藏桌面图标时启用，图标为透明占位（视觉隐藏但 LAUNCHER 组件
              始终存在，LSPosed 模块详情右下角打开按钮始终可用） -->
         <activity-alias

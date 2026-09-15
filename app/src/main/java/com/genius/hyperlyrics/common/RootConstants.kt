@@ -203,6 +203,21 @@ object RootConstants {
      */
     const val KEY_HOOK_TRANSLATION_ORIGIN = "key_hook_translation_origin"
 
+    /**
+     * hook → App 的来源上报通道。
+     *
+     * LSPosed 远程偏好只有「App 写、hook 读」单向可靠，hook 侧写入不会持久化，
+     * 因此改为 hook 发显式广播，App 侧 Receiver 落到自己的本地偏好再供 UI 读取。
+     */
+    const val ACTION_LYRIC_ORIGIN_CHANGED = "com.genius.hyperlyrics.action.LYRIC_ORIGIN_CHANGED"
+    const val EXTRA_LYRIC_CONTENT_ORIGIN = "extra_lyric_content_origin"
+    const val EXTRA_LYRIC_TRANSLATION_ORIGIN = "extra_lyric_translation_origin"
+    const val EXTRA_LYRIC_ORIGIN_SONG_ID = "extra_lyric_origin_song_id"
+    const val EXTRA_LYRIC_PROVIDER_PACKAGE = "extra_lyric_provider_package"
+
+    /** 模块 App 包名（hook 侧回调 App 时使用）。 */
+    const val APP_PACKAGE_NAME = "com.genius.hyperlyrics"
+
     const val LYRIC_ORIGIN_NATIVE = "native"
     const val LYRIC_ORIGIN_ONLINE = "online"
     const val TRANSLATION_ORIGIN_NONE = "none"

@@ -249,12 +249,14 @@ fun OnlineTranslationSourcesPage() {
         currentTrack = title to artist
         currentAlbum = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty().trim()
         currentDurationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
-        // hook 写在 LSPosed 远程偏好里，App 本地偏好读不到，这里优先读远程组。
+        // hook 无法写 LSPosed 远程偏好（不会落盘），来源标记由 hook 广播写入本地偏好；
+        // 远程组仅作为兜底读取。
         val remotePrefs = runCatching {
             RootApplication.xposedService?.getRemotePreferences(UIConstants.PREF_NAME)
         }.getOrNull()
         fun readHookPref(key: String): String? = runCatching {
-            remotePrefs?.getString(key, null) ?: prefs.getString(key, null)
+            prefs.getString(key, null)?.takeIf { it.isNotBlank() }
+                ?: remotePrefs?.getString(key, null)
         }.getOrNull()
         currentProviderPackage = readHookPref(RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER)
         currentContentOrigin = readHookPref(RootConstants.KEY_HOOK_LYRIC_CONTENT_ORIGIN)
