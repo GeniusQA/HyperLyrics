@@ -1396,20 +1396,11 @@ class LyriconSource : LyricSource {
             contentFromOnline || translationFromOnline -> RootConstants.LYRIC_ORIGIN_ONLINE
             else -> RootConstants.LYRIC_ORIGIN_NATIVE
         }
-        if (contentOrigin != lastPublishedContentOrigin) {
-            lastPublishedContentOrigin = contentOrigin
-            prefs?.edit()
-                ?.putString(RootConstants.KEY_HOOK_LYRIC_CONTENT_ORIGIN, contentOrigin)
-                ?.apply()
-        }
-        if (translationOrigin != lastPublishedTranslationOrigin) {
-            lastPublishedTranslationOrigin = translationOrigin
-            prefs?.edit()
-                ?.putString(RootConstants.KEY_HOOK_TRANSLATION_ORIGIN, translationOrigin)
-                ?.apply()
-        }
-        // 远程偏好只有 App→hook 单向可靠，hook 侧写入不落盘；
-        // 因此额外用显式广播把来源推给模块 App，由 App 落到自己的本地偏好。
+        // 不要写 LSPosed 远程偏好：hook 侧 edit()/apply() 会直接抛异常，
+        // 由于本方法在主线程序列里被调用，异常会让 SystemUI 崩溃重启。
+        // 来源只通过下面的广播推给模块 App，由 App 落到自己的本地偏好。
+        lastPublishedContentOrigin = contentOrigin
+        lastPublishedTranslationOrigin = translationOrigin
         HookLogger.i(
             TAG,
             "LYRIC_ORIGIN content=$contentOrigin translation=$translationOrigin " +
