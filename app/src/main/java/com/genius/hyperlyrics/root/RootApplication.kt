@@ -15,6 +15,13 @@ import com.genius.hyperlyrics.ui.utils.LocaleUtils
 import com.genius.hyperlyrics.utils.LogManager
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class RootApplication : Application() {
 
@@ -33,10 +40,12 @@ class RootApplication : Application() {
                 LogManager.i("PrefsBridge", "xposed_service_bound")
                 syncAllPreferences(this@RootApplication)
                 OfficialProviderScopeManager.requestConfiguredScopes(service)
+                refreshXposedScope()
             }
             override fun onServiceDied(service: XposedService) {
                 xposedService = null
                 LogManager.w("PrefsBridge", "xposed_service_died")
+                _xposedScope.value = emptySet()
                 OfficialProviderScopeManager.onServiceDied()
             }
         })
@@ -172,5 +181,34 @@ class RootApplication : Application() {
         internal fun currentContext(): Context? = appContext
 
         private var appContext: Context? = null
+
+        private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        private val _xposedScope = MutableStateFlow<Set<String>>(emptySet())
+
+        /** 当前 LSPosed 作用域（HyperLyrics 已勾选的应用包名）。 */
+        @JvmStatic
+        val xposedScope: StateFlow<Set<String>> = _xposedScope.asStateFlow()
+
+        /**
+         * 重新读取 LSPosed 作用域；服务未绑定或读取失败时置空。
+         * `XposedService.scope` 是跨进程调用，放到 IO 线程执行。
+         */
+        @JvmStatic
+        fun refreshXposedScope() {
+            val service = xposedService
+            if (service == null) {
+                _xposedScope.value = emptySet()
+                return
+            }
+            serviceScope.launch {
+                val scope = runCatching { service.scope.toSet() }
+                    .onFailure { error ->
+                        LogManager.w("PrefsBridge", "xposed_scope_read_failed", error)
+                    }
+                    .getOrDefault(emptySet<String>())
+                _xposedScope.value = scope
+            }
+        }
     }
 }
