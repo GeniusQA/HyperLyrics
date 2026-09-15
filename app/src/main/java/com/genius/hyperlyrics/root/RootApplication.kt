@@ -13,6 +13,7 @@ import com.genius.hyperlyrics.provider.OfficialProviderScopeManager
 import com.genius.hyperlyrics.ui.utils.AppUtils
 import com.genius.hyperlyrics.ui.utils.LocaleUtils
 import com.genius.hyperlyrics.utils.LogManager
+import com.genius.hyperlyrics.worker.LogCleanupScheduler
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +34,8 @@ class RootApplication : Application() {
         LogManager.init(this)
         PrefsBridge.init(this)
         appContext = this
+        // 收尾：清理旧版本「每 5 分钟（测试）」遗留的任务与标记。
+        runCatching { LogCleanupScheduler.cleanupLegacyTestArtifacts(this) }
 
         XposedServiceHelper.registerListener(object : XposedServiceHelper.OnServiceListener {
             override fun onServiceBind(service: XposedService) {
