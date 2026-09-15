@@ -32,6 +32,16 @@
 # --- WorkManager Worker ---
 -keep class com.genius.hyperlyrics.worker.LogCleanupWorker { *; }
 
+# --- Room / WorkManager 生成实现 ---
+# Room 的 *_Impl（含 WorkManager 的 WorkDatabase_Impl）由反射无参构造实例化。
+# R8 全量模式会把它判为无用并裁掉 <init>()，导致进程启动阶段就崩：
+#   RuntimeException: Unable to get provider androidx.startup.InitializationProvider
+#   Caused by: NoSuchMethodException: androidx.work.impl.WorkDatabase_Impl.<init> []
+-keep class * extends androidx.room.RoomDatabase { <init>(); }
+-keep class androidx.work.impl.WorkDatabase_Impl { *; }
+-keep class * extends androidx.work.ListenableWorker { <init>(...); }
+-dontwarn androidx.room.**
+
 # --- SuperLyric API ---
 -keep class com.hchen.superlyricapi.* { *; }
 -dontwarn android.os.ServiceManager
