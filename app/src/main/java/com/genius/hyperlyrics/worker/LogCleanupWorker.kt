@@ -17,10 +17,15 @@ class LogCleanupWorker(context: Context, params: WorkerParameters) : CoroutineWo
     override suspend fun doWork(): Result {
         val context = applicationContext
         LogManager.clearAllLogs(context, LogManager.TRIGGER_SCHEDULED)
-        context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE)
-            .edit()
+        val prefs = context.getSharedPreferences(UIConstants.PREF_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
             .putLong(UIConstants.KEY_LOG_LAST_CLEANUP_TIME, System.currentTimeMillis())
             .apply()
+        // 临时测试：短周期任务是一次性的，执行完按同一间隔续期下一次。
+        val testMinutes = prefs.getInt(UIConstants.KEY_LOG_AUTO_CLEANUP_TEST_MINUTES, 0)
+        if (testMinutes > 0) {
+            LogCleanupScheduler.scheduleTestMinutes(context, testMinutes)
+        }
         return Result.success()
     }
 }

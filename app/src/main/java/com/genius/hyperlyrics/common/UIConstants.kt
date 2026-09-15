@@ -17,6 +17,8 @@ object UIConstants {
     const val KEY_LOG_LEVEL = "key_log_level"
     const val KEY_LOG_LEVEL_BUILD_KIND = "key_log_level_build_kind"
     const val KEY_LOG_AUTO_CLEANUP_INTERVAL = "key_log_auto_cleanup_interval"
+    /** 临时测试：自动清理间隔（分钟），0 表示关闭。验证完成后连同 UI 测试项一起移除。 */
+    const val KEY_LOG_AUTO_CLEANUP_TEST_MINUTES = "key_log_auto_cleanup_test_minutes"
     const val KEY_LOG_LAST_CLEANUP_TIME = "key_log_last_cleanup_time"
     const val DEFAULT_LOG_AUTO_CLEANUP_INTERVAL = 0
     const val KEY_LAST_SEEN_VERSION = "key_last_seen_version"

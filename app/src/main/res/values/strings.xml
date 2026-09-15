@@ -742,6 +742,7 @@
     <string name="auto_cleanup_off">关闭</string>
     <string name="auto_cleanup_24h">每 24 小时</string>
     <string name="auto_cleanup_7d">每 7 天</string>
+    <string name="auto_cleanup_5min_test">每 5 分钟（测试）</string>
     <string name="cleanup_history">清理记录</string>
     <string name="cleanup_history_title">清理记录</string>
     <string name="cleanup_history_empty">暂无清理记录</string>

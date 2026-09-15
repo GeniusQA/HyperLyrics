@@ -73,6 +73,12 @@ private data class LogExportRequest(
     val level: String
 )
 
+// ===== 临时测试项（验证「定时清理」链路后可整体删除）=====
+/** 「每 5 分钟（测试）」在自动清理下拉里的哨兵值。 */
+private const val LOG_CLEANUP_TEST_OPTION = -5
+/** 测试用自动清理间隔（分钟）。 */
+private const val LOG_CLEANUP_TEST_MINUTES = 5
+
 @Composable
 fun LogPage() {
     val context = LocalContext.current
@@ -120,6 +126,11 @@ fun LogPage() {
                 UIConstants.KEY_LOG_AUTO_CLEANUP_INTERVAL,
                 UIConstants.DEFAULT_LOG_AUTO_CLEANUP_INTERVAL
             )
+        )
+    }
+    var testCleanupMinutes by remember {
+        mutableStateOf(
+            prefs.getInt(UIConstants.KEY_LOG_AUTO_CLEANUP_TEST_MINUTES, 0)
         )
     }
 
@@ -234,6 +245,8 @@ fun LogPage() {
     val autoCleanupOffLabel = stringResource(R.string.auto_cleanup_off)
     val autoCleanup24hLabel = stringResource(R.string.auto_cleanup_24h)
     val autoCleanup7dLabel = stringResource(R.string.auto_cleanup_7d)
+    // 临时测试项：5 分钟短周期，验证完成后移除。
+    val autoCleanup5minLabel = stringResource(R.string.auto_cleanup_5min_test)
     val allLabel = stringResource(R.string.all)
     val levelDebug = stringResource(R.string.level_debug)
     val levelInfo = stringResource(R.string.level_info)
@@ -241,10 +254,18 @@ fun LogPage() {
     val levelError = stringResource(R.string.level_error)
     val levelCrash = stringResource(R.string.level_crash)
 
-    val autoCleanupSummary = remember(autoCleanupIntervalHours) {
-        when (autoCleanupIntervalHours) {
-            24 -> autoCleanup24hLabel
-            168 -> autoCleanup7dLabel
+    val autoCleanupSummary = remember(
+        autoCleanupIntervalHours,
+        testCleanupMinutes,
+        autoCleanupOffLabel,
+        autoCleanup24hLabel,
+        autoCleanup7dLabel,
+        autoCleanup5minLabel,
+    ) {
+        when {
+            testCleanupMinutes > 0 -> autoCleanup5minLabel
+            autoCleanupIntervalHours == 24 -> autoCleanup24hLabel
+            autoCleanupIntervalHours == 168 -> autoCleanup7dLabel
             else -> autoCleanupOffLabel
         }
     }
@@ -258,8 +279,13 @@ fun LogPage() {
     ) {
         val levels = listOf("ALL", "D", "I", "W", "E", "C")
         val levelNames = listOf(allLabel, levelDebug, levelInfo, levelWarn, levelError, levelCrash)
-        val cleanupOptionValues = listOf(0, 24, 168)
-        val cleanupOptionLabels = listOf(autoCleanupOffLabel, autoCleanup24hLabel, autoCleanup7dLabel)
+        val cleanupOptionValues = listOf(0, 24, 168, LOG_CLEANUP_TEST_OPTION)
+        val cleanupOptionLabels = listOf(
+            autoCleanupOffLabel,
+            autoCleanup24hLabel,
+            autoCleanup7dLabel,
+            autoCleanup5minLabel,
+        )
         listOf(
             DropdownEntry(
                 items = listOf(
@@ -301,13 +327,35 @@ fun LogPage() {
                         children = cleanupOptionValues.mapIndexed { index, value ->
                             DropdownItem(
                                 text = cleanupOptionLabels[index],
-                                selected = autoCleanupIntervalHours == value,
+                                selected = if (value == LOG_CLEANUP_TEST_OPTION) {
+                                    testCleanupMinutes > 0
+                                } else {
+                                    autoCleanupIntervalHours == value
+                                },
                                 onClick = {
-                                    autoCleanupIntervalHours = value
-                                    prefs.edit()
-                                        .putInt(UIConstants.KEY_LOG_AUTO_CLEANUP_INTERVAL, value)
-                                        .apply()
-                                    LogCleanupScheduler.schedule(context, value)
+                                    if (value == LOG_CLEANUP_TEST_OPTION) {
+                                        // 临时测试项：5 分钟短周期（一次性任务自续期）。
+                                        testCleanupMinutes = LOG_CLEANUP_TEST_MINUTES
+                                        prefs.edit()
+                                            .putInt(
+                                                UIConstants.KEY_LOG_AUTO_CLEANUP_TEST_MINUTES,
+                                                LOG_CLEANUP_TEST_MINUTES,
+                                            )
+                                            .apply()
+                                        LogCleanupScheduler.scheduleTestMinutes(
+                                            context,
+                                            LOG_CLEANUP_TEST_MINUTES,
+                                        )
+                                    } else {
+                                        testCleanupMinutes = 0
+                                        autoCleanupIntervalHours = value
+                                        prefs.edit()
+                                            .putInt(UIConstants.KEY_LOG_AUTO_CLEANUP_INTERVAL, value)
+                                            .putInt(UIConstants.KEY_LOG_AUTO_CLEANUP_TEST_MINUTES, 0)
+                                            .apply()
+                                        LogCleanupScheduler.scheduleTestMinutes(context, 0)
+                                        LogCleanupScheduler.schedule(context, value)
+                                    }
                                 }
                             )
                         }
