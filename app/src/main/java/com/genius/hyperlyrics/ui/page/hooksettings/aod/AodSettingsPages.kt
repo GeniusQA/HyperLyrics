@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +33,8 @@ import androidx.core.content.ContextCompat
 import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.ClassicAodSongInfoConfig
 import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.lyric.ConfigRepository
+import com.genius.hyperlyrics.provider.OfficialProviderCatalog
 import com.genius.hyperlyrics.root.mediacard.notification.AodMediaLyricPolicy
 import com.genius.hyperlyrics.service.LiveLyricService
 import com.genius.hyperlyrics.ui.component.FontColorModeCard
@@ -241,6 +245,11 @@ fun ClassicAodSettingsPage() {
 @Composable
 private fun AodSettingsPage(spec: AodSettingsSpec) {
     val context = LocalContext.current
+    LaunchedEffect(Unit) { ConfigRepository.initWhitelist(context) }
+    val whitelistSet by ConfigRepository.whitelistState.collectAsState()
+    val showAppleMusicSpecific = remember(whitelistSet) {
+        OfficialProviderCatalog.APPLE_MUSIC_PACKAGE_NAME in whitelistSet
+    }
     val prefs = rememberHookPrefs()
     val saveConfig = rememberHookConfigSaver(prefs)
     var focusNotificationPrerequisites by remember {
@@ -616,13 +625,15 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                         },
                         onClick = { showMainTextSizeDialog = true },
                     )
-                    ArrowPreference(
-                        title = stringResource(R.string.title_aod_backing_text_size),
-                        endActions = {
-                            AodTextSizeValue(value = backingTextSize)
-                        },
-                        onClick = { showBackingTextSizeDialog = true },
-                    )
+                    AnimatedVisibility(visible = showAppleMusicSpecific) {
+                        ArrowPreference(
+                            title = stringResource(R.string.title_aod_backing_text_size),
+                            endActions = {
+                                AodTextSizeValue(value = backingTextSize)
+                            },
+                            onClick = { showBackingTextSizeDialog = true },
+                        )
+                    }
                     ArrowPreference(
                         title = stringResource(R.string.title_aod_translation_text_size),
                         endActions = {
@@ -863,35 +874,39 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                         },
                         enabled = translationDisplayMode != RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_OFF,
                     )
-                    SwitchPreference(
-                        title = stringResource(R.string.title_aod_duet_lyrics),
-                        summary = stringResource(R.string.summary_aod_duet_lyrics),
-                        checked = duetLyrics,
-                        onCheckedChange = {
-                            duetLyrics = it
-                            saveConfig(spec.duetLyricsKey, it)
-                        },
-                    )
-                    AnimatedVisibility(visible = duetLyrics) {
+                    AnimatedVisibility(visible = showAppleMusicSpecific) {
                         Column {
                             SwitchPreference(
-                                title = stringResource(
-                                    R.string.title_aod_center_non_duet_song
-                                ),
-                                checked = centerNonDuetSong,
+                                title = stringResource(R.string.title_aod_duet_lyrics),
+                                summary = stringResource(R.string.summary_aod_duet_lyrics),
+                                checked = duetLyrics,
                                 onCheckedChange = {
-                                    centerNonDuetSong = it
-                                    saveConfig(spec.centerNonDuetSongKey, it)
+                                    duetLyrics = it
+                                    saveConfig(spec.duetLyricsKey, it)
                                 },
                             )
-                            SwitchPreference(
-                                title = stringResource(R.string.title_center_group_vocals),
-                                checked = centerGroupVocals,
-                                onCheckedChange = {
-                                    centerGroupVocals = it
-                                    saveConfig(spec.centerGroupVocalsKey, it)
-                                },
-                            )
+                            AnimatedVisibility(visible = duetLyrics) {
+                                Column {
+                                    SwitchPreference(
+                                        title = stringResource(
+                                            R.string.title_aod_center_non_duet_song
+                                        ),
+                                        checked = centerNonDuetSong,
+                                        onCheckedChange = {
+                                            centerNonDuetSong = it
+                                            saveConfig(spec.centerNonDuetSongKey, it)
+                                        },
+                                    )
+                                    SwitchPreference(
+                                        title = stringResource(R.string.title_center_group_vocals),
+                                        checked = centerGroupVocals,
+                                        onCheckedChange = {
+                                            centerGroupVocals = it
+                                            saveConfig(spec.centerGroupVocalsKey, it)
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
                     SwitchPreference(
