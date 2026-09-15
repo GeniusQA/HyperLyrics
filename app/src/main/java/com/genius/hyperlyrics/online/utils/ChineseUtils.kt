@@ -20,6 +20,10 @@ object ChineseUtils {
     private var maxPhraseLength = 1
     @Volatile
     private var moduleApkPath: String? = null
+    // 记录字典加载失败时所用的 apk 路径：同一路径下只记一次日志、且允许在
+    // setModuleApkPath 切换新路径后重试加载（避免失败后置 initialized=true 导致永久静默失效）。
+    @Volatile
+    private var failedApkPath: String? = null
 
     fun setModuleApkPath(path: String?) {
         if (path.isNullOrBlank()) return
@@ -30,6 +34,7 @@ object ChineseUtils {
             charMap.clear()
             maxPhraseLength = 1
             initialized = false
+            failedApkPath = null
         }
     }
 
@@ -37,9 +42,10 @@ object ChineseUtils {
         if (initialized) return
         synchronized(this) {
             if (initialized) return
-            
-            try {
-                // 加载词组映射 (TSPhrases.txt)
+
+            // 两个字典相互独立加载：单个文件缺失不应拖垮另一个，且只有两个都成功
+            // 才置 initialized=true，失败则保持 false 以便后续（路径切换后）重试。
+            val phrasesOk = runCatching {
                 openDictionary(context, "dictionary/TSPhrases.txt").bufferedReader().useLines { lines ->
                     lines.forEach { line ->
                         val parts = line.trim().split(Regex("\\s+"))
@@ -53,8 +59,9 @@ object ChineseUtils {
                         }
                     }
                 }
-                
-                // 加载单字映射 (TSCharacters.txt)
+            }.isSuccess
+
+            val charsOk = runCatching {
                 openDictionary(context, "dictionary/TSCharacters.txt").bufferedReader().useLines { lines ->
                     lines.forEach { line ->
                         val parts = line.trim().split(Regex("\\s+"))
@@ -67,11 +74,20 @@ object ChineseUtils {
                         }
                     }
                 }
-            } catch (e: Exception) {
-                LogManager.e("ChineseUtils", "字典加载失败", e)
+            }.isSuccess
+
+            if (phrasesOk && charsOk) {
+                initialized = true
+                failedApkPath = null
+            } else if (failedApkPath != moduleApkPath) {
+                // 同一 apk 路径下仅记录一次，避免每次转换都刷日志。
+                failedApkPath = moduleApkPath
+                LogManager.e(
+                    "ChineseUtils",
+                    "字典加载失败 (phrasesOk=$phrasesOk, charsOk=$charsOk)",
+                    Exception("moduleApkPath=${moduleApkPath ?: "<app assets>"}"),
+                )
             }
-            
-            initialized = true
         }
     }
 
