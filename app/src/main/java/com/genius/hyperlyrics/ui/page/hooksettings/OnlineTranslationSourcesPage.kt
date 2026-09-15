@@ -204,6 +204,11 @@ fun OnlineTranslationSourcesPage() {
     var diagnosing by remember { mutableStateOf(false) }
     // 当前播放 App 已在“启用 App”中开启时才展示在线源匹配信息；关闭则走原生歌词，隐藏匹配数据。
     val currentAppOnlineEnabled = currentPackage != null && appEnabled[currentPackage] == true
+    // 原生/插件源（内置插件、通用插件、外置模块等）已同时提供歌词与翻译时，
+    // 在线平台匹配已无增益：自动诊断直接跳过，避免无意义的在线请求与匹配分展示。
+    // 手动刷新（force）不受限，用户仍可按需诊断。
+    val nativeFullyServed = currentContentOrigin == RootConstants.LYRIC_ORIGIN_NATIVE &&
+        currentTranslationOrigin == RootConstants.LYRIC_ORIGIN_NATIVE
 
     fun isNotificationListenerEnabled(): Boolean =
         runCatching {
@@ -269,6 +274,12 @@ fun OnlineTranslationSourcesPage() {
     fun runSourceDiagnosis(force: Boolean = false) {
         val (title, artist) = currentTrack ?: return
         if (!currentAppOnlineEnabled) return
+        // 原生/插件源已提供歌词+翻译：跳过在线匹配诊断并清空残留数据；
+        // 手动刷新（force）仍允许，便于用户按需核对各平台匹配情况。
+        if (!force && nativeFullyServed) {
+            if (sourceDiagnostics.isNotEmpty()) sourceDiagnostics.clear()
+            return
+        }
         val order = sourceOrder.filter { sourceEnabled[it] == true }
         if (order.isEmpty()) return
         // 冷却节流：诊断会真实请求各在线源，高频重复会触发 LRCLIB 等源的限流（返回空），
@@ -673,6 +684,17 @@ fun OnlineTranslationSourcesPage() {
                         fontSize = MiuixTheme.textStyles.body2.fontSize,
                         color = MiuixTheme.colorScheme.onBackground,
                     )
+                    // 原生/插件源已完整提供歌词+翻译：不再跑匹配分逻辑，也不展示各平台诊断信息。
+                    if (nativeFullyServed && sourceDiagnostics.isEmpty()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(
+                                R.string.online_translation_native_fully_served_hint,
+                            ),
+                            fontSize = MiuixTheme.textStyles.body2.fontSize,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        )
+                    }
                     // 匹配平台信息不再受“原生来源”限制：只要诊断有数据就展示，
                     // 便于确认当前曲目在四平台/通用源的实际匹配情况。
                     if (matchedDiagnostic != null || nearMissDiagnostic != null ||
@@ -768,7 +790,10 @@ fun OnlineTranslationSourcesPage() {
                                 },
                                 onMoveUp = { requestSourceMove(source, -1) },
                                 onMoveDown = { requestSourceMove(source, 1) },
-                                diagnostic = if (currentAppOnlineEnabled) {
+                                diagnostic = if (
+                                    currentAppOnlineEnabled &&
+                                    (!nativeFullyServed || sourceDiagnostics.isNotEmpty())
+                                ) {
                                     sourceDiagnostics[source]
                                 } else {
                                     null
