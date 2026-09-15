@@ -78,6 +78,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.common.UIConstants
+import com.genius.hyperlyrics.root.RootApplication
 import com.genius.hyperlyrics.provider.OfficialProviderCatalog
 import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
 import com.genius.hyperlyrics.online.OnlineLyricTargeter
@@ -194,6 +196,9 @@ fun OnlineTranslationSourcesPage() {
     var currentPackage by remember { mutableStateOf<String?>(null) }
     // Hook 侧写入的实际歌词 Provider 包名，用于 MetaData 中准确展示歌词来源。
     var currentProviderPackage by remember { mutableStateOf<String?>(null) }
+    // Hook 侧写入的「歌词内容 / 翻译」实际来源（native/online/none）。
+    var currentContentOrigin by remember { mutableStateOf<String?>(null) }
+    var currentTranslationOrigin by remember { mutableStateOf<String?>(null) }
     var listenerEnabled by remember { mutableStateOf<Boolean?>(null) }
     val sourceDiagnostics = remember { mutableStateMapOf<Source, SourceMatchDiagnostic?>() }
     var diagnosing by remember { mutableStateOf(false) }
@@ -221,6 +226,8 @@ fun OnlineTranslationSourcesPage() {
         listenerEnabled = isNotificationListenerEnabled()
         if (active == null) {
             currentProviderPackage = null
+            currentContentOrigin = null
+            currentTranslationOrigin = null
             return false
         }
         val pkg = active.packageName
@@ -242,9 +249,16 @@ fun OnlineTranslationSourcesPage() {
         currentTrack = title to artist
         currentAlbum = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty().trim()
         currentDurationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
-        currentProviderPackage = runCatching {
-            prefs.getString(RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER, null)
+        // hook 写在 LSPosed 远程偏好里，App 本地偏好读不到，这里优先读远程组。
+        val remotePrefs = runCatching {
+            RootApplication.xposedService?.getRemotePreferences(UIConstants.PREF_NAME)
         }.getOrNull()
+        fun readHookPref(key: String): String? = runCatching {
+            remotePrefs?.getString(key, null) ?: prefs.getString(key, null)
+        }.getOrNull()
+        currentProviderPackage = readHookPref(RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER)
+        currentContentOrigin = readHookPref(RootConstants.KEY_HOOK_LYRIC_CONTENT_ORIGIN)
+        currentTranslationOrigin = readHookPref(RootConstants.KEY_HOOK_TRANSLATION_ORIGIN)
         return true
     }
 
@@ -648,9 +662,11 @@ fun OnlineTranslationSourcesPage() {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = resolveLyricSourceText(
-                            currentPackage,
-                            currentProviderPackage,
-                            matchedDiagnostic,
+                            packageName = currentPackage,
+                            currentProviderPackage = currentProviderPackage,
+                            contentOrigin = currentContentOrigin,
+                            translationOrigin = currentTranslationOrigin,
+                            translationHit = matchedDiagnostic,
                         ),
                         fontSize = MiuixTheme.textStyles.body2.fontSize,
                         color = MiuixTheme.colorScheme.onBackground,
@@ -1028,14 +1044,15 @@ private fun LyricSourceChainDialog(
             label = stringResource(R.string.chain_step_strategy),
             value = trackLabel,
         )
-        // 基础歌词：按 Hook 侧实际 Provider 显示来源，LRCLIB 通用兜底时展示命中行数。
-        val lrclib = sourceDiagnostics[Source.LRCLIB]
-        val baseValue = resolveBaseLyricLabel(context, currentProviderPackage, lrclib)
-        ChainStepRow(
-            label = stringResource(R.string.chain_step_base),
-            value = baseValue,
-            highlight = currentProviderPackage == RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE,
-        )
+        // 通用歌词：仅「通用插件（LRCLIB 兜底）」链路才展示；其余情况歌词来自原生/专属插件源。
+        if (currentProviderPackage == RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE) {
+            val lrclib = sourceDiagnostics[Source.LRCLIB]
+            ChainStepRow(
+                label = stringResource(R.string.chain_step_base),
+                value = resolveBaseLyricLabel(context, currentProviderPackage, lrclib),
+                highlight = true,
+            )
+        }
         // 翻译平台逐源匹配链路
         val translationSources = enabledSources.filter { it != Source.LRCLIB }
         if (translationSources.isNotEmpty()) {
@@ -1645,10 +1662,42 @@ private fun providerDisplayName(context: Context, providerPackageName: String?):
 private fun resolveLyricSourceText(
     packageName: String?,
     currentProviderPackage: String?,
+    contentOrigin: String?,
+    translationOrigin: String?,
     translationHit: SourceMatchDiagnostic?,
 ): String {
     val context = LocalContext.current
     val providerName = providerDisplayName(context, currentProviderPackage)
+    val onlineHit = translationHit?.takeIf { it.found }
+    // ① Hook 侧明确歌词内容来自在线源（LRCLIB/四平台）→ 在线源歌词（+ 在线源翻译）
+    if (contentOrigin == RootConstants.LYRIC_ORIGIN_ONLINE) {
+        return if (onlineHit != null) {
+            context.getString(
+                R.string.lyric_origin_online_with_translation,
+                onlineHit.source.displayName(),
+            )
+        } else {
+            context.getString(R.string.lyric_origin_online_full)
+        }
+    }
+    // ② 原生/插件源提供歌词，翻译来自在线源匹配
+    if (contentOrigin == RootConstants.LYRIC_ORIGIN_NATIVE &&
+        translationOrigin == RootConstants.LYRIC_ORIGIN_ONLINE
+    ) {
+        return if (onlineHit != null) {
+            context.getString(
+                R.string.lyric_origin_native_with_online_translation,
+                onlineHit.source.displayName(),
+            )
+        } else {
+            context.getString(R.string.lyric_origin_native)
+        }
+    }
+    // ③ 原生源歌词 + 原生翻译
+    if (contentOrigin == RootConstants.LYRIC_ORIGIN_NATIVE) {
+        return context.getString(R.string.lyric_origin_native)
+    }
+    // ④ 未拿到来源标记时，保持原有按 Provider / 包名的兜底判断
     return when {
         currentProviderPackage == RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE -> {
             val hit = translationHit?.takeIf { it.found }

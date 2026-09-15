@@ -508,6 +508,9 @@
     <string name="lyric_origin_ytm">歌词来源：在线歌词+翻译（YTM 无可读原生歌词）</string>
     <string name="lyric_origin_salt">歌词来源：本地歌词优先，缺失时在线兜底</string>
     <string name="lyric_origin_online">歌词来源：通用插件 LRCLIB 歌词</string>
+    <string name="lyric_origin_online_full">歌词来源：在线源歌词+翻译</string>
+    <string name="lyric_origin_online_with_translation">歌词来源：在线源歌词 + %1$s 翻译</string>
+    <string name="lyric_origin_native_with_online_translation">歌词来源：原生源歌词 + %1$s 在线翻译</string>
     <string name="lyric_origin_lrclib_with_translation">歌词来源：通用插件 LRCLIB 歌词 + %1$s 翻译</string>
     <string name="lyric_origin_provider_format">歌词来源：%1$s 插件（歌词+翻译）</string>
     <string name="lyric_origin_provider_unknown_format">歌词来源：%1$s</string>
@@ -524,7 +527,7 @@
     <string name="summary_lyric_source_chain">点击查看当前歌曲歌词与翻译的完整获取链路</string>
     <string name="chain_step_player">当前播放器</string>
     <string name="chain_step_strategy">歌词策略</string>
-    <string name="chain_step_base">基础歌词</string>
+    <string name="chain_step_base">通用歌词</string>
     <string name="chain_step_translate">翻译平台匹配</string>
     <string name="chain_step_final">最终命中</string>
     <string name="chain_base_native">原生曲库直读（歌词+翻译）</string>
