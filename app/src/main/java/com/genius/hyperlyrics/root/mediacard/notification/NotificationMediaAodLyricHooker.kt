@@ -104,7 +104,6 @@ internal data class AodTextStyleConfig(
     val backingTextSize: Int,
     val translationTextSize: Int,
     val showNextLyric: Boolean,
-    val nextLyricStyle: Int,
     val duetLyrics: Boolean,
     val centerNonDuetSong: Boolean,
     val centerGroupVocals: Boolean,
@@ -690,11 +689,6 @@ internal object AodMediaLyricPolicy {
      */
     fun lyricRowMaxLines(maxLines: Int): Int =
         minOf(MAIN_LYRIC_LINES_RESERVED, maxLines)
-
-    fun sanitizeNextLyricStyle(value: Int): Int = value.takeIf {
-        it == RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING ||
-            it == RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION
-    } ?: RootConstants.DEFAULT_HOOK_AOD_NEXT_LYRIC_STYLE
 
     private fun String?.normalized(): String = this?.trim().orEmpty()
 }
@@ -1470,13 +1464,8 @@ object NotificationMediaAodLyricHooker {
         overlay.backingTranslation.setTextColor(translationColor)
         overlay.overlappingTranslation.setTextColor(translationColor)
         overlay.overlappingBackingTranslation.setTextColor(translationColor)
-        overlay.next.setTextColor(
-            if (textStyle.nextLyricStyle == RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING) {
-                api.getTitleText(holder).currentTextColor
-            } else {
-                translationColor
-            }
-        )
+        // 后续歌词行固定使用译文样式（颜色/字体），不再提供「下句歌词样式」开关。
+        overlay.next.setTextColor(translationColor)
         // 等待歌词匹配：用动态圆点占位（与摘要态一致），并启动循环高亮动画。
         if (content.waitingForLyrics) {
             overlay.waitingForLyrics = true
@@ -4039,7 +4028,6 @@ object NotificationMediaAodLyricHooker {
                 RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE,
             ) ?: RootConstants.DEFAULT_HOOK_NEXT_LYRIC_LINE
             ),
-        nextLyricStyle = readAodNextLyricStyle("${prefix}next_lyric_style"),
         // 歌词总行数上限：直接以行数为准，不再按高度/字号反推。
         lyricMaxLines = AodMediaLyricPolicy.sanitizeLyricMaxLines(
             prefs?.all?.get(RootConstants.KEY_HOOK_LYRIC_MAX_LINES)
@@ -4090,14 +4078,6 @@ object NotificationMediaAodLyricHooker {
         min = min,
         max = max,
     )
-
-    private fun readAodNextLyricStyle(key: String): Int =
-        AodMediaLyricPolicy.sanitizeNextLyricStyle(
-            prefs?.getInt(
-                key,
-                RootConstants.DEFAULT_HOOK_AOD_NEXT_LYRIC_STYLE,
-            ) ?: RootConstants.DEFAULT_HOOK_AOD_NEXT_LYRIC_STYLE
-        )
 
     private fun readAodNextSongPreviewPosition(key: String): Int =
         AodMediaLyricPolicy.sanitizeNextSongPreviewPosition(
@@ -4240,13 +4220,7 @@ object NotificationMediaAodLyricHooker {
             TypedValue.COMPLEX_UNIT_SP,
             style.translationTextSize.toFloat(),
         )
-        val nextUsesBackingStyle =
-            style.nextLyricStyle == RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING
-        overlay.next.typeface = if (nextUsesBackingStyle) {
-            mainTypefaceView.typeface
-        } else {
-            translationTypefaceView.typeface
-        }
+        overlay.next.typeface = translationTypefaceView.typeface
         overlay.next.setTextSize(
             TypedValue.COMPLEX_UNIT_SP,
             if (nextUsesBackingStyle) {
@@ -4295,13 +4269,7 @@ object NotificationMediaAodLyricHooker {
             TypedValue.COMPLEX_UNIT_SP,
             style.translationTextSize.toFloat(),
         )
-        val nextUsesBackingStyle =
-            style.nextLyricStyle == RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING
-        overlay.next.typeface = if (nextUsesBackingStyle) {
-            overlay.main.typeface
-        } else {
-            overlay.translation.typeface
-        }
+        overlay.next.typeface = overlay.translation.typeface
         overlay.next.setTextColor(
             if (nextUsesBackingStyle) 0xFFFFFFFF.toInt() else 0xCCFFFFFF.toInt()
         )
