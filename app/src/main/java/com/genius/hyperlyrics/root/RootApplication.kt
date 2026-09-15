@@ -40,6 +40,7 @@ class RootApplication : Application() {
         XposedServiceHelper.registerListener(object : XposedServiceHelper.OnServiceListener {
             override fun onServiceBind(service: XposedService) {
                 xposedService = service
+                _xposedServiceBound.value = true
                 LogManager.i("PrefsBridge", "xposed_service_bound")
                 syncAllPreferences(this@RootApplication)
                 OfficialProviderScopeManager.requestConfiguredScopes(service)
@@ -47,6 +48,7 @@ class RootApplication : Application() {
             }
             override fun onServiceDied(service: XposedService) {
                 xposedService = null
+                _xposedServiceBound.value = false
                 LogManager.w("PrefsBridge", "xposed_service_died")
                 _xposedScope.value = emptySet()
                 OfficialProviderScopeManager.onServiceDied()
@@ -192,6 +194,16 @@ class RootApplication : Application() {
         /** 当前 LSPosed 作用域（HyperLyrics 已勾选的应用包名）。 */
         @JvmStatic
         val xposedScope: StateFlow<Set<String>> = _xposedScope.asStateFlow()
+
+        // LSPosed 服务绑定状态的可观察镜像：xposedService 本体是普通静态变量、
+        // 由 onServiceBind/onServiceDied 异步赋值，Compose 直接读它会错过绑定时机
+        // （首帧读到 null → 相关开关误置灰，且后续绑定不触发重组）。
+        // UI 层请收集 [xposedServiceBound] 以获得响应式更新。
+        private val _xposedServiceBound = MutableStateFlow(xposedService != null)
+
+        /** LSPosed 服务是否已绑定（组合安全的响应式状态）。 */
+        @JvmStatic
+        val xposedServiceBound: StateFlow<Boolean> = _xposedServiceBound.asStateFlow()
 
         /**
          * 重新读取 LSPosed 作用域；服务未绑定或读取失败时置空。

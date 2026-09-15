@@ -184,7 +184,8 @@ fun SetupPage(onNavigateToMain: () -> Unit) {
 
 @Composable
 fun ModeSelectionPage(selectedMode: Int, onModeSelected: (Int) -> Unit) {
-    val isModuleActive = RootApplication.xposedService != null
+    // 收集响应式绑定状态，避免服务绑定晚于首帧时误判为未激活且不恢复。
+    val isModuleActive by RootApplication.xposedServiceBound.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
