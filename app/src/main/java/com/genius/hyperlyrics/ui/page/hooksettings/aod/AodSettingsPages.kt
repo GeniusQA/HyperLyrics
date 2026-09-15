@@ -604,6 +604,28 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
         },
     )
 
+    // 「下句歌词样式」的「伴唱」样式依赖 Apple Music 的伴唱数据；
+    // 未勾选 Apple Music 作用域时隐藏该选项，并把已存的伴唱回退为翻译。
+    val backingNextLyricStyleLabel = stringResource(R.string.option_aod_next_lyric_backing)
+    val translationNextLyricStyleLabel = stringResource(R.string.option_aod_next_lyric_translation)
+    val nextLyricStyleOptions = buildList {
+        if (showAppleMusicSpecific) {
+            add(RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING to backingNextLyricStyleLabel)
+        }
+        add(RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION to translationNextLyricStyleLabel)
+    }
+    LaunchedEffect(showAppleMusicSpecific, spec.nextLyricStyleKey) {
+        if (!showAppleMusicSpecific &&
+            nextLyricStyle == RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING
+        ) {
+            nextLyricStyle = RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION
+            saveConfig(
+                spec.nextLyricStyleKey,
+                RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION,
+            )
+        }
+    }
+
     XposedLyricSettingPage(title = stringResource(spec.titleRes)) {
         item(key = "aod_font_color") {
             SmallTitle(text = stringResource(R.string.title_font_color))
@@ -690,14 +712,15 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                             )
                             OverlayDropdownPreference(
                                 title = stringResource(R.string.title_aod_next_lyric_style),
-                                items = listOf(
-                                    stringResource(R.string.option_aod_next_lyric_backing),
-                                    stringResource(R.string.option_aod_next_lyric_translation),
-                                ),
-                                selectedIndex = nextLyricStyle,
-                                onSelectedIndexChange = {
-                                    nextLyricStyle = it
-                                    saveConfig(spec.nextLyricStyleKey, it)
+                                items = nextLyricStyleOptions.map { it.second },
+                                selectedIndex = nextLyricStyleOptions
+                                    .indexOfFirst { it.first == nextLyricStyle }
+                                    .coerceAtLeast(0),
+                                onSelectedIndexChange = { index ->
+                                    nextLyricStyleOptions.getOrNull(index)?.let { (value, _) ->
+                                        nextLyricStyle = value
+                                        saveConfig(spec.nextLyricStyleKey, value)
+                                    }
                                 },
                             )
                         }
