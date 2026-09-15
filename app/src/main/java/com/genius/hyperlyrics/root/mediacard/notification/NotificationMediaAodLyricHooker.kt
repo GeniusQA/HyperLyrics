@@ -441,6 +441,8 @@ internal object AodMediaLyricPolicy {
         centerGroupVocals: Boolean = RootConstants.DEFAULT_HOOK_AOD_CENTER_GROUP_VOCALS,
         translationDisplayMode: Int = RootConstants.DEFAULT_HOOK_AOD_TRANSLATION_DISPLAY_MODE,
         translationFallback: Boolean = RootConstants.DEFAULT_HOOK_AOD_TRANSLATION_FALLBACK,
+        // 整首歌是否含任意一行翻译（歌曲级显示判定，避免逐行切换布局）。
+        songHasAnyTranslation: Boolean = false,
     ): AodLyricContent {
         val normalizedMain = main.normalized()
         val rawTranslation = translation.normalized()
@@ -505,9 +507,13 @@ internal object AodMediaLyricPolicy {
 
         val hasDisplayedTranslation = finalTranslation.isNotBlank() ||
             finalBackingTranslation.isNotBlank()
+        // 显示模式同样按「歌曲级」判断：整首歌只要有一行带翻译，就统一走翻译模式，
+        // 所有行都不显示后续歌词；只有整首歌完全没有翻译时才展示多行歌词。
+        // 否则同一首歌里会忽而显示翻译、忽而切到多行歌词，来回抖动。
         val normalizedNext = next.normalized()
             .takeIf {
                 showNext &&
+                    !songHasAnyTranslation &&
                     !hasDisplayedTranslation &&
                     it != normalizedMain
             }
@@ -583,6 +589,7 @@ internal object AodMediaLyricPolicy {
         centerNonDuetSong: Boolean = RootConstants.DEFAULT_HOOK_AOD_CENTER_NON_DUET_SONG,
         centerGroupVocals: Boolean = RootConstants.DEFAULT_HOOK_AOD_CENTER_GROUP_VOCALS,
         translationDisplay: Boolean,
+        songHasAnyTranslation: Boolean = false,
     ): AodLyricContent = assembleContent(
         main = main,
         translation = translation,
@@ -608,6 +615,7 @@ internal object AodMediaLyricPolicy {
         translationDisplayMode = if (translationDisplay) RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_TRANSLATION
         else RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_OFF,
         translationFallback = false,
+        songHasAnyTranslation = songHasAnyTranslation,
     )
 
     fun orderedLyricRows(swapTranslation: Boolean): List<AodLyricRow> =
@@ -1421,9 +1429,7 @@ object NotificationMediaAodLyricHooker {
         val rowMaxLines = AodMediaLyricPolicy.lyricRowMaxLines(textStyle.lyricMaxLines)
         // 歌曲级判断：只要这首歌有任意一行带翻译，所有行统一不滚动；
         // 整首歌无翻译时才启用横向跑马灯，避免部分行有翻译部分没有导致的溢出。
-        val songHasAnyTranslation = LyriconDataBridge.currentSong?.lyrics
-            .orEmpty().any { !it.translation.isNullOrBlank() }
-        val mainShouldScroll = !songHasAnyTranslation &&
+        val mainShouldScroll = !songHasAnyTranslation() &&
             textStyle.showNextLyric &&
             content.main.isNotBlank()
         applyMainLyricRowMode(overlay.main, mainShouldScroll, rowMaxLines)
@@ -1998,9 +2004,7 @@ object NotificationMediaAodLyricHooker {
         val rowMaxLines = AodMediaLyricPolicy.lyricRowMaxLines(textStyle.lyricMaxLines)
         // 歌曲级判断：只要这首歌有任意一行带翻译，所有行统一不滚动；
         // 整首歌无翻译时才启用横向跑马灯，避免部分行有翻译部分没有导致的溢出。
-        val songHasAnyTranslation = LyriconDataBridge.currentSong?.lyrics
-            .orEmpty().any { !it.translation.isNullOrBlank() }
-        val mainShouldScroll = !songHasAnyTranslation &&
+        val mainShouldScroll = !songHasAnyTranslation() &&
             textStyle.showNextLyric &&
             content.main.isNotBlank()
         applyMainLyricRowMode(overlay.main, mainShouldScroll, rowMaxLines)
@@ -3776,6 +3780,7 @@ object NotificationMediaAodLyricHooker {
             centerGroupVocals = style.centerGroupVocals,
             translationDisplayMode = style.translationDisplayMode,
             translationFallback = style.translationFallback,
+            songHasAnyTranslation = songHasAnyTranslation(),
         )
         val finalContent = if (waitingForLyrics) {
             // 等待匹配阶段只展示动态圆点，不要把后续歌词拼接行也带进来，
@@ -3800,9 +3805,8 @@ object NotificationMediaAodLyricHooker {
         if (!BuildConfig.DEBUG) return
         val line = LyriconDataBridge.currentLyricLine
         val upcoming = LyriconDataBridge.currentUpcomingLyricLines
-        val songHasAnyTranslation = LyriconDataBridge.currentSong?.lyrics
-            .orEmpty().any { !it.translation.isNullOrBlank() }
-        val mainShouldScroll = !songHasAnyTranslation &&
+        val songHasTranslation = songHasAnyTranslation()
+        val mainShouldScroll = !songHasTranslation &&
             style.showNextLyric &&
             content.main.isNotBlank()
         val key = listOf(
@@ -3811,7 +3815,7 @@ object NotificationMediaAodLyricHooker {
             content.next,
             style.showNextLyric,
             style.lyricMaxLines,
-            songHasAnyTranslation,
+            songHasTranslation,
         ).joinToString("\u0001")
         if (key == lastLyricContentDiagKey) return
         lastLyricContentDiagKey = key
@@ -3824,7 +3828,7 @@ object NotificationMediaAodLyricHooker {
                 "upcoming=[${upcoming.joinToString(" / ") { it.text.orEmpty() }}] " +
                 "showNext=${style.showNextLyric} maxLines=${style.lyricMaxLines} " +
                 "budget=${AodMediaLyricPolicy.upcomingLineBudget(style.lyricMaxLines)} " +
-                "songHasAnyTranslation=$songHasAnyTranslation " +
+                "songHasAnyTranslation=$songHasTranslation " +
                 "mainShouldScroll=$mainShouldScroll",
         )
     }
@@ -3977,6 +3981,16 @@ object NotificationMediaAodLyricHooker {
         LyriconDataBridge.currentSong?.lyrics.orEmpty().filterNot { line ->
             line.metadata?.getBoolean(SongPreprocessor.KEY_TITLE_LINE) == true
         }
+
+    /**
+     * 整首歌是否含任意一行翻译。
+     *
+     * 作为**歌曲级**显示判定：多行歌词与主句横向滚动都按它统一，
+     * 避免同一首歌里逐行切换布局（忽而翻译、忽而多行歌词）。
+     */
+    private fun songHasAnyTranslation(): Boolean =
+        LyriconDataBridge.currentSong?.lyrics.orEmpty()
+            .any { !it.translation.isNullOrBlank() }
 
     private fun lockScreenAodTextStyle(): AodTextStyleConfig =
         textStyleForPrefix("key_hook_lock_screen_aod_")
