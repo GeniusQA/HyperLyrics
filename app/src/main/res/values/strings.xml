@@ -501,6 +501,7 @@
     <string name="online_translation_current_track_format">当前歌曲：%1$s - %2$s</string>
     <string name="online_translation_matched_platform_format">匹配平台：%1$s（%2$d分 · %3$d行）</string>
     <string name="online_translation_matched_platform_none">匹配平台：暂无达标来源</string>
+    <string name="online_translation_native_fully_served_hint">歌词与翻译已由原生/插件源完整提供，已跳过在线匹配（点右上角刷新可手动诊断）</string>
     <string name="online_translation_matched_platform_nearmiss">匹配平台：%1$s（%2$d分 · 近失兜底命中）</string>
     <string name="online_translation_matched_platform_diagnosing">匹配平台：诊断中…</string>
     <string name="lyric_origin_native">歌词来源：原生歌词+翻译（App 曲库直读）</string>
