@@ -57,19 +57,11 @@ data class OfficialProviderUiState(
 
 object OfficialProviderRepository {
     private const val CATALOG_URL =
-        "https://raw.githubusercontent.com/GeniusQA/HyperLyrics/main/catalog/catalog.json"
+        "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/catalog/catalog.json"
     private const val CATALOG_SIGNATURE_URL =
-        "https://raw.githubusercontent.com/GeniusQA/HyperLyrics/main/catalog/catalog.sig"
+        "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/catalog/catalog.sig"
     private const val MAX_CATALOG_BYTES = 512 * 1024
     private const val MAX_PACK_BYTES = 16 * 1024 * 1024
-
-    // 仓库已从 QuanTum2088/HyperLyrics 迁移到 GeniusQA/HyperLyrics。
-    // 迁移前签名发布的目录里仍是旧路径，已安装的旧版本客户端也只认旧路径，
-    // 因此两个前缀同时放行，避免迁移期插件下载被判为「非官方仓库」。
-    private val ALLOWED_ASSET_PATH_PREFIXES = listOf(
-        "/GeniusQA/HyperLyrics/main/providers/",
-        "/QuanTum2088/HyperLyrics/main/providers/",
-    )
 
     private val client = OkHttpClient()
     private val json = Json {
@@ -228,7 +220,7 @@ object OfficialProviderRepository {
         validateAssetUrl(assetUrl)
         val expectedSha256 = requireNotNull(entry.sha256)
         val packBytes = fetch(assetUrl, MAX_PACK_BYTES)
-        require(packBytes.sha256Hex().equals(expectedSha256, ignoreCase = true)) {
+        require(sha256(packBytes).equals(expectedSha256, ignoreCase = true)) {
             "Provider Pack 与目录摘要不一致"
         }
         val installed = OfficialProviderInstaller.install(context, packBytes)
@@ -279,10 +271,7 @@ object OfficialProviderRepository {
         require(uri.scheme == "https" && uri.host == "raw.githubusercontent.com") {
             "Provider 下载地址必须使用 raw.githubusercontent.com HTTPS"
         }
-        // 仓库已从 QuanTum2088/HyperLyrics 迁移到 GeniusQA/HyperLyrics。
-        // 迁移前签名发布的目录里仍是旧路径，已安装的旧版本客户端也只认旧路径，
-        // 因此两个前缀同时放行，避免迁移期插件下载被判为「非官方仓库」。
-        require(ALLOWED_ASSET_PATH_PREFIXES.any { uri.path.startsWith(it) }) {
+        require(uri.path.startsWith("/QuanTum2088/HyperLyrics/main/providers/")) {
             "Provider 下载地址不属于官方仓库"
         }
     }
@@ -299,4 +288,8 @@ object OfficialProviderRepository {
             }
         }
 
+    private fun sha256(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(bytes)
+            .joinToString("") { "%02x".format(it) }
 }

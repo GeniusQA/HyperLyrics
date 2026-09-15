@@ -13,7 +13,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
-import android.widget.Toast
 import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.IslandAlbumCoverWhitelist
@@ -38,7 +37,6 @@ import com.genius.hyperlyrics.lyric.source.LyricSink
 import com.genius.hyperlyrics.lyric.source.LyricSource
 import com.genius.hyperlyrics.online.OnlineLyricTargeter
 import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
-import io.github.proify.lyricon.central.CentralRuntime
 import com.genius.hyperlyrics.online.model.ManualLyricMatchRequest
 import com.genius.hyperlyrics.online.model.SongSearchResult
 import com.genius.hyperlyrics.online.model.Source
@@ -683,7 +681,6 @@ class LyriconSource : LyricSource {
     /**
      * 「二次匹配」：用户在设置页手动搜索并选中候选后，按候选的来源与歌曲 ID 重新抓词，
      * 必要时再向四平台补翻译，最后走与在线兜底一致的发布链路。
-     * 完成后通过 Toast 把结果反馈给用户。
      */
     private fun applyManualLyricMatchRequest() {
         val request = ManualLyricMatchRequest.decode(
@@ -693,10 +690,6 @@ class LyriconSource : LyricSource {
         val application = app ?: return
         val baseSong = currentPublishedThirdPartySong ?: currentThirdPartySong ?: run {
             diagnostic("二次匹配失败: 当前无三方播放歌曲")
-            showManualMatchToast(
-                application,
-                moduleString(R.string.manual_match_result_no_song, "二次匹配失败：当前没有三方播放歌曲"),
-            )
             return
         }
         val currentTitle = normalizeIdentity(baseSong.name)
@@ -705,14 +698,6 @@ class LyriconSource : LyricSource {
             diagnostic(
                 "二次匹配忽略: 当前歌曲已切换, request=${request.currentTitle}, " +
                     "current=${baseSong.name}",
-            )
-            showManualMatchToast(
-                application,
-                moduleStringFmt(
-                    R.string.manual_match_result_switched,
-                    baseSong.name ?: "",
-                    fallback = "二次匹配已忽略：当前歌曲已切换为 ${baseSong.name}",
-                ),
             )
             return
         }
@@ -736,23 +721,11 @@ class LyriconSource : LyricSource {
                 val lines = OnlineLyricTargeter.fetchLyricsForCandidate(application, candidate)
                 if (lines == null) {
                     diagnostic("二次匹配未取到歌词: source=${source.name}, id=${request.sourceSongId}")
-                    showManualMatchToast(
-                        application,
-                        moduleString(R.string.manual_match_result_no_lyrics, "二次匹配失败：未取到歌词"),
-                    )
                     return@launch
                 }
-                var matched = OnlineFallbackSongMapper.map(baseSong, lines) ?: run {
-                    showManualMatchToast(
-                        application,
-                        moduleString(R.string.manual_match_result_no_lyrics, "二次匹配失败：未取到歌词"),
-                    )
-                    return@launch
-                }
+                var matched = OnlineFallbackSongMapper.map(baseSong, lines) ?: return@launch
                 val orderedSources = configuredOnlineSources()
-                val needsTranslation = orderedSources.isNotEmpty() && needsOnlineEnrichment(matched)
-                var translationMerged = false
-                if (needsTranslation) {
+                if (orderedSources.isNotEmpty() && needsOnlineEnrichment(matched)) {
                     val translationLines = fetchThirdPartyLyrics(
                         application = application,
                         playerPackage = playerPackage,
@@ -763,14 +736,9 @@ class LyriconSource : LyricSource {
                     )
                     if (translationLines != null) {
                         matched = OnlineTranslationMatcher.apply(matched, translationLines).song
-                        translationMerged = true
                     }
                 }
                 val result = matched
-                val lineCount = result.lyrics.orEmpty().size
-                val translationCount = result.lyrics.orEmpty().count {
-                    OnlineTranslationContentPolicy.isMeaningful(it.translation)
-                }
                 mainHandler.post {
                     currentPublishedThirdPartySong = result
                     // 与在线兜底命中保持一致：置 true 让 handleThirdPartySong 的
@@ -780,48 +748,17 @@ class LyriconSource : LyricSource {
                     publishSong(result, restorePosition = true)
                     diagnostic(
                         "二次匹配完成: source=${source.name}, " +
-                            "lines=$lineCount, " +
-                            "translations=$translationCount",
+                            "lines=${result.lyrics.orEmpty().size}, " +
+                            "translations=${result.lyrics.orEmpty().count {
+                                OnlineTranslationContentPolicy.isMeaningful(it.translation)
+                            }}",
                     )
-                    val message = when {
-                        lineCount == 0 ->
-                            moduleString(R.string.manual_match_result_no_lyrics, "二次匹配失败：未取到歌词")
-                        needsTranslation && (!translationMerged || translationCount == 0) ->
-                            moduleStringFmt(
-                                R.string.manual_match_result_no_translation,
-                                lineCount,
-                                fallback = "二次匹配完成：已获取 $lineCount 行原词，但未找到翻译",
-                            )
-                        else ->
-                            moduleStringFmt(
-                                R.string.manual_match_result_success,
-                                lineCount,
-                                translationCount,
-                                fallback = "二次匹配成功：$lineCount 行歌词，$translationCount 行翻译",
-                            )
-                    }
-                    showManualMatchToast(application, message)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 diagnostic("二次匹配异常: ${e.javaClass.simpleName}:${e.message}")
-                showManualMatchToast(
-                    application,
-                    moduleStringFmt(
-                        R.string.manual_match_result_exception,
-                        e.javaClass.simpleName,
-                        e.message ?: "",
-                        fallback = "二次匹配异常：${e.javaClass.simpleName}：${e.message ?: ""}",
-                    ),
-                )
             }
-        }
-    }
-
-    private fun showManualMatchToast(application: Application, message: String) {
-        mainHandler.post {
-            Toast.makeText(application, message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1332,13 +1269,6 @@ class LyriconSource : LyricSource {
         // 单行「歌名 - 歌手」占位歌词（无歌词曲目下发或本地生成）不算真实歌词，
         // 否则会被误判为「已有本地歌词」而跳过整首兜底取词（酷狗概念版即为此类）。
         val hasLocalLyrics = !song.lyrics.isNullOrEmpty() && !isPlaceholderLyrics(song)
-        // 严格三跳：当前 active 原生源无歌词时，先降级到同播放器更低优先级源
-        // （官方插件 → 外置模块 → 通用兜底），仍无歌词再继续降级，直到在线 MetaData 平台源兜底。
-        // 降级由 Central 保证同时只有单一 active provider，杜绝多源竞争抢。
-        if (!hasLocalLyrics && tryDemoteToNextProvider(song)) {
-            diagnostic("当前源无歌词，请求 Central 降级到下一优先级源: title=${song.name}")
-            return
-        }
         if (playerPackage == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE &&
             !hasLocalLyrics
         ) {
@@ -2075,12 +2005,12 @@ class LyriconSource : LyricSource {
                                 "title=${baseSong.name}, artist=${baseSong.artist}"
                         )
                         // 在线 MetaData 平台源（LRCLIB + 四平台）是歌词/翻译的最终兜底，
-                        // 无论是否有专用插件（官方/内置/外置模块）或通用兜底在场都走同一流程：
+                        // 无论是否有专用插件（官方/内置/独立模块）或通用兜底在场都走同一流程：
                         //   1) 先 LRCLIB 取词（requireTranslation=false）；
                         //   2) 命中后由四平台补翻译（缺翻译才报「MetaData平台源匹配歌词/翻译失败」）；
                         //   3) LRCLIB 未命中则四平台整首匹配歌词+翻译（仍是最终兜底，不是报错）；
                         //   4) 全部未命中才在 applyThirdPartyFallbackResult 报「MetaData平台源匹配歌词/翻译失败」。
-                        // 这与官方/外置模块「只拿到歌词或只拿到翻译 → 走在线源补齐另一项；
+                        // 这与官方/独立模块「只拿到歌词或只拿到翻译 → 走在线源补齐另一项；
                         // 两项都拿到 → 不再走在线源；两项都没拿到 → 走在线源」的规则一致。
                         val lrclibSong = fetchThirdPartyLyrics(
                             application = application,
@@ -2235,7 +2165,7 @@ class LyriconSource : LyricSource {
                 LyricMetadataKeys.LYRIC_ERROR_MESSAGE to
                     moduleString(
                         R.string.lyric_error_no_translation,
-                        "MetaData平台源匹配歌词/翻译失败",
+                        "通用插件翻译匹配失败",
                     ),
             ),
         )
@@ -2327,18 +2257,6 @@ class LyriconSource : LyricSource {
         ).resources.getString(resId)
     }.getOrDefault(fallback)
 
-    /**
-     * 同上，但支持带占位符的格式化字符串（如 %1$d、%2$s）。
-     */
-    private fun moduleStringFmt(resId: Int, vararg formatArgs: Any, fallback: String): String =
-        runCatching {
-            val application = app ?: return fallback
-            application.createPackageContext(
-                BuildConfig.APPLICATION_ID,
-                Context.CONTEXT_IGNORE_SECURITY,
-            ).resources.getString(resId, *formatArgs)
-        }.getOrDefault(fallback)
-
     private fun applyThirdPartyFallbackResult(
         generation: Int,
         baseSong: LocalSong,
@@ -2382,7 +2300,7 @@ class LyriconSource : LyricSource {
             // 未命中任何歌词：把报错信息写入歌曲区域占位，替代“歌名 - 歌手”。
             val errorText = moduleString(
                 R.string.lyric_error_no_lyrics,
-                "MetaData平台源匹配歌词/翻译失败",
+                "通用插件歌词匹配失败",
             )
             val errorSong = baseSong.copy(
                 lyrics = null,
@@ -3813,18 +3731,6 @@ class LyriconSource : LyricSource {
     ).joinToString("|")
 
     private fun normalizeIdentity(value: String?): String = value.orEmpty().trim().lowercase()
-
-    /**
-     * 当前 active 原生源无歌词时，请求 Central 降级到同播放器下一更低优先级源
-     * （官方插件 → 外置模块 → 通用兜底）。Central 保证降级后同一时刻仅一个 active provider，
-     * 不会出现多源竞争。若没有更低优先级源可降级，返回 false，交由既有在线兜底逻辑处理。
-     */
-    private fun tryDemoteToNextProvider(song: LocalSong): Boolean {
-        val identity = songIdentity(song)
-        return runCatching {
-            CentralRuntime.activePlayers.tryDemoteActiveSource(identity)
-        }.getOrDefault(false)
-    }
 
     private fun debug(message: String) {
         if (BuildConfig.DEBUG) HookLogger.d(TAG, message)
