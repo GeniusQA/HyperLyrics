@@ -1418,7 +1418,7 @@ class LyriconSource : LyricSource {
         runCatching {
             app?.sendBroadcast(
                 Intent(RootConstants.ACTION_LYRIC_ORIGIN_CHANGED)
-                    .setPackage(APP_PACKAGE_NAME)
+                    .setPackage(RootConstants.APP_PACKAGE_NAME)
                     .putExtra(RootConstants.EXTRA_LYRIC_CONTENT_ORIGIN, contentOrigin)
                     .putExtra(RootConstants.EXTRA_LYRIC_TRANSLATION_ORIGIN, translationOrigin)
                     .putExtra(
