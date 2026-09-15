@@ -1419,7 +1419,7 @@ object NotificationMediaAodLyricHooker {
         // 歌曲级判断：只要这首歌有任意一行带翻译，所有行统一不滚动；
         // 整首歌无翻译时才启用横向跑马灯，避免部分行有翻译部分没有导致的溢出。
         val songHasAnyTranslation = LyriconDataBridge.currentSong?.lyrics
-            .orEmpty().any { it.translation.isNotBlank() }
+            .orEmpty().any { !it.translation.isNullOrBlank() }
         val mainShouldScroll = !songHasAnyTranslation &&
             textStyle.showNextLyric &&
             content.main.isNotBlank()
@@ -1996,7 +1996,7 @@ object NotificationMediaAodLyricHooker {
         // 歌曲级判断：只要这首歌有任意一行带翻译，所有行统一不滚动；
         // 整首歌无翻译时才启用横向跑马灯，避免部分行有翻译部分没有导致的溢出。
         val songHasAnyTranslation = LyriconDataBridge.currentSong?.lyrics
-            .orEmpty().any { it.translation.isNotBlank() }
+            .orEmpty().any { !it.translation.isNullOrBlank() }
         val mainShouldScroll = !songHasAnyTranslation &&
             textStyle.showNextLyric &&
             content.main.isNotBlank()
