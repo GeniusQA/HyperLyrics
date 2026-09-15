@@ -166,16 +166,18 @@ private fun ContributorEntry(contributor: ContributorItem) {
         title = contributor.name,
         summary = contributor.summary.ifEmpty { null },
         startAction = {
-            Image(
-                painter = painterResource(id = contributor.avatarRes),
-                contentDescription = contributor.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MiuixTheme.colorScheme.primaryContainer)
-            )
+            contributor.avatarRes?.let { res ->
+                Image(
+                    painter = painterResource(id = res),
+                    contentDescription = contributor.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MiuixTheme.colorScheme.primaryContainer)
+                )
+            }
         },
         onClick = {
             if (contributor.githubUrl.isNotEmpty()) {
