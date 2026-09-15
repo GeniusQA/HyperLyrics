@@ -99,15 +99,25 @@ jobs:
         run: |
           set -euo pipefail
 
+          # release 变体要跑 Kotlin 后端 + R8，与 debug 在同一个 Gradle 进程里并发编译
+          # 会撞上默认 kotlin.daemon.jvmargs=1536m 的堆上限（GC overhead limit exceeded）。
+          # 因此：①拆成两次独立 Gradle 调用，②放宽 Gradle 与 Kotlin 编译器的堆。
+          BUILD_ARGS=(
+            --no-daemon
+            --max-workers=2
+            --build-cache
+            "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+            "-Pkotlin.daemon.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m"
+            -PciVersionName="$FULL_NAME"
+          )
+
           if [[ "$CHANNEL" == "stable" ]]; then
-            ./gradlew --no-daemon --max-workers=4 assembleDebug assembleRelease \
-              --build-cache -PciVersionName="$FULL_NAME"
+            ./gradlew "${BUILD_ARGS[@]}" assembleDebug
+            ./gradlew "${BUILD_ARGS[@]}" assembleRelease
           elif [[ "$CHANNEL" == "canary" ]]; then
-            ./gradlew --no-daemon --max-workers=4 assembleDebug \
-              --build-cache -PciVersionName="$FULL_NAME"
+            ./gradlew "${BUILD_ARGS[@]}" assembleDebug
           else
-            ./gradlew --no-daemon --max-workers=4 assembleDebug \
-              --build-cache -PciVersionName="$FULL_NAME"
+            ./gradlew "${BUILD_ARGS[@]}" assembleDebug
           fi
 
       - name: 上传 PR 构建产物 Upload PR Artifacts
