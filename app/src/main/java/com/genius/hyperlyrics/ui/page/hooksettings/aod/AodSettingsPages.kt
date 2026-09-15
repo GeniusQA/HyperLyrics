@@ -33,8 +33,8 @@ import androidx.core.content.ContextCompat
 import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.ClassicAodSongInfoConfig
 import com.genius.hyperlyrics.common.RootConstants
-import com.genius.hyperlyrics.lyric.ConfigRepository
 import com.genius.hyperlyrics.provider.OfficialProviderCatalog
+import com.genius.hyperlyrics.root.RootApplication
 import com.genius.hyperlyrics.root.mediacard.notification.AodMediaLyricPolicy
 import com.genius.hyperlyrics.service.LiveLyricService
 import com.genius.hyperlyrics.ui.component.FontColorModeCard
@@ -245,10 +245,10 @@ fun ClassicAodSettingsPage() {
 @Composable
 private fun AodSettingsPage(spec: AodSettingsSpec) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { ConfigRepository.initWhitelist(context) }
-    val whitelistSet by ConfigRepository.whitelistState.collectAsState()
-    val showAppleMusicSpecific = remember(whitelistSet) {
-        OfficialProviderCatalog.APPLE_MUSIC_PACKAGE_NAME in whitelistSet
+    LaunchedEffect(Unit) { RootApplication.refreshXposedScope() }
+    val xposedScope by RootApplication.xposedScope.collectAsState()
+    val showAppleMusicSpecific = remember(xposedScope) {
+        OfficialProviderCatalog.APPLE_MUSIC_PACKAGE_NAME in xposedScope
     }
     val prefs = rememberHookPrefs()
     val saveConfig = rememberHookConfigSaver(prefs)

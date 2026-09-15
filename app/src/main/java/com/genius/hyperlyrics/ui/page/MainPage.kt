@@ -68,7 +68,6 @@ import com.genius.hyperlyrics.common.ClassicAodSongInfoConfig
 import com.genius.hyperlyrics.common.UIConstants
 import com.genius.hyperlyrics.R
 import com.genius.hyperlyrics.common.PrefsBridge
-import com.genius.hyperlyrics.lyric.ConfigRepository
 import com.genius.hyperlyrics.provider.OfficialProviderCatalog
 import com.genius.hyperlyrics.root.RootApplication
 import com.genius.hyperlyrics.ui.component.EnhancedVersionNotice
@@ -127,10 +126,10 @@ import java.io.InputStreamReader
 @Composable
 fun MainPage() {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { ConfigRepository.initWhitelist(context) }
-    val whitelistSet by ConfigRepository.whitelistState.collectAsState()
-    val showAppleMusicNav = remember(whitelistSet) {
-        OfficialProviderCatalog.APPLE_MUSIC_PACKAGE_NAME in whitelistSet
+    LaunchedEffect(Unit) { RootApplication.refreshXposedScope() }
+    val xposedScope by RootApplication.xposedScope.collectAsState()
+    val showAppleMusicNav = remember(xposedScope) {
+        OfficialProviderCatalog.APPLE_MUSIC_PACKAGE_NAME in xposedScope
     }
     val navigator = LocalNavigator.current
     val scope = rememberCoroutineScope()
