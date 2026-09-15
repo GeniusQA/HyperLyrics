@@ -72,6 +72,22 @@ object NotificationBuilder {
         return lastLabelIcon
     }
 
+    /** 通知小图标的固定资源 Icon 缓存。 */
+    private var lastNoteIcon: android.graphics.drawable.Icon? = null
+
+    /**
+     * `lyrictile` 固定图的 Icon 缓存：原先每次构建焦点通知都会新建一张 128×128 位图，
+     * 播放期间每秒多次构建通知 → 持续产生短命 Bitmap 触发 GC。
+     */
+    private fun getNoteIcon(context: Context): android.graphics.drawable.Icon {
+        lastNoteIcon?.let { return it }
+        val icon = android.graphics.drawable.Icon.createWithBitmap(
+            drawableToBitmap(context, R.drawable.lyrictile)
+        )
+        lastNoteIcon = icon
+        return icon
+    }
+
     fun createNotificationChannel(context: Context, notificationManager: NotificationManager) {
         if (notificationManager.getNotificationChannel(CHANNEL_ID) == null) {
             val channel = NotificationChannel(
@@ -213,7 +229,7 @@ object NotificationBuilder {
         if (uiState.islandLeftIconStyle == 0) {
             val noteBitmap = drawableToBitmap(context, R.drawable.lyrictile)
             val noteIcon = android.graphics.drawable.Icon.createWithBitmap(noteBitmap)
-            picsBundle.putParcelable("miui.focus.pic_note", noteIcon)
+            picsBundle.putParcelable("miui.focus.pic_note", getNoteIcon(context))
         }
 
         extras.putBundle("miui.focus.pics", picsBundle)
