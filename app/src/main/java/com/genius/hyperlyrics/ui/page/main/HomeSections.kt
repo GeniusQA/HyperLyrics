@@ -5,13 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.genius.hyperlyrics.R
-import com.genius.hyperlyrics.root.RootApplication
 import com.genius.hyperlyrics.ui.component.EnhancedVersionNotice
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -19,6 +16,9 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 fun LazyListScope.homePageSections(
+    // LSPosed 服务绑定状态（组合安全的响应式值），由 @Composable 调用方收集后传入，
+    // 不可在本函数体内用 collectAsState() 收集（homePageSections 非 @Composable）。
+    isModuleActive: Boolean,
     availableUpdateVersion: String?,
     enableSuperIsland: Boolean,
     onSuperIslandToggle: (Boolean) -> Unit,
@@ -45,9 +45,8 @@ fun LazyListScope.homePageSections(
 ) {
     // Root / LSPosed 模式下通知型灵动岛歌词（无 root 方案）不可用；
     // 非 Root 模式下 SystemUI 增强类功能不可用。
-    // 注意：必须收集响应式绑定状态。直接读 RootApplication.xposedService 会在
-    // 服务绑定晚于首帧时把本应可用的开关误置灰，且绑定完成不会触发重组恢复。
-    val isModuleActive by RootApplication.xposedServiceBound.collectAsState()
+    // 注意：isModuleActive 必须收集响应式绑定状态。直接读 RootApplication.xposedService
+    // 会在服务绑定晚于首帧时把本应可用的开关误置灰，且绑定完成不会触发重组恢复。
 
     item(key = "enhanced_version_notice") {
         EnhancedVersionNotice(

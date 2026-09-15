@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -14,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.genius.hyperlyrics.R
+import com.genius.hyperlyrics.root.RootApplication
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -61,6 +64,8 @@ fun HomePage(
     val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     val lazyListState = rememberLazyListState()
+    // LSPosed 服务绑定状态（响应式）：绑定完成会自动触发重组，主页依赖开关随之恢复可用。
+    val isModuleActive by RootApplication.xposedServiceBound.collectAsState()
 
     Scaffold(
         topBar = {
@@ -101,6 +106,7 @@ fun HomePage(
                 contentPadding = contentPadding,
             ) {
                 homePageSections(
+                    isModuleActive = isModuleActive,
                     availableUpdateVersion = availableUpdateVersion,
                     enableSuperIsland = enableSuperIsland,
                     onSuperIslandToggle = onSuperIslandToggle,
