@@ -433,10 +433,7 @@
     <string name="title_aod_main_text_size">Main Lyric Size</string>
     <string name="title_aod_backing_text_size">Backing Vocal Size</string>
     <string name="title_aod_translation_text_size">Translation Size</string>
-    <string name="title_aod_next_lyric_style">Next Lyric Style</string>
-    <string name="summary_aod_show_next_lyric">The next lyric is hidden while a translation is shown</string>
-    <string name="option_aod_next_lyric_backing">Backing Vocal</string>
-    <string name="option_aod_next_lyric_translation">Translation</string>
+    <string name="summary_aod_show_next_lyric">Shows following lyrics under the current line when the song has no translation</string>
     <string name="format_aod_text_size_placeholder">Default %1$d (Range %2$d-%3$d)</string>
     <string name="title_aod_display_style">Display Style</string>
     <string name="title_aod_song_info">Song Info</string>

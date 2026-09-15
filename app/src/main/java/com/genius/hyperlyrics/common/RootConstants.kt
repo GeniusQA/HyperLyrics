@@ -47,8 +47,6 @@ object RootConstants {
         "key_hook_lock_screen_aod_translation_text_size"
     const val KEY_HOOK_LOCK_SCREEN_AOD_SHOW_NEXT_LYRIC =
         "key_hook_lock_screen_aod_show_next_lyric"
-    const val KEY_HOOK_LOCK_SCREEN_AOD_NEXT_LYRIC_STYLE =
-        "key_hook_lock_screen_aod_next_lyric_style"
     const val KEY_HOOK_LOCK_SCREEN_AOD_DUET_LYRICS =
         "key_hook_lock_screen_aod_duet_lyrics"
     const val KEY_HOOK_LOCK_SCREEN_AOD_CENTER_GROUP_VOCALS =
@@ -77,8 +75,6 @@ object RootConstants {
         "key_hook_lock_screen_lyrics_translation_text_size"
     const val KEY_HOOK_LOCK_SCREEN_LYRICS_SHOW_NEXT_LYRIC =
         "key_hook_lock_screen_lyrics_show_next_lyric"
-    const val KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_LYRIC_STYLE =
-        "key_hook_lock_screen_lyrics_next_lyric_style"
     const val KEY_HOOK_LOCK_SCREEN_LYRICS_DUET_LYRICS =
         "key_hook_lock_screen_lyrics_duet_lyrics"
     const val KEY_HOOK_LOCK_SCREEN_LYRICS_CENTER_NON_DUET_SONG =
@@ -107,8 +103,6 @@ object RootConstants {
         "key_hook_notification_center_translation_text_size"
     const val KEY_HOOK_NOTIFICATION_CENTER_SHOW_NEXT_LYRIC =
         "key_hook_notification_center_show_next_lyric"
-    const val KEY_HOOK_NOTIFICATION_CENTER_NEXT_LYRIC_STYLE =
-        "key_hook_notification_center_next_lyric_style"
     const val KEY_HOOK_NOTIFICATION_CENTER_DUET_LYRICS =
         "key_hook_notification_center_duet_lyrics"
     const val KEY_HOOK_NOTIFICATION_CENTER_CENTER_NON_DUET_SONG =
@@ -149,8 +143,6 @@ object RootConstants {
         "key_hook_classic_aod_translation_text_size"
     const val KEY_HOOK_CLASSIC_AOD_SHOW_NEXT_LYRIC =
         "key_hook_classic_aod_show_next_lyric"
-    const val KEY_HOOK_CLASSIC_AOD_NEXT_LYRIC_STYLE =
-        "key_hook_classic_aod_next_lyric_style"
     const val KEY_HOOK_CLASSIC_AOD_DUET_LYRICS =
         "key_hook_classic_aod_duet_lyrics"
     const val KEY_HOOK_CLASSIC_AOD_CENTER_GROUP_VOCALS =
@@ -595,10 +587,7 @@ object RootConstants {
     const val DEFAULT_HOOK_CLASSIC_AOD_SONG_INFO_TEXT_SIZE =
         DEFAULT_HOOK_CLASSIC_AOD_TRANSLATION_TEXT_SIZE
     const val DEFAULT_HOOK_CLASSIC_AOD_SONG_INFO_SHOW_ICON = true
-    const val AOD_NEXT_LYRIC_STYLE_BACKING = 0
-    const val AOD_NEXT_LYRIC_STYLE_TRANSLATION = 1
     const val DEFAULT_HOOK_AOD_SHOW_NEXT_LYRIC = false
-    const val DEFAULT_HOOK_AOD_NEXT_LYRIC_STYLE = AOD_NEXT_LYRIC_STYLE_BACKING
     const val DEFAULT_HOOK_AOD_DUET_LYRICS = false
     const val DEFAULT_HOOK_AOD_CENTER_NON_DUET_SONG = false
     const val DEFAULT_HOOK_AOD_CENTER_GROUP_VOCALS = false

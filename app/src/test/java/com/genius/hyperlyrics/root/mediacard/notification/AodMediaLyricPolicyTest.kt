@@ -866,7 +866,7 @@ class AodMediaLyricPolicyTest {
     }
 
     @Test
-    fun `keeps next lyric hidden by default and uses translation as default style`() {
+    fun `keeps next lyric hidden by default`() {
         val content = AodMediaLyricPolicy.assembleContent(
             main = "Current",
             translation = null,
@@ -878,14 +878,6 @@ class AodMediaLyricPolicyTest {
         )
 
         assertEquals("", content.next)
-        assertEquals(
-            RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION,
-            RootConstants.DEFAULT_HOOK_AOD_NEXT_LYRIC_STYLE,
-        )
-        assertEquals(
-            RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION,
-            AodMediaLyricPolicy.sanitizeNextLyricStyle(value = -1),
-        )
     }
 
     @Test

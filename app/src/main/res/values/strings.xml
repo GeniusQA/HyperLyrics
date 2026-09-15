@@ -440,10 +440,7 @@
     <string name="title_aod_main_text_size">主句字号</string>
     <string name="title_aod_backing_text_size">伴唱字号</string>
     <string name="title_aod_translation_text_size">翻译字号</string>
-    <string name="title_aod_next_lyric_style">下句歌词样式</string>
-    <string name="summary_aod_show_next_lyric">开启后下句歌词默认以伴唱样式显示，可在样式设置中切换</string>
-    <string name="option_aod_next_lyric_backing">伴唱</string>
-    <string name="option_aod_next_lyric_translation">翻译</string>
+    <string name="summary_aod_show_next_lyric">整首歌没有翻译时，在当前句下方显示后续歌词</string>
     <string name="format_aod_text_size_placeholder">默认 %1$d（范围 %2$d-%3$d）</string>
     <string name="title_aod_display_style">显示样式</string>
     <string name="title_aod_song_info">歌曲信息</string>

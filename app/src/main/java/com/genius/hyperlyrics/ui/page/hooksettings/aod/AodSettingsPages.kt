@@ -61,7 +61,6 @@ private data class AodSettingsSpec(
     val backingTextSizeKey: String,
     val translationTextSizeKey: String,
     val showNextLyricKey: String,
-    val nextLyricStyleKey: String,
     val duetLyricsKey: String,
     val centerNonDuetSongKey: String,
     val centerGroupVocalsKey: String,
@@ -102,7 +101,6 @@ fun LockScreenAodSettingsPage() {
             translationTextSizeKey =
                 RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_TRANSLATION_TEXT_SIZE,
             showNextLyricKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_SHOW_NEXT_LYRIC,
-            nextLyricStyleKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_NEXT_LYRIC_STYLE,
             duetLyricsKey = RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_DUET_LYRICS,
             centerNonDuetSongKey =
                 RootConstants.KEY_HOOK_LOCK_SCREEN_AOD_CENTER_NON_DUET_SONG,
@@ -139,7 +137,6 @@ fun LockScreenLyricsSettingsPage() {
             translationTextSizeKey =
                 RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_TRANSLATION_TEXT_SIZE,
             showNextLyricKey = RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_SHOW_NEXT_LYRIC,
-            nextLyricStyleKey = RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_NEXT_LYRIC_STYLE,
             duetLyricsKey = RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_DUET_LYRICS,
             centerNonDuetSongKey =
                 RootConstants.KEY_HOOK_LOCK_SCREEN_LYRICS_CENTER_NON_DUET_SONG,
@@ -177,7 +174,6 @@ fun NotificationCenterLyricsSettingsPage() {
             translationTextSizeKey =
                 RootConstants.KEY_HOOK_NOTIFICATION_CENTER_TRANSLATION_TEXT_SIZE,
             showNextLyricKey = RootConstants.KEY_HOOK_NOTIFICATION_CENTER_SHOW_NEXT_LYRIC,
-            nextLyricStyleKey = RootConstants.KEY_HOOK_NOTIFICATION_CENTER_NEXT_LYRIC_STYLE,
             duetLyricsKey = RootConstants.KEY_HOOK_NOTIFICATION_CENTER_DUET_LYRICS,
             centerNonDuetSongKey =
                 RootConstants.KEY_HOOK_NOTIFICATION_CENTER_CENTER_NON_DUET_SONG,
@@ -213,7 +209,6 @@ fun ClassicAodSettingsPage() {
             backingTextSizeKey = RootConstants.KEY_HOOK_CLASSIC_AOD_BACKING_TEXT_SIZE,
             translationTextSizeKey = RootConstants.KEY_HOOK_CLASSIC_AOD_TRANSLATION_TEXT_SIZE,
             showNextLyricKey = RootConstants.KEY_HOOK_CLASSIC_AOD_SHOW_NEXT_LYRIC,
-            nextLyricStyleKey = RootConstants.KEY_HOOK_CLASSIC_AOD_NEXT_LYRIC_STYLE,
             duetLyricsKey = RootConstants.KEY_HOOK_CLASSIC_AOD_DUET_LYRICS,
             centerNonDuetSongKey =
                 RootConstants.KEY_HOOK_CLASSIC_AOD_CENTER_NON_DUET_SONG,
@@ -354,17 +349,6 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
         mutableIntStateOf(
             (prefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
                 ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
-        )
-    }
-    var nextLyricStyle by remember(spec.nextLyricStyleKey) {
-        mutableIntStateOf(
-            prefs.getInt(
-                spec.nextLyricStyleKey,
-                RootConstants.DEFAULT_HOOK_AOD_NEXT_LYRIC_STYLE,
-            ).coerceIn(
-                RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING,
-                RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION,
-            )
         )
     }
     var duetLyrics by remember(spec.duetLyricsKey) {
@@ -604,28 +588,6 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
         },
     )
 
-    // 「下句歌词样式」的「伴唱」样式依赖 Apple Music 的伴唱数据；
-    // 未勾选 Apple Music 作用域时隐藏该选项，并把已存的伴唱回退为翻译。
-    val backingNextLyricStyleLabel = stringResource(R.string.option_aod_next_lyric_backing)
-    val translationNextLyricStyleLabel = stringResource(R.string.option_aod_next_lyric_translation)
-    val nextLyricStyleOptions = buildList {
-        if (showAppleMusicSpecific) {
-            add(RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING to backingNextLyricStyleLabel)
-        }
-        add(RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION to translationNextLyricStyleLabel)
-    }
-    LaunchedEffect(showAppleMusicSpecific, spec.nextLyricStyleKey) {
-        if (!showAppleMusicSpecific &&
-            nextLyricStyle == RootConstants.AOD_NEXT_LYRIC_STYLE_BACKING
-        ) {
-            nextLyricStyle = RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION
-            saveConfig(
-                spec.nextLyricStyleKey,
-                RootConstants.AOD_NEXT_LYRIC_STYLE_TRANSLATION,
-            )
-        }
-    }
-
     XposedLyricSettingPage(title = stringResource(spec.titleRes)) {
         item(key = "aod_font_color") {
             SmallTitle(text = stringResource(R.string.title_font_color))
@@ -709,19 +671,6 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
                                             - RootConstants.MIN_LYRIC_MAX_LINES) - 1,
                                     )
                                 }
-                            )
-                            OverlayDropdownPreference(
-                                title = stringResource(R.string.title_aod_next_lyric_style),
-                                items = nextLyricStyleOptions.map { it.second },
-                                selectedIndex = nextLyricStyleOptions
-                                    .indexOfFirst { it.first == nextLyricStyle }
-                                    .coerceAtLeast(0),
-                                onSelectedIndexChange = { index ->
-                                    nextLyricStyleOptions.getOrNull(index)?.let { (value, _) ->
-                                        nextLyricStyle = value
-                                        saveConfig(spec.nextLyricStyleKey, value)
-                                    }
-                                },
                             )
                         }
                     }
