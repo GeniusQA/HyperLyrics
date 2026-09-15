@@ -693,6 +693,9 @@ internal object AodMediaLyricPolicy {
 
 object NotificationMediaAodLyricHooker {
     private const val TAG = "NotificationMediaAodLyricHooker"
+
+    /** 歌词内容诊断（仅 DEBUG）：内容变化时打印一次，用于排查多行歌词缺失/不滚动。 */
+    private var lastLyricContentDiagKey: String? = null
     private const val VIEW_CONTROLLER_CLASS =
         "com.android.systemui.statusbar.notification.mediacontrol.MiuiMediaViewControllerImpl"
     private const val HOLDER_CLASS =
@@ -3774,13 +3777,56 @@ object NotificationMediaAodLyricHooker {
             translationDisplayMode = style.translationDisplayMode,
             translationFallback = style.translationFallback,
         )
-        return if (waitingForLyrics) {
+        val finalContent = if (waitingForLyrics) {
             // 等待匹配阶段只展示动态圆点，不要把后续歌词拼接行也带进来，
             // 否则开启多行歌词时会出现圆点与多行歌词挤在一起。
             assembled.copy(main = WAITING_DOTS_PLACEHOLDER, next = "", waitingForLyrics = true)
         } else {
             assembled
         }
+        logLyricContentDiag(style, finalContent)
+        return finalContent
+    }
+
+    /**
+     * 歌词内容诊断（仅 DEBUG 输出，内容变化时打印一次）：
+     * 打印当前行文本、翻译、伴唱、拼接后的后续歌词与滚动判定，用于排查
+     * 「后续歌词缺失 / 长句不滚动」类问题。
+     */
+    private fun logLyricContentDiag(
+        style: AodTextStyleConfig,
+        content: AodLyricContent,
+    ) {
+        if (!BuildConfig.DEBUG) return
+        val line = LyriconDataBridge.currentLyricLine
+        val upcoming = LyriconDataBridge.currentUpcomingLyricLines
+        val songHasAnyTranslation = LyriconDataBridge.currentSong?.lyrics
+            .orEmpty().any { !it.translation.isNullOrBlank() }
+        val mainShouldScroll = !songHasAnyTranslation &&
+            style.showNextLyric &&
+            content.main.isNotBlank()
+        val key = listOf(
+            content.main,
+            content.translation,
+            content.next,
+            style.showNextLyric,
+            style.lyricMaxLines,
+            songHasAnyTranslation,
+        ).joinToString("\u0001")
+        if (key == lastLyricContentDiagKey) return
+        lastLyricContentDiagKey = key
+        HookLogger.i(
+            TAG,
+            "LYRIC_DIAG lineText=[${line?.text}] lineTrans=[${line?.translation}] " +
+                "lineBacking=[${line?.secondary}] main=[${content.main}] " +
+                "translation=[${content.translation}] " +
+                "next=[${content.next.replace("\n", " / ")}] " +
+                "upcoming=[${upcoming.joinToString(" / ") { it.text.orEmpty() }}] " +
+                "showNext=${style.showNextLyric} maxLines=${style.lyricMaxLines} " +
+                "budget=${AodMediaLyricPolicy.upcomingLineBudget(style.lyricMaxLines)} " +
+                "songHasAnyTranslation=$songHasAnyTranslation " +
+                "mainShouldScroll=$mainShouldScroll",
+        )
     }
 
     /**
