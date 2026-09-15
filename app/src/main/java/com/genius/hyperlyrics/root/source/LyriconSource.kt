@@ -258,10 +258,11 @@ class LyriconSource : LyricSource {
         set(value) {
             if (field != value) {
                 field = value
-                PrefsBridge.putString(
-                    RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER,
-                    value,
-                )
+                // 必须写 LSPosed 远程偏好（prefs），App 侧才能读到；
+                // PrefsBridge 只服务 App 进程本地偏好，在 hook 进程写入不可见。
+                prefs?.edit()
+                    ?.putString(RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER, value)
+                    ?.apply()
             }
         }
     @Volatile
@@ -288,6 +289,10 @@ class LyriconSource : LyricSource {
 
     /** 当前曲目匹配失败后展示报错占位；同一首歌的重复占位回调不应覆盖报错。 */
     private var thirdPartyMatchFailedIdentity: String? = null
+
+    /** 已同步给 App 侧的最后来源标记，避免每次发布都重复写远程偏好。 */
+    private var lastPublishedContentOrigin: String? = null
+    private var lastPublishedTranslationOrigin: String? = null
     private var onlineTranslationGeneration = 0
     private var onlineTranslationAttemptKey: String? = null
     private var originalMetadataRequestKey: String? = null
@@ -1356,6 +1361,52 @@ class LyriconSource : LyricSource {
         BaseIslandRenderer.refreshActiveIsland()
         if (restorePosition && song != null && !song.lyrics.isNullOrEmpty()) {
             sink?.onPositionChanged(lastAdjustedPosition)
+        }
+        publishLyricOrigins(
+            song = song,
+            contentFromOnline = if (activeCentralPlayerPackageName == APPLE_MUSIC_PACKAGE) {
+                fallbackSongActive
+            } else {
+                thirdPartyFallbackSongActive
+            },
+            translationFromOnline = onlineTranslationMatched || onlineMatchedTranslationActive,
+        )
+    }
+
+    /**
+     * 记录并同步「歌词内容 / 翻译」的实际来源，供 App 侧 MetaData 准确展示：
+     * - 歌词内容：在线兜底（LRCLIB/四平台）接管时为 online，否则为原生/插件源 native；
+     * - 翻译：无有效翻译为 none；来自在线源为 online；原生源自带为 native。
+     */
+    private fun publishLyricOrigins(
+        song: LocalSong?,
+        contentFromOnline: Boolean,
+        translationFromOnline: Boolean,
+    ) {
+        val contentOrigin = if (contentFromOnline) {
+            RootConstants.LYRIC_ORIGIN_ONLINE
+        } else {
+            RootConstants.LYRIC_ORIGIN_NATIVE
+        }
+        val hasTranslation = song?.lyrics.orEmpty().any {
+            OnlineTranslationContentPolicy.isMeaningful(it.translation)
+        }
+        val translationOrigin = when {
+            !hasTranslation -> RootConstants.TRANSLATION_ORIGIN_NONE
+            contentFromOnline || translationFromOnline -> RootConstants.LYRIC_ORIGIN_ONLINE
+            else -> RootConstants.LYRIC_ORIGIN_NATIVE
+        }
+        if (contentOrigin != lastPublishedContentOrigin) {
+            lastPublishedContentOrigin = contentOrigin
+            prefs?.edit()
+                ?.putString(RootConstants.KEY_HOOK_LYRIC_CONTENT_ORIGIN, contentOrigin)
+                ?.apply()
+        }
+        if (translationOrigin != lastPublishedTranslationOrigin) {
+            lastPublishedTranslationOrigin = translationOrigin
+            prefs?.edit()
+                ?.putString(RootConstants.KEY_HOOK_TRANSLATION_ORIGIN, translationOrigin)
+                ?.apply()
         }
     }
 

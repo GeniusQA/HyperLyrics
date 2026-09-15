@@ -191,6 +191,22 @@ object RootConstants {
      */
     const val KEY_HOOK_CURRENT_LYRIC_PROVIDER = "key_hook_current_lyric_provider"
 
+    /**
+     * 已发布歌词内容的实际来源：[LYRIC_ORIGIN_NATIVE]（内置/专属插件原生源）或
+     * [LYRIC_ORIGIN_ONLINE]（通用插件 LRCLIB / 四平台在线源）。
+     */
+    const val KEY_HOOK_LYRIC_CONTENT_ORIGIN = "key_hook_lyric_content_origin"
+
+    /**
+     * 已发布翻译的实际来源：[LYRIC_ORIGIN_NATIVE] / [LYRIC_ORIGIN_ONLINE] /
+     * [TRANSLATION_ORIGIN_NONE]（无有效翻译）。
+     */
+    const val KEY_HOOK_TRANSLATION_ORIGIN = "key_hook_translation_origin"
+
+    const val LYRIC_ORIGIN_NATIVE = "native"
+    const val LYRIC_ORIGIN_ONLINE = "online"
+    const val TRANSLATION_ORIGIN_NONE = "none"
+
     /** Lyricon 内置 Provider 包名。 */
     const val BUILT_IN_LYRIC_PROVIDER_PACKAGE = "com.genius.hyperlyrics"
 
