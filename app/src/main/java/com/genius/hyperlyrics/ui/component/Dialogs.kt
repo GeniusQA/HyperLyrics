@@ -469,6 +469,17 @@ fun SingleChoiceDialog(
     }
 }
 
+/** LSPosed 逐会话日志文件名里的时间戳（modules_<ISO时间>.log）。 */
+private val CLEANUP_FILE_TIMESTAMP_REGEX =
+    Regex("_\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+")
+
+/**
+ * 清理记录里展示的文件名：去掉 LSPosed 逐会话日志文件名中的时间戳，
+ * 避免把一堆会话时间堆在列表里（modules_2026-09-15T09:28:06.0538531.log → modules.log）。
+ */
+private fun String.cleanupDisplayName(): String =
+    substringAfterLast('/').replace(CLEANUP_FILE_TIMESTAMP_REGEX, "")
+
 @Composable
 fun CleanupHistoryDialog(
     show: Boolean,
@@ -545,7 +556,7 @@ fun CleanupHistoryDialog(
                                 "-"
                             } else {
                                 record.files.joinToString(separator = ", ") {
-                                    "...${it.path.substringAfterLast('/')}"
+                                    "...${it.path.cleanupDisplayName()}"
                                 }
                             }
                             Text(
@@ -586,7 +597,7 @@ fun CleanupHistoryDialog(
                                 else -> stringResource(
                                     id = R.string.cleanup_status_partial_failed,
                                     triggerLabel,
-                                    failedFiles.joinToString(", ") { "...${it.path.substringAfterLast('/')}" }
+                                    failedFiles.joinToString(", ") { "...${it.path.cleanupDisplayName()}" }
                                 )
                             }
                             val statusColor = if (allSuccess) {
@@ -607,7 +618,7 @@ fun CleanupHistoryDialog(
                         // 失败文件与可行解决方案
                         if (failedFiles.isNotEmpty()) {
                             val failedNames = failedFiles.joinToString(", ") {
-                                "...${it.path.substringAfterLast('/')}"
+                                "...${it.path.cleanupDisplayName()}"
                             }
                             Text(
                                 text = stringResource(
