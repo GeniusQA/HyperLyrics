@@ -17,7 +17,6 @@ import android.os.SystemClock
 import android.util.Log
 import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.common.UIConstants
-import com.genius.hyperlyrics.common.dexkit.DexKitNativeLibrary
 import com.genius.hyperlyrics.common.dexkit.DexMethodWatchdog
 import com.genius.hyperlyrics.common.dexkit.DexResolutionSource
 import com.genius.hyperlyrics.common.dexkit.DexWatchdogEvent
@@ -1547,10 +1546,7 @@ internal class OfficialProviderHookHost(
                 if (dexKitLoaded.get()) return
                 val moduleInfo = module.getModuleApplicationInfo()
                 val nativeLibrary = java.io.File(
-                    // 32 位目标进程（酷狗概念版等）必须加载 lib/arm 下的 libdexkit.so，
-                    // 否则 dlopen 会报 "libdexkit.so is 64-bit instead of 32-bit"。
-                    DexKitNativeLibrary.resolveDirectory(moduleInfo)
-                        ?: moduleInfo.nativeLibraryDir,
+                    moduleInfo.nativeLibraryDir,
                     "libdexkit.so",
                 )
                 require(nativeLibrary.isFile) {
