@@ -321,6 +321,7 @@ internal object AodMediaLyricPolicy {
         progressRowTopMargin: Int,
         bottomGap: Int,
         minTopGap: Int,
+        minLyricContainerHeight: Int = 0,
     ): LockScreenLyricLayout {
         val safeNative = nativeCardHeight.coerceAtLeast(0)
         val safeAnchor = anchorBottom.coerceAtLeast(0)
@@ -332,12 +333,16 @@ internal object AodMediaLyricPolicy {
         val rootTop = safeAnchor + safeMinTopGap
         val progressBlock = safeProgressMargin + safeProgress
         val availableInNative = (safeNative - safeBottomGap - progressBlock - rootTop).coerceAtLeast(0)
+        // 保底高度：主句 + 当前应显示的次行（翻译优先，其次后续歌词）至少要能放下，
+        // 避免息屏通知关闭等情况下原生卡片几何变小把翻译行裁掉（歌词还在、翻译消失）。
+        val safeMinLyric = minLyricContainerHeight.coerceAtLeast(0)
+        val finalLyricHeight = availableInNative.coerceAtLeast(safeMinLyric)
 
         return LockScreenLyricLayout(
             targetCardHeight = safeNative,
             rootTop = rootTop,
             rootHeight = safeNative - safeBottomGap - rootTop,
-            lyricContainerHeight = availableInNative,
+            lyricContainerHeight = finalLyricHeight,
         )
     }
 
@@ -506,13 +511,15 @@ internal object AodMediaLyricPolicy {
 
         val hasDisplayedTranslation = finalTranslation.isNotBlank() ||
             finalBackingTranslation.isNotBlank()
-        // 显示模式同样按「歌曲级」判断：整首歌只要有一行带翻译，就统一走翻译模式，
-        // 所有行都不显示后续歌词；只有整首歌完全没有翻译时才展示多行歌词。
-        // 否则同一首歌里会忽而显示翻译、忽而切到多行歌词，来回抖动。
+        // 翻译与多行歌词按「当前行」优先级处理（覆盖全局/位置「多行歌词」开关）：
+        //   1) 未开启多行歌词 + 匹配到翻译 → 主句 + 翻译
+        //   2) 未开启多行歌词 + 无翻译 → 仅主句
+        //   3) 开启多行歌词 + 匹配到翻译 → 主句 + 翻译（不走多行歌词逻辑）
+        //   4) 开启多行歌词 + 无翻译 → 多行歌词（后续歌词预览）
+        // 因此只要当前行有翻译就抑制后续歌词，无翻译且开启多行时才展示后续歌词。
         val normalizedNext = next.normalized()
             .takeIf {
                 showNext &&
-                    !songHasAnyTranslation &&
                     !hasDisplayedTranslation &&
                     it != normalizedMain
             }
@@ -2101,17 +2108,20 @@ object NotificationMediaAodLyricHooker {
             )
             return null
         }
-        val anchor = api.getNotificationIcons(aodView) ?: run {
+        // 息屏「通知」开关关闭时 MIUI 可能不创建 mNotificationIcons（锚点不存在），
+        // 此时不再整体放弃挂载，而是回退到 AODView 根作为锚点（仅影响定位，不影响内容）。
+        val notificationAnchor = api.getNotificationIcons(aodView)
+        val anchorIsFallback = notificationAnchor == null
+        val anchor = notificationAnchor ?: aodRoot
+        if (anchorIsFallback) {
             DisplayDiagnosticLogger.log(
                 channel = "AOD_CLASSIC",
-                result = "skipped",
-                reason = "notification_icons_null",
-                extra = "rootClass=${aodRoot.javaClass.name}",
+                result = "pending",
+                reason = "anchor_fallback_to_root",
+                extra = "rootClass=${aodRoot.javaClass.name}, usingRootAsAnchor=true",
                 dedupeKey = "$diagnosticKey/anchor_presence",
             )
-            return null
-        }
-        if (!anchor.isAttachedToWindow) {
+        } else if (!anchor.isAttachedToWindow) {
             DisplayDiagnosticLogger.log(
                 channel = "AOD_CLASSIC",
                 result = "pending",
@@ -2121,7 +2131,7 @@ object NotificationMediaAodLyricHooker {
                 dedupeKey = "$diagnosticKey/anchor_attachment",
             )
         }
-        if (anchor.width <= 0 || anchor.height <= 0) {
+        if (!anchorIsFallback && (anchor.width <= 0 || anchor.height <= 0)) {
             DisplayDiagnosticLogger.log(
                 channel = "AOD_CLASSIC",
                 result = "pending",
@@ -2427,6 +2437,7 @@ object NotificationMediaAodLyricHooker {
             parent = parent,
             aodRoot = aodRoot,
             anchor = anchor,
+            anchorIsFallback = anchorIsFallback,
             drawWakeLock = drawWakeLock
         )
         main.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -2518,7 +2529,13 @@ object NotificationMediaAodLyricHooker {
             rootLeft,
             (rootRight - width).coerceAtLeast(rootLeft)
         )
-        val topOnScreen = anchorLocation[1] + overlay.anchor.height + gap
+        // 锚点回退（息屏通知关闭、mNotificationIcons 不存在）时，锚点即 AODView 根，
+        // 其高度等于整屏；直接以根高度定位会把歌词推出屏幕，故改用「根高 62%」处作为起点。
+        val topOnScreen = if (overlay.anchorIsFallback) {
+            rootLocation[1] + (overlay.aodRoot.height * 0.62f).toInt()
+        } else {
+            anchorLocation[1] + overlay.anchor.height + gap
+        }
         val bottomLimit = rootLocation[1] + overlay.aodRoot.height - bottomSafe
         val availableHeight = (bottomLimit - topOnScreen).coerceAtLeast(1)
         val widthSpec = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
@@ -3261,6 +3278,22 @@ object NotificationMediaAodLyricHooker {
             0
         }
 
+        // 计算「主句 + 当前应显示的次行（翻译优先，其次后续歌词）」所需最小高度，
+        // 作为容器高度保底，确保息屏通知关闭等导致原生卡片变矮时翻译仍可见。
+        val minLyricContainerHeight = run {
+            val secondaryView = when {
+                overlay.translation.visibility == View.VISIBLE -> overlay.translation
+                overlay.next.visibility == View.VISIBLE -> overlay.next
+                else -> null
+            }
+            if (secondaryView == null) 0
+            else {
+                overlay.main.measure(widthSpec, heightSpec)
+                secondaryView.measure(widthSpec, heightSpec)
+                (overlay.main.measuredHeight + secondaryView.measuredHeight).coerceAtLeast(0)
+            }
+        }
+
         val layout = AodMediaLyricPolicy.lockScreenCenteredLyricLayout(
             nativeCardHeight = nativeCardHeight,
             anchorBottom = anchorBottom,
@@ -3269,6 +3302,7 @@ object NotificationMediaAodLyricHooker {
             progressRowTopMargin = progressRowTopMargin,
             bottomGap = (LOCK_SCREEN_AOD_LINE_GAP_DP * density).toInt(),
             minTopGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt(),
+            minLyricContainerHeight = minLyricContainerHeight,
         )
 
         val targetTopMargin = layout.rootTop - overlay.album.bottom
@@ -4820,6 +4854,7 @@ object NotificationMediaAodLyricHooker {
         val parent: FrameLayout,
         val aodRoot: FrameLayout,
         val anchor: View,
+        val anchorIsFallback: Boolean = false,
         val drawWakeLock: PowerManager.WakeLock,
         var preDrawListener: ViewTreeObserver.OnPreDrawListener? = null,
         var appliedHeight: Int? = null,

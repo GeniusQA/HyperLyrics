@@ -124,7 +124,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.gate.outputs.skip == 'false'
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.gate.outputs.channel }}-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
+          name: ${{ steps.gate.outputs.channel }}-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           compression-level: 0
@@ -160,7 +160,7 @@ jobs:
               --ks-pass env:STORE_PASS \
               --ks-key-alias "$KEY_ALIAS" \
               --key-pass env:KEY_PASS \
-              --out "HyperLyrics-release-v${V_NAME}-${V_CODE}.apk" \
+              --out "HyperLyrics-Release-v${V_NAME}-${V_CODE}.apk" \
               release-aligned.apk
           fi
 
@@ -173,7 +173,7 @@ jobs:
               --ks-pass env:STORE_PASS \
               --ks-key-alias "$KEY_ALIAS" \
               --key-pass env:KEY_PASS \
-              --out "HyperLyrics-debug-v${V_NAME}-${V_CODE}.apk" \
+              --out "HyperLyrics-Canary-v${V_NAME}-${V_CODE}.apk" \
               debug-aligned.apk
           fi
 
@@ -181,8 +181,8 @@ jobs:
         if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel == 'canary'
         uses: actions/upload-artifact@v7
         with:
-          name: debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
-          path: HyperLyrics-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
+          name: Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
+          path: HyperLyrics-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
           if-no-files-found: error
           compression-level: 0
 
@@ -211,8 +211,8 @@ jobs:
           prerelease: false
           generate_release_notes: false
           files: |
-            HyperLyrics-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
-            HyperLyrics-release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
+            HyperLyrics-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
+            HyperLyrics-Release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -227,7 +227,7 @@ jobs:
           draft: false
           prerelease: true
           generate_release_notes: false
-          files: HyperLyrics-debug-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
+          files: HyperLyrics-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
