@@ -1,7 +1,7 @@
 name: Provider Release
 
-# 运行列表标题展示平台，例如 "Provider · kugou"（手动）或 tag 名（如 provider-kugou-v1.0.0）
-run-name: Provider · ${{ inputs.provider || github.ref_name }}
+# 运行列表标题按 Provider 展示，例如 "Provider Release & Netease"（手动）或 tag 名（如 provider-kugou-v1.0.0）
+run-name: ${{ inputs.provider && format('Provider Release & {0}', inputs.provider) || github.ref_name }}
 
 on:
   workflow_dispatch:
@@ -11,13 +11,13 @@ on:
         required: true
         type: choice
         options:
-          - netease
-          - qqmusic
-          - kugou
-          - kuwo
-          - qishui
-          - salt-player
-          - spotify
+          - Netease
+          - QQ Music
+          - KuGou
+          - KuWo
+          - QiShui
+          - Salt Player
+          - Spotify
   push:
     tags:
       - "provider-*-v*"
@@ -45,6 +45,8 @@ jobs:
             provider="${GITHUB_REF_NAME#provider-}"
             provider="${provider%%-v*}"
           fi
+          # 下拉选项为首字母大写的展示名（如 "Salt Player"），统一归一化为小写 id（salt-player）
+          provider="$(printf '%s' "$provider" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')"
           case "$provider" in
             netease) display_name="网易云音乐" ;;
             qqmusic) display_name="QQ音乐" ;;

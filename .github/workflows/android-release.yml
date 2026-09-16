@@ -1,5 +1,8 @@
 name: Android Build & Release
 
+# 运行列表标题按渠道展示，例如 "Android Build & Canary"
+run-name: Android Build & ${{ inputs.channel == 'canary' && 'Canary' || inputs.channel == 'beta' && 'Beta' || inputs.channel == 'stable' && 'Stable' || inputs.channel }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -183,9 +186,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.gate.outputs.channel }}-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
+          # 上传的是签名步骤生成的根目录产物；Gradle 原始输出（如 app-release-unsigned.apk）未签名，装不上
           path: |
-            app/build/outputs/apk/debug/**/*.apk
-            app/build/outputs/apk/release/**/*.apk
+            HyperLyrics-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
+            HyperLyrics-Release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
           if-no-files-found: error
           compression-level: 0
 
