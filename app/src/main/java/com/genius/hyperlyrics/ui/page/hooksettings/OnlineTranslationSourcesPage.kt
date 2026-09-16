@@ -54,6 +54,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
@@ -81,6 +82,7 @@ import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.UIConstants
 import com.genius.hyperlyrics.root.RootApplication
 import com.genius.hyperlyrics.provider.OfficialProviderCatalog
+import com.genius.hyperlyrics.lyric.ConfigRepository
 import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
 import com.genius.hyperlyrics.online.OnlineLyricTargeter
 import com.genius.hyperlyrics.online.SourceMatchDiagnostic
@@ -188,6 +190,11 @@ fun OnlineTranslationSourcesPage() {
         }
     }
     val context = LocalContext.current
+    // 超级岛应用白名单（WhitelistPage / 超级岛设置页共用）：包必须在白名单内才允许上岛与在线翻译匹配。
+    // 空集合视为「未配置 → 全放行」，沿用 LyriconSource 的兼容语义，避免全新安装看不到任何启用 App。
+    LaunchedEffect(Unit) { ConfigRepository.initWhitelist(context) }
+    val whitelist by ConfigRepository.whitelistState.collectAsState()
+    val whitelistActive = whitelist.isNotEmpty()
     val scope = rememberCoroutineScope()
     // App 进程内通过 MediaSessionManager 读取当前媒体会话（依赖 LiveLyricService 通知监听权限）。
     var currentTrack by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -471,6 +478,12 @@ fun OnlineTranslationSourcesPage() {
                 }
             }
         }
+    }
+    // 启用 App 列表候选集：与超级岛应用白名单取交集（白名单未配置=空时全放行）。
+    // 某播放器在白名单关闭则不在本列表出现；当前正在播放的未知包同理仅当在白名单内才显示。
+    val visibleEnabledApps = remember(installedApps, dynamicCurrentApp, whitelist) {
+        val base = installedApps.orEmpty() + listOfNotNull(dynamicCurrentApp)
+        if (!whitelistActive) base else base.filter { it.app.packageName in whitelist }
     }
 
     /** 请求相邻来源互换，动画期间拒绝新的排序操作。 */
@@ -851,8 +864,11 @@ fun OnlineTranslationSourcesPage() {
                 )
             }
         }
+        }
+        // “启用 App”与特殊设置不依赖“当前播放 App 是否启用”，需始终展示；
+        // 否则关闭当前播放 App 的开关后，本页只剩提示语，用户将无法重新打开该开关。
         enabledAppsSection(
-            installedApps = installedApps.orEmpty() + listOfNotNull(dynamicCurrentApp),
+            installedApps = visibleEnabledApps,
             appEnabled = appEnabled,
             onCheckedChange = { packageName, checked ->
                 appEnabled[packageName] = checked
@@ -875,7 +891,6 @@ fun OnlineTranslationSourcesPage() {
                 )
             },
         )
-        }
     }
 
     WindowDialog(
