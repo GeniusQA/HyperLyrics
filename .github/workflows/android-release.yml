@@ -1,7 +1,7 @@
 name: Android Build & Release
 
 # 运行列表标题按渠道展示，例如 "Android Build & Canary"
-run-name: Android Build & ${{ inputs.channel == 'canary' && 'Canary' || inputs.channel == 'beta' && 'Beta' || inputs.channel == 'stable' && 'Stable' || inputs.channel }}
+run-name: Android Build & ${{ inputs.channel == 'canary' && 'Canary' || inputs.channel == 'beta' && 'Beta' || inputs.channel == 'release' && 'Release' || inputs.channel }}
 
 on:
   workflow_dispatch:
