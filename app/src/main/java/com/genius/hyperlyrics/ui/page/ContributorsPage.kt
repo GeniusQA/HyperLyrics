@@ -144,13 +144,6 @@ private fun LazyListScope.contributorsPageSections() {
     item(key = "historical_contributors_title") {
         SmallTitle(text = stringResource(R.string.title_historical_contributors))
     }
-    item(key = "original_acknowledgments_card") {
-        Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp).fillMaxWidth()) {
-            BasicComponent(
-                summary = stringResource(R.string.summary_acknowledgments)
-            )
-        }
-    }
     item(key = "historical_contributors_card") {
         Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp).fillMaxWidth()) {
             Column {

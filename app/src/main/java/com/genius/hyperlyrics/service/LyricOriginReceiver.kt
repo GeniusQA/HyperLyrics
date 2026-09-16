@@ -31,6 +31,11 @@ class LyricOriginReceiver : BroadcastReceiver() {
         intent.getStringExtra(RootConstants.EXTRA_LYRIC_PROVIDER_PACKAGE)
             ?.takeIf { it.isNotBlank() }
             ?.let { editor.putString(RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER, it) }
+        // 歌词内容的实际在线来源（QM/NE/.../LRCLIB），原生发布时 hook 侧发 null 清掉。
+        editor.putString(
+            RootConstants.KEY_HOOK_LYRIC_CONTENT_SOURCE,
+            intent.getStringExtra(RootConstants.EXTRA_LYRIC_CONTENT_SOURCE),
+        )
         editor.apply()
     }
 }

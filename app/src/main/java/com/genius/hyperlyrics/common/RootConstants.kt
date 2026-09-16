@@ -204,6 +204,13 @@ object RootConstants {
     const val KEY_HOOK_TRANSLATION_ORIGIN = "key_hook_translation_origin"
 
     /**
+     * 已发布歌词内容的在线来源名（[com.genius.hyperlyrics.online.model.Source] 的 name），
+     * 仅在内容来源为 [LYRIC_ORIGIN_ONLINE] 时有值（如 QM/NE/KUWO/KUGOU/LRCLIB/LB）。
+     * 供 MetaData 页展示「QQ音乐歌词+翻译」这类精确来源文案。
+     */
+    const val KEY_HOOK_LYRIC_CONTENT_SOURCE = "key_hook_lyric_content_source"
+
+    /**
      * hook → App 的来源上报通道。
      *
      * LSPosed 远程偏好只有「App 写、hook 读」单向可靠，hook 侧写入不会持久化，
@@ -214,6 +221,7 @@ object RootConstants {
     const val EXTRA_LYRIC_TRANSLATION_ORIGIN = "extra_lyric_translation_origin"
     const val EXTRA_LYRIC_ORIGIN_SONG_ID = "extra_lyric_origin_song_id"
     const val EXTRA_LYRIC_PROVIDER_PACKAGE = "extra_lyric_provider_package"
+    const val EXTRA_LYRIC_CONTENT_SOURCE = "extra_lyric_content_source"
 
     /** 模块 App 包名（hook 侧回调 App 时使用）。 */
     const val APP_PACKAGE_NAME = "com.genius.hyperlyrics"

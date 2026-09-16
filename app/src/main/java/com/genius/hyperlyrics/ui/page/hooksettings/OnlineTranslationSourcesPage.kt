@@ -54,7 +54,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,7 +81,7 @@ import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.UIConstants
 import com.genius.hyperlyrics.root.RootApplication
 import com.genius.hyperlyrics.provider.OfficialProviderCatalog
-import com.genius.hyperlyrics.lyric.ConfigRepository
+import com.genius.hyperlyrics.common.IslandAlbumCoverWhitelist
 import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
 import com.genius.hyperlyrics.online.OnlineLyricTargeter
 import com.genius.hyperlyrics.online.SourceMatchDiagnostic
@@ -179,22 +178,24 @@ fun OnlineTranslationSourcesPage() {
     var manualError by remember { mutableStateOf<String?>(null) }
     val swapProgress = remember { Animatable(0f) }
     val sourceRowHeightPx = with(LocalDensity.current) { SOURCE_ROW_HEIGHT.toPx() }
+    val context = LocalContext.current
+    // 超级岛「音频封面 · 应用白名单」是歌词上岛与在线翻译匹配的统一白名单来源，
+    // 本页“启用 App”直接读取同一份 hook 偏好（与超级岛设置页保持一致）；
+    // 未配置时回退到内置音乐应用目录，白名单内的播放器在线翻译默认开启。
+    val islandWhitelistPackages = remember {
+        IslandAlbumCoverWhitelist.readEnabledPackages(prefs)
+    }
     val appEnabled = remember {
         mutableStateMapOf<String, Boolean>().apply {
             ENABLED_APPS.forEach { app ->
-                this[app.packageName] = OnlineTranslationSourcePreferences.isAppEnabled(
-                    prefs,
-                    app.packageName,
+                this[app.packageName] = prefs.getBoolean(
+                    OnlineTranslationSourcePreferences.appPreferenceKey(app.packageName),
+                    app.packageName in islandWhitelistPackages ||
+                        OnlineTranslationSourcePreferences.appDefaultEnabled(app.packageName),
                 )
             }
         }
     }
-    val context = LocalContext.current
-    // 超级岛应用白名单（WhitelistPage / 超级岛设置页共用）：包必须在白名单内才允许上岛与在线翻译匹配。
-    // 空集合视为「未配置 → 全放行」，沿用 LyriconSource 的兼容语义，避免全新安装看不到任何启用 App。
-    LaunchedEffect(Unit) { ConfigRepository.initWhitelist(context) }
-    val whitelist by ConfigRepository.whitelistState.collectAsState()
-    val whitelistActive = whitelist.isNotEmpty()
     val scope = rememberCoroutineScope()
     // App 进程内通过 MediaSessionManager 读取当前媒体会话（依赖 LiveLyricService 通知监听权限）。
     var currentTrack by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -206,6 +207,8 @@ fun OnlineTranslationSourcesPage() {
     // Hook 侧写入的「歌词内容 / 翻译」实际来源（native/online/none）。
     var currentContentOrigin by remember { mutableStateOf<String?>(null) }
     var currentTranslationOrigin by remember { mutableStateOf<String?>(null) }
+    // 歌词内容来自在线源时的实际命中平台（Source.name，如 QM），用于精确展示「QQ音乐歌词+翻译」。
+    var currentContentSource by remember { mutableStateOf<String?>(null) }
     var listenerEnabled by remember { mutableStateOf<Boolean?>(null) }
     val sourceDiagnostics = remember { mutableStateMapOf<Source, SourceMatchDiagnostic?>() }
     var diagnosing by remember { mutableStateOf(false) }
@@ -240,6 +243,7 @@ fun OnlineTranslationSourcesPage() {
             currentProviderPackage = null
             currentContentOrigin = null
             currentTranslationOrigin = null
+            currentContentSource = null
             return false
         }
         val pkg = active.packageName
@@ -273,6 +277,7 @@ fun OnlineTranslationSourcesPage() {
         currentProviderPackage = readHookPref(RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER)
         currentContentOrigin = readHookPref(RootConstants.KEY_HOOK_LYRIC_CONTENT_ORIGIN)
         currentTranslationOrigin = readHookPref(RootConstants.KEY_HOOK_TRANSLATION_ORIGIN)
+        currentContentSource = readHookPref(RootConstants.KEY_HOOK_LYRIC_CONTENT_SOURCE)
         return true
     }
 
@@ -432,17 +437,24 @@ fun OnlineTranslationSourcesPage() {
                 .getInstalledPackages(PackageManager.PackageInfoFlags.of(0L))
                 .map { it.packageName }
                 .toSet()
-            ENABLED_APPS
-                .filter { it.packageName in installedPackageNames }
-                .mapNotNull { app ->
-                    runCatching {
-                        val info = packageManager.getApplicationInfo(app.packageName, 0)
-                        InstalledTranslationApp(
-                            app = app,
-                            icon = info.loadIcon(packageManager),
-                        )
-                    }.getOrNull()
-                }
+            // 候选 = 内置启用目录 + 超级岛白名单内已安装的播放器（如酷狗概念版等未内置包）。
+            val candidatePackages = (ENABLED_APPS.map { it.packageName } + islandWhitelistPackages)
+                .distinct()
+                .filter { it in installedPackageNames }
+            candidatePackages.mapNotNull { pkg ->
+                runCatching {
+                    val info = packageManager.getApplicationInfo(pkg, 0)
+                    InstalledTranslationApp(
+                        app = ENABLED_APPS.firstOrNull { it.packageName == pkg }
+                            ?: TranslationApp(
+                                packageName = pkg,
+                                displayName = info.loadLabel(packageManager).toString(),
+                                summaryRes = R.string.summary_online_translation_app_lyrics_translation,
+                            ),
+                        icon = info.loadIcon(packageManager),
+                    )
+                }.getOrNull()
+            }
         }
     }
 
@@ -469,7 +481,11 @@ fun OnlineTranslationSourcesPage() {
     LaunchedEffect(currentPackage) {
         currentPackage?.let { pkg ->
             if (pkg !in appEnabled) {
-                appEnabled[pkg] = OnlineTranslationSourcePreferences.isAppEnabled(prefs, pkg)
+                appEnabled[pkg] = prefs.getBoolean(
+                    OnlineTranslationSourcePreferences.appPreferenceKey(pkg),
+                    pkg in islandWhitelistPackages ||
+                        OnlineTranslationSourcePreferences.appDefaultEnabled(pkg),
+                )
                 // 动态 App（如酷狗极速版）首次进入 appEnabled 时，
                 // DisposableEffect 里的初始查询可能因它尚未被标记为启用而错过当前歌曲，
                 // 因此加入启用列表后若仍未读到歌曲信息，立刻再查一次。
@@ -479,11 +495,11 @@ fun OnlineTranslationSourcesPage() {
             }
         }
     }
-    // 启用 App 列表候选集：与超级岛应用白名单取交集（白名单未配置=空时全放行）。
+    // 启用 App 列表候选集：与超级岛「音频封面 · 应用白名单」保持一致。
     // 某播放器在白名单关闭则不在本列表出现；当前正在播放的未知包同理仅当在白名单内才显示。
-    val visibleEnabledApps = remember(installedApps, dynamicCurrentApp, whitelist) {
+    val visibleEnabledApps = remember(installedApps, dynamicCurrentApp, islandWhitelistPackages) {
         val base = installedApps.orEmpty() + listOfNotNull(dynamicCurrentApp)
-        if (!whitelistActive) base else base.filter { it.app.packageName in whitelist }
+        base.filter { it.app.packageName in islandWhitelistPackages }
     }
 
     /** 请求相邻来源互换，动画期间拒绝新的排序操作。 */
@@ -571,7 +587,9 @@ fun OnlineTranslationSourcesPage() {
                     )
                 }
             }
-        } else {
+        }
+        // 平台来源标题与刷新按钮仅在当前 App 启用在线翻译时展示。
+        if (!currentAppDisabled) {
         item(key = "platform_sources_title") {
             Row(
                 modifier = Modifier
@@ -597,6 +615,9 @@ fun OnlineTranslationSourcesPage() {
                 }
             }
         }
+        }
+        // 当前歌曲/歌词来源卡片始终展示：未启用在线翻译的 App（如 Spotify 内置插件）
+        // 仍有原生/插件源歌词可读，仅隐藏在线平台匹配部分。
         item(key = "platform_sources_current_track") {
             val track = currentTrack
             val needsListenerAccess = track == null && listenerEnabled == false
@@ -682,21 +703,25 @@ fun OnlineTranslationSourcesPage() {
                         else -> MiuixTheme.colorScheme.onSurfaceVariantActions
                     },
                 )
-                if (track != null && currentAppOnlineEnabled) {
-                    // 歌词来源：优先按 Hook 侧写入的实际 Provider 展示；
-                    // 通用兜底 LRCLIB 命中翻译时会追加翻译平台。
+                // 歌词来源：优先按 Hook 侧写入的实际 Provider 展示；
+                // 未启用在线翻译的 App（如 Spotify 内置插件）仍有原生/插件源歌词，照常展示。
+                if (track != null) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = resolveLyricSourceText(
                             packageName = currentPackage,
                             currentProviderPackage = currentProviderPackage,
                             contentOrigin = currentContentOrigin,
+                            contentSource = currentContentSource,
                             translationOrigin = currentTranslationOrigin,
                             translationHit = matchedDiagnostic,
                         ),
                         fontSize = MiuixTheme.textStyles.body2.fontSize,
                         color = MiuixTheme.colorScheme.onBackground,
                     )
+                }
+                // 在线匹配相关提示与平台信息仅在当前 App 启用在线翻译时展示。
+                if (track != null && currentAppOnlineEnabled) {
                     // 原生/插件源已完整提供歌词+翻译：不再跑匹配分逻辑，也不展示各平台诊断信息。
                     if (nativeFullyServed && sourceDiagnostics.isEmpty()) {
                         Spacer(modifier = Modifier.height(2.dp))
@@ -753,6 +778,8 @@ fun OnlineTranslationSourcesPage() {
                 }
             }
         }
+        // 平台来源与匹配链路仅在当前 App 启用在线翻译时展示。
+        if (!currentAppDisabled) {
         item(key = "platform_sources") {
             Card(
                 modifier = Modifier
@@ -1705,21 +1732,31 @@ private fun resolveLyricSourceText(
     packageName: String?,
     currentProviderPackage: String?,
     contentOrigin: String?,
+    contentSource: String?,
     translationOrigin: String?,
     translationHit: SourceMatchDiagnostic?,
 ): String {
     val context = LocalContext.current
     val providerName = providerDisplayName(context, currentProviderPackage)
     val onlineHit = translationHit?.takeIf { it.found }
-    // ① Hook 侧明确歌词内容来自在线源（LRCLIB/四平台）→ 在线源歌词（+ 在线源翻译）
+    // ① Hook 侧明确歌词内容来自在线源（LRCLIB/四平台）→ 在线源歌词（+ 在线源翻译）。
+    // Hook 上报了实际命中平台（非 LRCLIB）时，歌词与翻译均来自该平台，
+    // 展示「QQ音乐歌词+翻译」而非笼统的「在线源歌词」。
     if (contentOrigin == RootConstants.LYRIC_ORIGIN_ONLINE) {
-        return if (onlineHit != null) {
-            context.getString(
+        val contentSourceEnum = contentSource
+            ?.takeIf { it.isNotBlank() }
+            ?.let { name -> runCatching { Source.valueOf(name) }.getOrNull() }
+        return when {
+            contentSourceEnum != null && contentSourceEnum != Source.LRCLIB ->
+                context.getString(
+                    R.string.lyric_origin_online_platform_format,
+                    contentSourceEnum.displayName(),
+                )
+            onlineHit != null -> context.getString(
                 R.string.lyric_origin_online_with_translation,
                 onlineHit.source.displayName(),
             )
-        } else {
-            context.getString(R.string.lyric_origin_online_full)
+            else -> context.getString(R.string.lyric_origin_online_full)
         }
     }
     // ② 原生/插件源提供歌词，翻译来自在线源匹配
@@ -1735,9 +1772,13 @@ private fun resolveLyricSourceText(
             context.getString(R.string.lyric_origin_native)
         }
     }
-    // ③ 原生源歌词 + 原生翻译
+    // ③ 原生/插件源歌词：翻译缺失（如 Spotify 内置插件仅歌词）时只声明歌词来源。
     if (contentOrigin == RootConstants.LYRIC_ORIGIN_NATIVE) {
-        return context.getString(R.string.lyric_origin_native)
+        return if (translationOrigin == RootConstants.TRANSLATION_ORIGIN_NONE) {
+            context.getString(R.string.lyric_origin_native_lyrics_only)
+        } else {
+            context.getString(R.string.lyric_origin_native)
+        }
     }
     // ④ 未拿到来源标记时，保持原有按 Provider / 包名的兜底判断
     return when {
