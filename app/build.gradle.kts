@@ -200,7 +200,5 @@ dependencies {
     implementation(libs.daimajia.easing) { artifact { type = "aar" } }
 }
 
-apply(from = "fetch_contributors.gradle")
-tasks.named("preBuild") {
-    dependsOn("generateContributors")
-}
+// 贡献者列表为静态数据，直接维护 app/src/main/java/com/genius/hyperlyrics/ui/utils/ContributorsProvider.kt
+// （旧 fetch_contributors.gradle 生成器会覆盖该文件并引入联网依赖，已移除）。
