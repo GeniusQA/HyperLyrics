@@ -122,7 +122,7 @@
     <string name="title_contributors">贡献者</string>
     <string name="title_main_maintainer">主要维护者</string>
     <string name="title_development_contributors">开发贡献者</string>
-    <string name="title_original_hyperlyric_contributors">原 HyperLyric 开发贡献者</string>
+    <string name="title_historical_contributors">历史贡献者</string>
     <string name="title_licenses">引用</string>
     <string name="title_acknowledgments">致谢</string>
     <string name="summary_acknowledgments">感谢@FrancOS 和@于逸风 的帮助，以及一些没列出的项目</string>
