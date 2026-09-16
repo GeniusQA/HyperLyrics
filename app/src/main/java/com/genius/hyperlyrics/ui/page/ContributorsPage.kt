@@ -141,8 +141,8 @@ private fun LazyListScope.contributorsPageSections() {
             }
         }
     }
-    item(key = "original_contributors_title") {
-        SmallTitle(text = stringResource(R.string.title_original_hyperlyric_contributors))
+    item(key = "historical_contributors_title") {
+        SmallTitle(text = stringResource(R.string.title_historical_contributors))
     }
     item(key = "original_acknowledgments_card") {
         Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp).fillMaxWidth()) {
@@ -151,10 +151,10 @@ private fun LazyListScope.contributorsPageSections() {
             )
         }
     }
-    item(key = "original_contributors_card") {
+    item(key = "historical_contributors_card") {
         Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp).fillMaxWidth()) {
             Column {
-                ContributorsProvider.originalHyperLyricContributors.forEach { contributor ->
+                ContributorsProvider.historicalContributors.forEach { contributor ->
                     ContributorEntry(contributor = contributor)
                 }
             }
