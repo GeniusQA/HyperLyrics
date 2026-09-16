@@ -1517,9 +1517,10 @@ object NotificationMediaAodLyricHooker {
         // 不会把已合并的「歌词 翻译」串再次拼接。
         overlay.compactSourceMain = overlay.main.text.toString()
         overlay.compactSourceTranslation = overlay.translation.text.toString()
-        // 统一系统原生卡片样式：亮屏锁屏/通知中心/息屏 AOD 三处均使用系统原生进度条
-        // （带时间标签），不绘制自绘进度行；自绘进度行仅在非紧凑（完整卡片）布局下出现。
-        val compactMode = true
+        // 紧凑模式判定：仅「亮屏锁屏」与「通知中心」走紧凑（沿用系统原生进度条、不撑高卡片）；
+        // 息屏 AOD（fullAod）始终走完整布局（撑高卡片 + 居中多行歌词 + 底部自绘进度条带时间）。
+        // 注：通知中心若也要改为完整卡片样式，需额外隐藏原生进度条以避免双进度条。
+        val compactMode = interactive && !state.fullAod
         val songDurationMs = LyriconDataBridge.currentSong?.duration?.takeIf { it > 0L }
         if (!compactMode && songDurationMs != null) {
             overlay.progressRow.visibility = View.VISIBLE
@@ -1572,9 +1573,8 @@ object NotificationMediaAodLyricHooker {
             ),
         )
         overlay.fullAodActive = state.fullAod
-        // 统一系统原生卡片样式：亮屏锁屏/通知中心/息屏 AOD 三处均走紧凑模式（compactMode 已在
-        // 上方统一定义为 true）——卡片几何不变、歌词覆盖在歌曲信息与系统原生进度条之间、
-        // 不撑高卡片、不绘制自绘进度行、不隐藏系统原生进度条。
+        // 息屏 AOD（fullAod）走完整布局：撑高卡片、居中多行歌词、底部自绘进度条带时间；
+        // 亮屏锁屏/通知中心走紧凑布局：卡片几何不变、歌词覆盖在歌曲信息与系统原生进度条之间。
         overlay.compactMode = compactMode
         applyCompactMode(overlay, compactMode, textStyle, mainShouldScroll)
         if (overlay.root.visibility == View.GONE) {
