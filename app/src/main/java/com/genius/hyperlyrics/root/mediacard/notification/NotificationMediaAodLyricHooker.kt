@@ -1517,11 +1517,11 @@ object NotificationMediaAodLyricHooker {
         // 不会把已合并的「歌词 翻译」串再次拼接。
         overlay.compactSourceMain = overlay.main.text.toString()
         overlay.compactSourceTranslation = overlay.translation.text.toString()
-        // 全屏 AOD 与通知中心焦点通知：展示自绘进度行（带时间标签），对齐锁屏歌词卡片样式；
-        // 系统这两个模式原生进度条不可用/已隐藏。紧凑模式（亮屏锁屏）仍由 applyCompactMode 隐藏，
-        // 无时长数据时也不显示。
+        // 统一系统原生卡片样式：亮屏锁屏/通知中心/息屏 AOD 三处均使用系统原生进度条
+        // （带时间标签），不绘制自绘进度行；自绘进度行仅在非紧凑（完整卡片）布局下出现。
+        val compactMode = true
         val songDurationMs = LyriconDataBridge.currentSong?.duration?.takeIf { it > 0L }
-        if ((state.fullAod || state.notificationCenterLyricsActive) && songDurationMs != null) {
+        if (!compactMode && songDurationMs != null) {
             overlay.progressRow.visibility = View.VISIBLE
             overlay.progressTimeLeft.setTextColor(translationColor)
             overlay.progressTimeRight.setTextColor(translationColor)
@@ -1572,22 +1572,11 @@ object NotificationMediaAodLyricHooker {
             ),
         )
         overlay.fullAodActive = state.fullAod
-        // 通知中心焦点通知改为与息屏 AOD 同款完整卡片样式：撑高卡片、歌词居中多行、
-        // 自绘进度行（带时间标签），不再走紧凑模式（卡片不变几何、歌词挤在信息与进度条空隙）。
-        // 亮屏锁屏歌词（interactive 但非通知中心）仍保持紧凑模式；息屏 AOD 本就不进紧凑。
-        val compactMode = interactive && !state.fullAod && !state.notificationCenterLyricsActive
+        // 统一系统原生卡片样式：亮屏锁屏/通知中心/息屏 AOD 三处均走紧凑模式（compactMode 已在
+        // 上方统一定义为 true）——卡片几何不变、歌词覆盖在歌曲信息与系统原生进度条之间、
+        // 不撑高卡片、不绘制自绘进度行、不隐藏系统原生进度条。
         overlay.compactMode = compactMode
         applyCompactMode(overlay, compactMode, textStyle, mainShouldScroll)
-        // 完整卡片（通知中心/息屏 AOD）：隐藏系统原生进度条（不存在或已隐藏），改用自绘进度行，
-        // 避免与带时间标签的自绘进度条重复。原始可见性记入 state，隐藏/退出时恢复。
-        if (!compactMode) {
-            overlay.seekBar?.let { sb ->
-                if (sb.visibility != View.INVISIBLE) {
-                    state.seekBarVisibility = sb.visibility
-                    sb.visibility = View.INVISIBLE
-                }
-            }
-        }
         if (overlay.root.visibility == View.GONE) {
             overlay.root.visibility = View.INVISIBLE
         }
@@ -1691,9 +1680,9 @@ object NotificationMediaAodLyricHooker {
      * 主歌词与翻译始终分行展示，并各自按可用宽度最多折成两行。
      */
     private fun applyCompactOverlayLayout(overlay: LyricOverlay) {
-        // 紧凑模式只服务于亮屏锁屏/通知中心焦点通知，息屏 AOD 不应进入此分支。
-        if (overlay.fullAodActive) return
-
+        // 紧凑模式服务于亮屏锁屏/通知中心/息屏 AOD 三处系统原生卡片：歌词覆盖在歌曲信息与
+        // 系统原生进度条之间，卡片几何不变。息屏 AOD 的专辑封面是整卡背景（full-bleed），
+        // 不能用 album.bottom 参与取 max，否则歌词被推到卡片底部，故 AOD 仅锚定标题/歌手下缘。
         val density = overlay.root.resources.displayMetrics.density
         val minGap = (COMPACT_LYRIC_TOP_GAP_DP * density).toInt()
         // 缓存的进度条实例可能已脱离当前 player（卡片重排/系统重新挂载），
@@ -1745,7 +1734,12 @@ object NotificationMediaAodLyricHooker {
         // 统一居中策略：歌词块在「可见歌曲信息下缘 ~ 进度条上缘」之间垂直居中。
         // 上边界只认可见的专辑图/标题/歌手下缘（按钮已 INVISIBLE，允许覆盖其几何占位）；
         // 歌词行同属一个纵向容器，折行/翻译只会把容器撑高，行与行不会重叠。
-        val metadataBottom = maxOf(overlay.album.bottom, overlay.artist.bottom).coerceAtLeast(0)
+        val metadataBottom = if (overlay.fullAodActive) {
+            // 息屏 AOD：专辑封面整卡背景，只认标题/歌手文本块下缘，避免歌词被推到底部。
+            overlay.artist.bottom.coerceAtLeast(0)
+        } else {
+            maxOf(overlay.album.bottom, overlay.artist.bottom).coerceAtLeast(0)
+        }
         val referenceBottom = metadataBottom.takeIf { it > 0 } ?: actionBottom
         val bandTop = referenceBottom + minGap
         val bandBottom = (seekBarTop - minGap).coerceAtLeast(bandTop)
