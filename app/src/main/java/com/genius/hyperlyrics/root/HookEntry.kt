@@ -22,7 +22,6 @@ import com.genius.hyperlyrics.root.island.RealIslandHooker
 import com.genius.hyperlyrics.root.mediacard.notification.NotificationMediaAmbientFlowHooker
 import com.genius.hyperlyrics.root.mediacard.notification.AodEnvironmentDiagnostics
 import com.genius.hyperlyrics.root.mediacard.notification.NotificationMediaAodLyricHooker
-import com.genius.hyperlyrics.root.mediacard.notification.KeyguardFullScreenLyricHooker
 import com.genius.hyperlyrics.root.mediacard.notification.NotificationMediaCoverStyleHooker
 import com.genius.hyperlyrics.root.mediacard.island.IslandExpandedLyricHooker
 import com.genius.hyperlyrics.root.mediacard.island.IslandExpandedMediaAmbientFlowHooker
@@ -173,8 +172,6 @@ class HookEntry : XposedModule() {
             RootConstants.KEY_HOOK_NOTIFICATION_CENTER_SWAP_TRANSLATION,
             RootConstants.KEY_HOOK_NOTIFICATION_CENTER_NEXT_SONG_PREVIEW,
             RootConstants.KEY_HOOK_NOTIFICATION_CENTER_NEXT_SONG_PREVIEW_POSITION,
-            RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_MAIN_TEXT_SIZE,
-            RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_TRANSLATION_TEXT_SIZE,
             RootConstants.KEY_HOOK_ISLAND_EXPANDED_MAIN_TEXT_SIZE,
             RootConstants.KEY_HOOK_ISLAND_EXPANDED_BACKING_TEXT_SIZE,
             RootConstants.KEY_HOOK_ISLAND_EXPANDED_TRANSLATION_TEXT_SIZE,
@@ -227,7 +224,6 @@ class HookEntry : XposedModule() {
         NotificationMediaCoverStyleHooker.releaseAll()
         NotificationMediaAmbientFlowHooker.releaseAll()
         NotificationMediaAodLyricHooker.releaseAll()
-        KeyguardFullScreenLyricHooker.releaseAll()
         IslandExpandedLyricHooker.releaseAll()
         IslandProgressGlowController.clearAll()
         MediaBackgroundRendererPool.releaseAll()
@@ -298,7 +294,6 @@ class HookEntry : XposedModule() {
         
         if (packageName == "com.android.systemui") {
             NotificationMediaAodLyricHooker.hook(this, param.defaultClassLoader)
-            KeyguardFullScreenLyricHooker.hook(this, param.defaultClassLoader)
             IslandExpandedLyricHooker.hook(this, param.defaultClassLoader)
             if (!lyricsOnlyAfterHotReload) {
                 IslandExpandedMediaAmbientFlowHooker.hook(this, param.defaultClassLoader)
@@ -581,7 +576,6 @@ class HookEntry : XposedModule() {
                             ClassicAodFocusNotificationRecovery.ensureListenerCanRecover(app, prefs)
                             NotificationMediaAodLyricHooker.refresh()
                             BaseIslandRenderer.refreshActiveIsland()
-                            KeyguardFullScreenLyricHooker.refresh()
                         }
                     }
                     RootConstants.KEY_HOOK_ISLAND_ALBUM_COVER_STYLE,
@@ -811,18 +805,14 @@ class HookEntry : XposedModule() {
                 if (RootConstants.isFontColorKey(key)) {
                     NotificationMediaAodLyricHooker.refresh()
                     IslandExpandedLyricHooker.refresh()
-                    KeyguardFullScreenLyricHooker.refresh()
                 }
-                // 各位置独立样式参数（锁屏歌词/通知中心/全屏/大岛）变化时刷新渲染层
+                // 各位置独立样式参数（锁屏歌词/通知中心/大岛）变化时刷新渲染层
                 if (RootConstants.STYLE_KEY_PREFIXES.any { key.startsWith(it) } ||
-                    key == RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_MAIN_TEXT_SIZE ||
-                    key == RootConstants.KEY_HOOK_KEYGUARD_FULL_SCREEN_TRANSLATION_TEXT_SIZE ||
                     key == RootConstants.KEY_HOOK_ISLAND_EXPANDED_MAIN_TEXT_SIZE ||
                     key == RootConstants.KEY_HOOK_ISLAND_EXPANDED_BACKING_TEXT_SIZE ||
                     key == RootConstants.KEY_HOOK_ISLAND_EXPANDED_TRANSLATION_TEXT_SIZE
                 ) {
                     NotificationMediaAodLyricHooker.refresh()
-                    KeyguardFullScreenLyricHooker.refresh()
                     IslandExpandedLyricHooker.refresh()
                 }
                 HookLogger.i(

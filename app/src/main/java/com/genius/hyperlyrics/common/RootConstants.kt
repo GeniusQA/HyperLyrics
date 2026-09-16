@@ -35,8 +35,6 @@ object RootConstants {
     const val KEY_HOOK_LOCK_SCREEN_LYRICS_ENABLED = "key_hook_lock_screen_lyrics_enabled"
     const val KEY_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED =
         "key_hook_notification_center_lyrics_enabled"
-    const val KEY_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED =
-        "key_hook_keyguard_full_screen_lyrics_enabled"
     const val KEY_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED =
         "key_hook_island_expanded_lyrics_enabled"
     const val KEY_HOOK_LOCK_SCREEN_AOD_MAIN_TEXT_SIZE =
@@ -121,12 +119,6 @@ object RootConstants {
         "key_hook_notification_center_next_song_preview"
     const val KEY_HOOK_NOTIFICATION_CENTER_NEXT_SONG_PREVIEW_POSITION =
         "key_hook_notification_center_next_song_preview_position"
-
-    // ================= 全屏锁屏歌词（独立字号） =================
-    const val KEY_HOOK_KEYGUARD_FULL_SCREEN_MAIN_TEXT_SIZE =
-        "key_hook_keyguard_full_screen_main_text_size"
-    const val KEY_HOOK_KEYGUARD_FULL_SCREEN_TRANSLATION_TEXT_SIZE =
-        "key_hook_keyguard_full_screen_translation_text_size"
 
     // ================= 超级岛展开大岛（独立字号） =================
     const val KEY_HOOK_ISLAND_EXPANDED_MAIN_TEXT_SIZE =
@@ -395,8 +387,6 @@ object RootConstants {
         "key_hook_classic_aod_font_color_"
     private const val FONT_COLOR_KEY_PREFIX_ISLAND_EXPANDED =
         "key_hook_island_expanded_font_color_"
-    private const val FONT_COLOR_KEY_PREFIX_KEYGUARD_FULL_SCREEN =
-        "key_hook_keyguard_full_screen_font_color_"
 
     /** 各歌词位置独立样式 key 的公共前缀（行为参数拼接模式：prefix + suffix）。 */
     val STYLE_KEY_PREFIXES = listOf(
@@ -429,8 +419,6 @@ object RootConstants {
         fontColorKeys(FONT_COLOR_KEY_PREFIX_NOTIFICATION_CENTER)
     val FONT_COLOR_KEYS_CLASSIC_AOD = fontColorKeys(FONT_COLOR_KEY_PREFIX_CLASSIC_AOD)
     val FONT_COLOR_KEYS_ISLAND_EXPANDED = fontColorKeys(FONT_COLOR_KEY_PREFIX_ISLAND_EXPANDED)
-    val FONT_COLOR_KEYS_KEYGUARD_FULL_SCREEN =
-        fontColorKeys(FONT_COLOR_KEY_PREFIX_KEYGUARD_FULL_SCREEN)
 
     /** 判断偏好 key 是否属于任一位置的字体颜色设置（用于变更刷新）。 */
     fun isFontColorKey(key: String): Boolean {
@@ -446,8 +434,7 @@ object RootConstants {
             FONT_COLOR_KEY_PREFIX_LOCK_SCREEN_LYRICS in key ||
             FONT_COLOR_KEY_PREFIX_NOTIFICATION_CENTER in key ||
             FONT_COLOR_KEY_PREFIX_CLASSIC_AOD in key ||
-            FONT_COLOR_KEY_PREFIX_ISLAND_EXPANDED in key ||
-            FONT_COLOR_KEY_PREFIX_KEYGUARD_FULL_SCREEN in key
+            FONT_COLOR_KEY_PREFIX_ISLAND_EXPANDED in key
     }
     const val KEY_HOOK_ISLAND_GLOW_EXTRACT_COLOR = "key_hook_island_glow_extract_color"
     const val KEY_HOOK_ISLAND_PROGRESS_GLOW = "key_hook_island_progress_glow"
@@ -594,7 +581,6 @@ object RootConstants {
     const val DEFAULT_HOOK_ENABLE_AOD_LYRICS = false
     const val DEFAULT_HOOK_LOCK_SCREEN_LYRICS_ENABLED = false
     const val DEFAULT_HOOK_NOTIFICATION_CENTER_LYRICS_ENABLED = false
-    const val DEFAULT_HOOK_KEYGUARD_FULL_SCREEN_LYRICS_ENABLED = false
     const val DEFAULT_HOOK_ISLAND_EXPANDED_LYRICS_ENABLED = false
     const val AOD_SONG_INFO_FORMAT_NONE = 0
     const val AOD_SONG_INFO_FORMAT_TITLE = 1

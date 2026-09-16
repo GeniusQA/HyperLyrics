@@ -125,6 +125,7 @@
     <string name="title_historical_contributors">历史贡献者</string>
     <string name="title_licenses">引用</string>
     <string name="title_acknowledgments">致谢</string>
+    <string name="summary_acknowledgments">感谢 @FrancOS 与 @于逸风 的帮助，以及部分未列出的项目</string>
     <string name="summary_contributors">感谢以下贡献者为 HyperLyrics 的开发提供帮助</string>
 
     <!-- ———————————————————————— SettingsPage ———————————————————————— -->
