@@ -117,7 +117,8 @@ jobs:
           elif [[ "$CHANNEL" == "canary" ]]; then
             ./gradlew "${BUILD_ARGS[@]}" assembleDebug
           else
-            ./gradlew "${BUILD_ARGS[@]}" assembleDebug
+            # beta：仅构建 release 变体，不发布 Release/Tag（与 canary 一样只产出产物）
+            ./gradlew "${BUILD_ARGS[@]}" assembleRelease
           fi
 
       - name: 上传 PR 构建产物 Upload PR Artifacts
@@ -177,17 +178,19 @@ jobs:
               debug-aligned.apk
           fi
 
-      - name: 上传 Canary 构建产物 Upload Canary Artifact
-        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel == 'canary'
+      - name: 上传构建产物 Upload Artifact
+        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false'
         uses: actions/upload-artifact@v7
         with:
-          name: Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
-          path: HyperLyrics-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
+          name: ${{ steps.gate.outputs.channel }}-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
+          path: |
+            app/build/outputs/apk/debug/**/*.apk
+            app/build/outputs/apk/release/**/*.apk
           if-no-files-found: error
           compression-level: 0
 
       - name: 生成发布说明 Generate Release Body
-        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && (steps.gate.outputs.channel == 'stable' || steps.gate.outputs.channel == 'beta')
+        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel == 'stable'
         id: release_body
         run: |
           set -euo pipefail
@@ -213,21 +216,6 @@ jobs:
           files: |
             HyperLyrics-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
             HyperLyrics-Release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 创建 Beta Pre-release
-        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel == 'beta'
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: v${{ steps.gate.outputs.full_name }}
-          target_commitish: ${{ github.sha }}
-          name: v${{ steps.gate.outputs.full_name }}
-          body: ${{ steps.release_body.outputs.body }}
-          draft: false
-          prerelease: true
-          generate_release_notes: false
-          files: HyperLyrics-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
