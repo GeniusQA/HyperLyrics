@@ -317,6 +317,14 @@ class LyriconSource : LyricSource {
     private var currentPublishedAppleOnlineTranslationMatched = false
     @Volatile
     private var fallbackSongActive = false
+
+    /**
+     * 最近一次在线兜底实际提供歌词内容的来源名（[Source] 的 name）。
+     * 仅在 fallbackSongActive / thirdPartyFallbackSongActive 为 true 期间有意义，
+     * 随来源广播上报给模块 App，供 MetaData 展示「QQ音乐歌词+翻译」等精确文案。
+     */
+    @Volatile
+    private var lastOnlineContentSourceName: String? = null
     private var lastAdjustedPosition = 0L
     private var appleSongGeneration = 0
     @Volatile
@@ -749,6 +757,7 @@ class LyriconSource : LyricSource {
                     // 与在线兜底命中保持一致：置 true 让 handleThirdPartySong 的
                     // “同曲空歌词重复回调忽略”防护生效，避免酷狗重发的空歌词覆盖手动匹配。
                     thirdPartyFallbackSongActive = true
+                    lastOnlineContentSourceName = source.name
                     thirdPartyMatchFailedIdentity = null
                     publishSong(result, restorePosition = true)
                     diagnostic(
@@ -785,6 +794,7 @@ class LyriconSource : LyricSource {
             currentAppleSong = nativeSong
             currentAppleHasNativeLyrics = hasAppleNativeLyrics(nativeSong)
             fallbackSongActive = false
+            lastOnlineContentSourceName = null
             stopMediaPositionPolling()
             publishAppleSong(nativeSong, restorePosition = true)
             if (!hasAppleNativeLyrics(nativeSong) && isFillMissingLyricsEnabled()) {
@@ -1396,6 +1406,9 @@ class LyriconSource : LyricSource {
             contentFromOnline || translationFromOnline -> RootConstants.LYRIC_ORIGIN_ONLINE
             else -> RootConstants.LYRIC_ORIGIN_NATIVE
         }
+        // 内容确实来自在线源时带上实际命中平台；原生发布时清掉，避免旧值残留。
+        val contentSourceName = if (contentFromOnline) lastOnlineContentSourceName else null
+        if (!contentFromOnline) lastOnlineContentSourceName = null
         // 不要写 LSPosed 远程偏好：hook 侧 edit()/apply() 会直接抛异常，
         // 由于本方法在主线程序列里被调用，异常会让 SystemUI 崩溃重启。
         // 来源只通过下面的广播推给模块 App，由 App 落到自己的本地偏好。
@@ -1403,7 +1416,8 @@ class LyriconSource : LyricSource {
         lastPublishedTranslationOrigin = translationOrigin
         HookLogger.i(
             TAG,
-            "LYRIC_ORIGIN content=$contentOrigin translation=$translationOrigin " +
+            "LYRIC_ORIGIN content=$contentOrigin source=$contentSourceName " +
+                "translation=$translationOrigin " +
                 "provider=$activeProviderPackageName song=${song?.id}",
         )
         runCatching {
@@ -1412,6 +1426,7 @@ class LyriconSource : LyricSource {
                     .setPackage(RootConstants.APP_PACKAGE_NAME)
                     .putExtra(RootConstants.EXTRA_LYRIC_CONTENT_ORIGIN, contentOrigin)
                     .putExtra(RootConstants.EXTRA_LYRIC_TRANSLATION_ORIGIN, translationOrigin)
+                    .putExtra(RootConstants.EXTRA_LYRIC_CONTENT_SOURCE, contentSourceName)
                     .putExtra(
                         RootConstants.EXTRA_LYRIC_PROVIDER_PACKAGE,
                         activeProviderPackageName,
@@ -1908,6 +1923,7 @@ class LyriconSource : LyricSource {
             return
         }
         fallbackSongActive = true
+        lastOnlineContentSourceName = outcome.selectedSource?.name
         MediaMetadataHelper.getPlaybackProgress(application, APPLE_MUSIC_PACKAGE)
             .position
             .takeIf { it >= 0L }
@@ -1984,6 +2000,7 @@ class LyriconSource : LyricSource {
         fallbackJob?.cancel()
         fallbackJob = null
         fallbackSongActive = false
+        lastOnlineContentSourceName = null
         stopMediaPositionPolling()
         if (clearAppleSong) {
             currentAppleSong = null
@@ -2082,6 +2099,10 @@ class LyriconSource : LyricSource {
                             requireTranslation = false,
                         )?.let(::stripFullyChineseTranslations)
                             ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
+                        // 记录兜底歌词的实际来源：LRCLIB 命中即 LRCLIB，
+                        // 否则为四平台整首取词的实际命中源（供 MetaData 精确展示）。
+                        var contentSourceName: String? =
+                            if (lrclibSong != null) Source.LRCLIB.name else null
                         val fallbackSong: LocalSong? = if (lrclibSong != null) {
                             enrichWithOnlineTranslations(
                                 application = application,
@@ -2093,18 +2114,22 @@ class LyriconSource : LyricSource {
                             )
                         } else if (orderedSources.isNotEmpty()) {
                             // LRCLIB 未命中：四平台在线源整首兜底（歌词+翻译），这是最终兜底。
-                            fetchThirdPartyLyrics(
+                            fetchThirdPartyLyricsWithSource(
                                 application = application,
                                 playerPackage = playerPackage,
                                 baseSong = baseSong,
                                 album = album,
                                 order = orderedSources,
                                 requireTranslation = false,
-                            )?.let(::stripFullyChineseTranslations)
+                            )?.let { (source, lines) ->
+                                contentSourceName = source?.name
+                                lines
+                            }?.let(::stripFullyChineseTranslations)
                                 ?.let { OnlineFallbackSongMapper.map(baseSong, it) }
                         } else {
                             null
                         }
+                        lastOnlineContentSourceName = fallbackSong?.let { contentSourceName }
                         mainHandler.post {
                             // 兜底结果回调运行在宿主 SystemUI 主线程，
                             // 任何异常都会导致 SystemUI 崩溃循环，必须整体捕获。
@@ -2157,6 +2182,28 @@ class LyriconSource : LyricSource {
         requireTranslation = requireTranslation,
         album = album,
     )
+
+    /**
+     * 同 [fetchThirdPartyLyrics]，但同时返回实际命中的来源，
+     * 供兜底命中后把内容来源上报给模块 App 展示。
+     */
+    private suspend fun fetchThirdPartyLyricsWithSource(
+        application: Application,
+        playerPackage: String,
+        baseSong: LocalSong,
+        album: String?,
+        order: List<Source>,
+        requireTranslation: Boolean,
+    ): Pair<Source?, List<LrcLine>>? = OnlineLyricTargeter.fetchBestLyricWithNearMiss(
+        context = application,
+        pkgName = playerPackage,
+        title = baseSong.name.orEmpty(),
+        artist = baseSong.artist.orEmpty(),
+        durationMs = baseSong.duration,
+        sourceOrder = order,
+        requireTranslation = requireTranslation,
+        album = album,
+    ).let { outcome -> outcome.lines?.let { lines -> outcome.selectedSource to lines } }
 
     /**
      * LRCLIB 命中歌词但缺翻译时，用四平台补翻译后合并；
@@ -2404,6 +2451,7 @@ class LyriconSource : LyricSource {
         thirdPartyFallbackJob?.cancel()
         thirdPartyFallbackJob = null
         thirdPartyFallbackSongActive = false
+        lastOnlineContentSourceName = null
     }
 
     private fun scheduleOnlineTranslation(baseSong: LocalSong): Boolean {
@@ -4678,6 +4726,7 @@ class LyriconSource : LyricSource {
         currentAppleSong = nativeSong
         currentAppleHasNativeLyrics = true
         fallbackSongActive = false
+        lastOnlineContentSourceName = null
         stopMediaPositionPolling()
         publishAppleSong(nativeSong, restorePosition = true)
         if (needsOnlineEnrichment(nativeSong) && isAppleTranslationEnrichmentEnabled()) {

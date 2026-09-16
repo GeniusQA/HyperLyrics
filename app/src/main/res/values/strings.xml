@@ -125,7 +125,6 @@
     <string name="title_historical_contributors">历史贡献者</string>
     <string name="title_licenses">引用</string>
     <string name="title_acknowledgments">致谢</string>
-    <string name="summary_acknowledgments">感谢@FrancOS 和@于逸风 的帮助，以及一些没列出的项目</string>
     <string name="summary_contributors">感谢以下贡献者为 HyperLyrics 的开发提供帮助</string>
 
     <!-- ———————————————————————— SettingsPage ———————————————————————— -->
@@ -505,11 +504,13 @@
     <string name="online_translation_matched_platform_nearmiss">匹配平台：%1$s（%2$d分 · 近失兜底命中）</string>
     <string name="online_translation_matched_platform_diagnosing">匹配平台：诊断中…</string>
     <string name="lyric_origin_native">歌词来源：原生歌词+翻译（App 曲库直读）</string>
+    <string name="lyric_origin_native_lyrics_only">歌词来源：原生源歌词</string>
     <string name="lyric_origin_spotify">歌词来源：原生歌词优先，缺失或缺翻译时在线补齐</string>
     <string name="lyric_origin_ytm">歌词来源：在线歌词+翻译（YTM 无可读原生歌词）</string>
     <string name="lyric_origin_salt">歌词来源：本地歌词优先，缺失时在线兜底</string>
     <string name="lyric_origin_online">歌词来源：通用插件 LRCLIB 歌词</string>
     <string name="lyric_origin_online_full">歌词来源：在线源歌词+翻译</string>
+    <string name="lyric_origin_online_platform_format">歌词来源：%1$s歌词+翻译</string>
     <string name="lyric_origin_online_with_translation">歌词来源：在线源歌词 + %1$s 翻译</string>
     <string name="lyric_origin_native_with_online_translation">歌词来源：原生源歌词 + %1$s 在线翻译</string>
     <string name="lyric_origin_lrclib_with_translation">歌词来源：通用插件 LRCLIB 歌词 + %1$s 翻译</string>

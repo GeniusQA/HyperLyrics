@@ -476,7 +476,7 @@ class AodMediaLyricPolicyTest {
     }
 
     @Test
-    fun `grows full aod card when multiline lyrics exceed the native band`() {
+    fun `does not grow full aod card when multiline lyrics exceed the native band`() {
         val layout = AodMediaLyricPolicy.lockScreenCenteredLyricLayout(
             nativeCardHeight = 500,
             anchorBottom = 100,
@@ -487,11 +487,11 @@ class AodMediaLyricPolicyTest {
             minTopGap = 4,
         )
 
-        assertEquals(532, layout.targetCardHeight)
+        // 卡片保持原生高度，歌词容器截断到原生剩余空间（超出由 TextView maxLines 处理）
+        assertEquals(500, layout.targetCardHeight)
         assertEquals(104, layout.rootTop)
-        assertEquals(424, layout.rootHeight)
-        assertEquals(400, layout.lyricContainerHeight)
-        assertTrue(layout.targetCardHeight > 500)
+        assertEquals(392, layout.rootHeight)
+        assertEquals(368, layout.lyricContainerHeight)
     }
 
     @Test
@@ -1219,7 +1219,7 @@ class AodMediaLyricPolicyTest {
     @Test
     fun `lock screen AOD never takes ownership of notification stack translation y`() {
         val relativeSourcePath =
-            "src/main/java/com/juren233/hyperlyrics/root/mediacard/notification/" +
+            "src/main/java/com/genius/hyperlyrics/root/mediacard/notification/" +
                 "NotificationMediaAodLyricHooker.kt"
         val sourceFile = listOf(File("app/$relativeSourcePath"), File(relativeSourcePath))
             .first(File::isFile)
@@ -1313,27 +1313,77 @@ class AodMediaLyricPolicyTest {
     }
 
     @Test
-    fun `sanitizes lyric area height into allowed range`() {
-        assertEquals(
-            RootConstants.DEFAULT_HOOK_LYRIC_AREA_HEIGHT,
-            AodMediaLyricPolicy.sanitizeLyricAreaHeight(null)
-        )
-        assertEquals(120, AodMediaLyricPolicy.sanitizeLyricAreaHeight(120))
-        assertEquals(300, AodMediaLyricPolicy.sanitizeLyricAreaHeight(300))
-        assertEquals(500, AodMediaLyricPolicy.sanitizeLyricAreaHeight(500))
-        assertEquals(120, AodMediaLyricPolicy.sanitizeLyricAreaHeight(50))
-        assertEquals(500, AodMediaLyricPolicy.sanitizeLyricAreaHeight(999))
+    fun `clamps classic overlay height into available space`() {
+        // 内容高度在可用空间内时原样保留（非正数按最小值 1 处理）
+        assertEquals(300, AodMediaLyricPolicy.classicOverlayHeight(300, 500))
+        assertEquals(1, AodMediaLyricPolicy.classicOverlayHeight(0, 500))
+        // 内容超出可用空间时按可用空间截断；可用空间非正数按最小值 1 处理
+        assertEquals(500, AodMediaLyricPolicy.classicOverlayHeight(800, 500))
+        assertEquals(1, AodMediaLyricPolicy.classicOverlayHeight(800, 0))
     }
 
     @Test
-    fun `derives max lines from area height and line height`() {
-        // 300dp / (20sp * 1.2 倍率) ≈ 12 行
-        val maxLines = AodMediaLyricPolicy.lyricAreaMaxLines(
-            300,
-            (20f * AodMediaLyricPolicy.LYRIC_LINE_HEIGHT_MULTIPLIER).toInt()
-        )
-        assertTrue(maxLines in 10..14)
-        // 可用空间过小或字号过大时，至少保留主句预留行数
-        assertEquals(2, AodMediaLyricPolicy.lyricAreaMaxLines(10, 100))
+    fun `classic fallback keeps 62 percent heuristic when content scan is unavailable`() {
+        // AOD 根从 0 开始、高 2400：62% = 1488
+        assertEquals(1488, AodMediaLyricPolicy.classicFallbackTopOnScreen(
+            rootTopOnScreen = 0,
+            rootHeight = 2400,
+            contentBottomOnScreen = null,
+            gapPx = 40,
+        ))
+        // 整屏画布时钟的画布下缘（≈屏底）超出内容区上限，应被忽略并维持 62%
+        assertEquals(1488, AodMediaLyricPolicy.classicFallbackTopOnScreen(
+            rootTopOnScreen = 0,
+            rootHeight = 2400,
+            contentBottomOnScreen = 2390,
+            gapPx = 40,
+        ))
+    }
+
+    @Test
+    fun `classic fallback pushes lyrics below battery and lunar content blocks`() {
+        // 仅「电量状态+农历」：电量行下缘在 62% (1488) 之下 → 歌词下移到其下 + gap
+        assertEquals(1600 + 40, AodMediaLyricPolicy.classicFallbackTopOnScreen(
+            rootTopOnScreen = 0,
+            rootHeight = 2400,
+            contentBottomOnScreen = 1600,
+            gapPx = 40,
+        ))
+        // 内容块下缘在 62% 之上（如只有顶部日期）时维持 62%，避免歌词上移
+        assertEquals(1488, AodMediaLyricPolicy.classicFallbackTopOnScreen(
+            rootTopOnScreen = 0,
+            rootHeight = 2400,
+            contentBottomOnScreen = 1300,
+            gapPx = 40,
+        ))
+    }
+
+    @Test
+    fun `classic fallback respects screen offset and content limit`() {
+        val rootTop = 100
+        val rootHeight = 2400
+        val heuristic = rootTop + (rootHeight * 0.62f).toInt()
+        // 内容块下缘紧贴根顶（无效内容：不高于根顶）时忽略
+        assertEquals(heuristic, AodMediaLyricPolicy.classicFallbackTopOnScreen(
+            rootTopOnScreen = rootTop,
+            rootHeight = rootHeight,
+            contentBottomOnScreen = rootTop,
+            gapPx = 40,
+        ))
+        // 内容块下缘超过内容区上限（78%）视为底部装饰，忽略
+        val limit = rootTop + (rootHeight * 0.78f).toInt()
+        assertEquals(heuristic, AodMediaLyricPolicy.classicFallbackTopOnScreen(
+            rootTopOnScreen = rootTop,
+            rootHeight = rootHeight,
+            contentBottomOnScreen = limit + 10,
+            gapPx = 40,
+        ))
+        // 内容块紧贴上限时仍采信，歌词下移但不会越过上限 + gap
+        assertEquals(limit + 40, AodMediaLyricPolicy.classicFallbackTopOnScreen(
+            rootTopOnScreen = rootTop,
+            rootHeight = rootHeight,
+            contentBottomOnScreen = limit,
+            gapPx = 40,
+        ))
     }
 }

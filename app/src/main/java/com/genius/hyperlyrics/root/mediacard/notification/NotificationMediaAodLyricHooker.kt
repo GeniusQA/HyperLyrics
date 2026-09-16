@@ -371,6 +371,37 @@ internal object AodMediaLyricPolicy {
             availableHeight.coerceAtLeast(1)
         )
 
+    /** 锚点回退时的固定起点比例（根高 62%），保持与旧版一致的下限表现。 */
+    private const val CLASSIC_FALLBACK_ROOT_RATIO = 0.62f
+
+    /** 内容块扫描只采信屏幕上部内容区：低于该比例的下缘视为底部装饰（指纹圈等），忽略。 */
+    private const val CLASSIC_FALLBACK_CONTENT_LIMIT_RATIO = 0.78f
+
+    /**
+     * 锚点回退（息屏「通知」关闭、mNotificationIcons 不存在）时的歌词顶部定位。
+     *
+     * 固定 62% 会与用户开启的「电量状态/农历」等系统息屏组件重叠（组件位置随
+     * 机型与组件开关变化），因此优先采用 [contentBottomOnScreen]（AOD 内容块
+     * 最低可见下缘，已排除歌词覆盖层与整屏画布容器），取其与固定比例的较大值，
+     * 保证歌词始终位于所有已开启息屏组件之下。扫描失败（返回 null）时维持 62%。
+     */
+    fun classicFallbackTopOnScreen(
+        rootTopOnScreen: Int,
+        rootHeight: Int,
+        contentBottomOnScreen: Int?,
+        gapPx: Int,
+    ): Int {
+        val safeRootHeight = rootHeight.coerceAtLeast(1)
+        val heuristic = rootTopOnScreen + (safeRootHeight * CLASSIC_FALLBACK_ROOT_RATIO).toInt()
+        val safeGap = gapPx.coerceAtLeast(0)
+        val contentLimit = rootTopOnScreen +
+            (safeRootHeight * CLASSIC_FALLBACK_CONTENT_LIMIT_RATIO).toInt()
+        val measured = contentBottomOnScreen
+            ?.takeIf { it > rootTopOnScreen && it <= contentLimit }
+            ?.let { it + safeGap }
+        return maxOf(heuristic, measured ?: heuristic)
+    }
+
     fun isLockScreenAodActive(
         fullAod: Boolean,
         interactive: Boolean,
@@ -1486,10 +1517,11 @@ object NotificationMediaAodLyricHooker {
         // 不会把已合并的「歌词 翻译」串再次拼接。
         overlay.compactSourceMain = overlay.main.text.toString()
         overlay.compactSourceTranslation = overlay.translation.text.toString()
-        // 全屏 AOD：展示自绘进度行（系统该模式无原生进度条）；
-        // 紧凑模式由 applyCompactMode 隐藏，无时长数据时也不显示。
+        // 全屏 AOD 与通知中心焦点通知：展示自绘进度行（带时间标签），对齐锁屏歌词卡片样式；
+        // 系统这两个模式原生进度条不可用/已隐藏。紧凑模式（亮屏锁屏）仍由 applyCompactMode 隐藏，
+        // 无时长数据时也不显示。
         val songDurationMs = LyriconDataBridge.currentSong?.duration?.takeIf { it > 0L }
-        if (overlay.fullAodActive && songDurationMs != null) {
+        if ((state.fullAod || state.notificationCenterLyricsActive) && songDurationMs != null) {
             overlay.progressRow.visibility = View.VISIBLE
             overlay.progressTimeLeft.setTextColor(translationColor)
             overlay.progressTimeRight.setTextColor(translationColor)
@@ -1540,12 +1572,22 @@ object NotificationMediaAodLyricHooker {
             ),
         )
         overlay.fullAodActive = state.fullAod
-        // 亮屏场景（锁屏歌词/通知中心焦点通知）使用紧凑模式：不撑高卡片，
-        // 在按钮与进度条之间的空白区域展示歌词与翻译。
-        // 息屏 AOD / 自定义 AOD 保持原有全屏多行布局，不进入紧凑模式。
-        val compactMode = interactive && !state.fullAod
+        // 通知中心焦点通知改为与息屏 AOD 同款完整卡片样式：撑高卡片、歌词居中多行、
+        // 自绘进度行（带时间标签），不再走紧凑模式（卡片不变几何、歌词挤在信息与进度条空隙）。
+        // 亮屏锁屏歌词（interactive 但非通知中心）仍保持紧凑模式；息屏 AOD 本就不进紧凑。
+        val compactMode = interactive && !state.fullAod && !state.notificationCenterLyricsActive
         overlay.compactMode = compactMode
         applyCompactMode(overlay, compactMode, textStyle, mainShouldScroll)
+        // 完整卡片（通知中心/息屏 AOD）：隐藏系统原生进度条（不存在或已隐藏），改用自绘进度行，
+        // 避免与带时间标签的自绘进度条重复。原始可见性记入 state，隐藏/退出时恢复。
+        if (!compactMode) {
+            overlay.seekBar?.let { sb ->
+                if (sb.visibility != View.INVISIBLE) {
+                    state.seekBarVisibility = sb.visibility
+                    sb.visibility = View.INVISIBLE
+                }
+            }
+        }
         if (overlay.root.visibility == View.GONE) {
             overlay.root.visibility = View.INVISIBLE
         }
@@ -2530,9 +2572,17 @@ object NotificationMediaAodLyricHooker {
             (rootRight - width).coerceAtLeast(rootLeft)
         )
         // 锚点回退（息屏通知关闭、mNotificationIcons 不存在）时，锚点即 AODView 根，
-        // 其高度等于整屏；直接以根高度定位会把歌词推出屏幕，故改用「根高 62%」处作为起点。
+        // 其高度等于整屏；直接以根高度定位会把歌词推出屏幕。
+        // 在固定 62% 基础上扫描 AOD 内容块（电量状态/农历等组件）下缘，把歌词压到
+        // 所有已开启息屏组件之下，避免「仅电量状态+农历」时翻译行与电量信息重叠。
         val topOnScreen = if (overlay.anchorIsFallback) {
-            rootLocation[1] + (overlay.aodRoot.height * 0.62f).toInt()
+            AodMediaLyricPolicy.classicFallbackTopOnScreen(
+                rootTopOnScreen = rootLocation[1],
+                rootHeight = overlay.aodRoot.height,
+                contentBottomOnScreen =
+                fallbackAodContentBottomOnScreen(overlay.aodRoot, overlay.root),
+                gapPx = gap,
+            )
         } else {
             anchorLocation[1] + overlay.anchor.height + gap
         }
@@ -2576,6 +2626,47 @@ object NotificationMediaAodLyricHooker {
                     "targetHeight=$height"
             )
         }
+    }
+
+    /** 视图高度达到根高该比例时视为整屏画布容器（如画布时钟），不参与内容块定位。 */
+    private const val AOD_FALLBACK_FULL_CANVAS_RATIO = 0.95f
+
+    /**
+     * 扫描 AOD 根视图下（排除歌词覆盖层自身子树）可见内容块的最低下缘。
+     * 高度接近整屏的容器不参与，避免把画布时钟的画布底部误判为内容下缘；
+     * 结果仅供锚点回退定位使用，扫描不到可靠内容块时返回 null（维持 62%）。
+     */
+    private fun fallbackAodContentBottomOnScreen(
+        aodRoot: FrameLayout,
+        overlayRoot: View,
+    ): Int? {
+        val rootLocation = IntArray(2)
+        aodRoot.getLocationOnScreen(rootLocation)
+        val fullCanvasLimit = (aodRoot.height * AOD_FALLBACK_FULL_CANVAS_RATIO).toInt()
+        var maxBottom: Int? = null
+        val location = IntArray(2)
+        fun visit(view: View) {
+            if (view === overlayRoot) return
+            if (
+                view.visibility == View.VISIBLE &&
+                view.width > 0 &&
+                view.height > 0 &&
+                view.height < fullCanvasLimit
+            ) {
+                view.getLocationOnScreen(location)
+                val bottom = location[1] + view.height
+                if (bottom > (maxBottom ?: 0)) {
+                    maxBottom = bottom
+                }
+            }
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) {
+                    visit(view.getChildAt(index))
+                }
+            }
+        }
+        visit(aodRoot)
+        return maxBottom
     }
 
     private fun createOverlay(
@@ -3005,6 +3096,11 @@ object NotificationMediaAodLyricHooker {
         if (state.actionVisibilities.isEmpty()) return
         state.actionVisibilities.forEach { (view, visibility) -> view.visibility = visibility }
         state.actionVisibilities.clear()
+        // 完整卡片模式下隐藏的原生进度条：退出/隐藏时恢复其原始可见性。
+        state.seekBarVisibility?.let { visibility ->
+            state.overlay?.seekBar?.visibility = visibility
+            state.seekBarVisibility = null
+        }
     }
 
     private fun safeApply(controller: Any, state: ControllerState) {
@@ -4886,7 +4982,8 @@ object NotificationMediaAodLyricHooker {
         var notificationCenterLyricsActive: Boolean = false,
         var playing: Boolean = false,
         var overlay: LyricOverlay? = null,
-        val actionVisibilities: MutableMap<View, Int> = LinkedHashMap()
+        val actionVisibilities: MutableMap<View, Int> = LinkedHashMap(),
+        var seekBarVisibility: Int? = null
     )
 
     private class AodPluginApi private constructor(
