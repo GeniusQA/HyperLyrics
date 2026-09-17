@@ -70,6 +70,57 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: 构建摘要 Build Summary
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          CHANNEL: ${{ steps.gate.outputs.channel }}
+          FULL_NAME: ${{ steps.gate.outputs.full_name }}
+          CODE: ${{ steps.gate.outputs.code }}
+        run: |
+          set -euo pipefail
+
+          short_sha="${GITHUB_SHA:0:7}"
+          commit_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
+
+          {
+            echo "## 构建摘要 HyperLyrics"
+            echo
+            echo "| 项目 | 内容 |"
+            echo "| --- | --- |"
+            echo "| 渠道 | $CHANNEL |"
+            echo "| 版本 | v$FULL_NAME ($CODE) |"
+            echo "| 提交 | [`$short_sha`]($commit_url) |"
+            echo "| 触发者 | ${{ github.actor }} |"
+            echo
+            echo "### 本次提交说明"
+            echo
+            echo '```text'
+            git log -1 --pretty=format:'%B' HEAD
+            echo
+            echo '```'
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 提交列表基线：优先用上一个正式版 tag，否则取最近 10 条
+          base=""
+          if parent="$(git rev-parse HEAD^ 2>/dev/null)"; then
+            base="$(git describe --tags --abbrev=0 "$parent" 2>/dev/null || true)"
+          fi
+          if [[ -n "$base" ]]; then
+            range="$base..HEAD^"
+            list_title="自 $base 以来的提交"
+          else
+            range="HEAD~10..HEAD"
+            list_title="最近提交"
+          fi
+
+          {
+            echo "### $list_title"
+            echo
+            git log "$range" --pretty=format:'- `%h` %s' --no-merges 2>/dev/null || true
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: 安装 JDK Setup Java
         if: steps.gate.outputs.skip != 'true'
         uses: actions/setup-java@v5
