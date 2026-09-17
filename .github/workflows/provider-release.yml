@@ -130,7 +130,7 @@ jobs:
             base64 -w0 "$signature_file" > catalog/catalog.sig
             printf '\n' >> catalog/catalog.sig
             openssl pkeyutl -verify -rawin -pubin \
-              -inkey HL-Providers/keys/provider-signing-public.pem \
+              -inkey keystore/provider-signing-public.pem \
               -in catalog/catalog.json \
               -sigfile "$signature_file"
 
