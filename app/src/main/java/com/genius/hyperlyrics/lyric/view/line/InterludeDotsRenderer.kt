@@ -70,16 +70,17 @@ internal class InterludeDotsRenderer {
         dotPaint.color = textPaint.color
         dotPaint.shader = textPaint.shader
 
-        // 只绘制单个居中等候点：
-        // - 避免 3 点组合在呼吸动画中某个点变得巨大（"等待播放圆点太大"）
-        // - 去掉两侧暗淡小黑点（"不要再展示之前的小黑点"）
-        dotPaint.alpha = frame.dotAlphas[0] * frame.groupAlpha / 255
-        canvas.drawCircle(
-            groupCenterX,
-            centerY,
-            radius * frame.groupScale,
-            dotPaint
-        )
+        // 三点等亮度间奏点（紧凑大句号造型：直径 = 字号 × 0.6）
+        val step = diameter * DOT_STEP_IN_DIAMETERS
+        repeat(DOT_COUNT) { index ->
+            dotPaint.alpha = frame.dotAlphas[index] * frame.groupAlpha / 255
+            canvas.drawCircle(
+                groupCenterX + (index - 1) * step * frame.groupScale,
+                centerY,
+                radius * frame.groupScale,
+                dotPaint
+            )
+        }
     }
 
     private fun resolvePlaybackPosition(model: LyricModel, nowMs: Long): Long {
@@ -98,13 +99,15 @@ internal class InterludeDotsRenderer {
     private fun dotSize(textSize: Float): Float = resolveInterludeDotSize(textSize)
 
     private companion object {
-        const val DOTS_VISUAL_WIDTH_IN_DIAMETERS = 1.0f
+        const val DOT_COUNT = 3
+        const val DOT_STEP_IN_DIAMETERS = 1.5f
+        const val DOTS_VISUAL_WIDTH_IN_DIAMETERS = 4.0f
         const val MAX_GROUP_SCALE = 1.0f
     }
 }
 
 internal fun resolveInterludeDotSize(textSize: Float): Float =
-    textSize * 0.30f
+    textSize * 0.60f
 
 internal data class InterludeDotsFrame(
     val dotAlphas: List<Int>,
@@ -151,8 +154,9 @@ private fun resolveInterludeActiveFrame(
         ).toInt()
     }
 
+    // 三点等亮度：常亮（不再做逐点渐亮，避免两侧暗点像小黑点）
     return InterludeDotsFrame(
-        dotAlphas = dotAlphas,
+        dotAlphas = List(3) { DOTS_FULL_ALPHA },
         groupScale = resolveBreathingScale(elapsedMs)
     )
 }
@@ -202,7 +206,7 @@ private const val INTERLUDE_EXIT_COLLAPSE_MS = 250L
 private const val INTERLUDE_BREATH_DURATION_MS = 4_000L
 private const val DOTS_DIM_ALPHA = 49
 private const val DOTS_FULL_ALPHA = 255
-private const val DOTS_MAX_SCALE = 1.4f
+private const val DOTS_MAX_SCALE = 1.15f
 private const val DOTS_EXIT_SCALE = 0.5f
 
 private fun resolveBreathingScale(elapsedMs: Long): Float {

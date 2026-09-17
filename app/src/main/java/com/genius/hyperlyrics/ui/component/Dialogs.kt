@@ -1,12 +1,14 @@
 package com.genius.hyperlyrics.ui.component
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -14,15 +16,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -41,11 +42,6 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.File
-import java.io.InputStreamReader
 
 @Composable
 fun NumberInputDialog(
@@ -680,7 +676,7 @@ private fun CleanupFileDetailDialog(
     onDismiss: () -> Unit
 ) {
     val timeFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
-    var browsingDir by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     WindowDialog(
         title = stringResource(id = R.string.cleanup_file_detail_title),
@@ -731,7 +727,16 @@ private fun CleanupFileDetailDialog(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { browsingDir = file.path.substringBeforeLast('/') }
+                                .clickable {
+                                    // 跳转外部文件管理器定位该文件；未安装任何受支持的管理器时报错
+                                    if (!openPathInFileManager(context, file.path)) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.jump_file_manager_required),
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                                }
                                 .padding(top = 2.dp)
                         )
                     }
@@ -750,152 +755,33 @@ private fun CleanupFileDetailDialog(
             )
         }
     }
-
-    CleanupDirBrowserDialog(
-        show = browsingDir != null,
-        dirPath = browsingDir,
-        onDismiss = { browsingDir = null }
-    )
 }
 
-private data class CleanupDirEntry(val name: String, val sizeText: String?)
-
-/** 日志目录浏览弹窗：列出被清理文件所在目录下的日志文件。 */
-@Composable
-private fun CleanupDirBrowserDialog(
-    show: Boolean,
-    dirPath: String?,
-    onDismiss: () -> Unit
-) {
-    var loading by remember(dirPath) { mutableStateOf(false) }
-    var entries by remember(dirPath) { mutableStateOf<List<CleanupDirEntry>>(emptyList()) }
-    var failed by remember(dirPath) { mutableStateOf(false) }
-
-    LaunchedEffect(show, dirPath) {
-        if (!show || dirPath == null) return@LaunchedEffect
-        loading = true
-        failed = false
-        entries = emptyList()
-        val result = withContext(Dispatchers.IO) {
-            runCatching { listCleanupDirFiles(dirPath) }
-        }
-        entries = result.getOrDefault(emptyList())
-        failed = result.isFailure
-        loading = false
+/**
+ * 跳转外部文件管理器定位指定文件/目录。
+ * 检测顺序：MT 金丝雀(bin.mt.plus.canary) → MT 正式(bin.mt.plus) → NP管理器(com.wn.app.np)
+ * → ES文件浏览器(com.estrongs.android.pop)。
+ * - MT 支持 mtplus:// 外部调用 scheme，可定位到具体路径；
+ * - NP/ES 无公开的路径定位接口，仅拉起应用本身（尽力而为）。
+ * 全部未安装或拉起失败时返回 false，由调用方提示安装。
+ */
+private fun openPathInFileManager(context: Context, path: String): Boolean {
+    val mtPackages = listOf("bin.mt.plus.canary", "bin.mt.plus")
+    val uri = Uri.parse("mtplus://bin.mt.plus/open").buildUpon()
+        .appendQueryParameter("path", path)
+        .build()
+    for (pkg in mtPackages) {
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+            .setPackage(pkg)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent.resolveActivity(context.packageManager) == null) continue
+        if (runCatching { context.startActivity(intent) }.isSuccess) return true
     }
-
-    WindowDialog(
-        title = stringResource(id = R.string.cleanup_dir_title),
-        show = show,
-        onDismissRequest = onDismiss
-    ) {
-        Text(
-            text = dirPath.orEmpty(),
-            fontSize = 11.sp,
-            color = MiuixTheme.colorScheme.onSecondaryVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        when {
-            loading -> Text(
-                text = stringResource(id = R.string.cleanup_dir_loading),
-                fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 24.dp),
-                textAlign = TextAlign.Center
-            )
-            failed -> Text(
-                text = stringResource(id = R.string.cleanup_dir_browse_failed),
-                fontSize = 14.sp,
-                color = Color(0xFFF44336),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 24.dp),
-                textAlign = TextAlign.Center
-            )
-            entries.isEmpty() -> Text(
-                text = stringResource(id = R.string.cleanup_dir_empty),
-                fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 24.dp),
-                textAlign = TextAlign.Center
-            )
-            else -> LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 320.dp)
-            ) {
-                items(entries) { entry ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = entry.name,
-                            fontSize = 14.sp,
-                            color = MiuixTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        entry.sizeText?.let {
-                            Text(
-                                text = it,
-                                fontSize = 11.sp,
-                                color = MiuixTheme.colorScheme.onSecondaryVariant,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(
-            horizontalArrangement = Arrangement.End,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            TextButton(
-                text = stringResource(id = R.string.confirm),
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColorsPrimary()
-            )
-        }
+    // NP/ES：无公开定位 scheme，仅拉起应用
+    for (pkg in listOf("com.wn.app.np", "com.estrongs.android.pop")) {
+        val launch = context.packageManager.getLaunchIntentForPackage(pkg) ?: continue
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { context.startActivity(launch) }.isSuccess) return true
     }
-}
-
-/** 列出目录下的日志文件：应用私有目录直接读文件系统；/data/ 下的模块日志走 su。 */
-private fun listCleanupDirFiles(dirPath: String): List<CleanupDirEntry> {
-    return if (dirPath.startsWith("/data/")) {
-        val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "ls \"$dirPath\""))
-        val names = try {
-            BufferedReader(InputStreamReader(process.inputStream)).readLines().filter {
-                it.isNotBlank()
-            }
-        } finally {
-            process.waitFor()
-        }
-        names.sorted().map { CleanupDirEntry(it, null) }
-    } else {
-        val dir = File(dirPath)
-        dir.listFiles()
-            ?.filter { it.isFile }
-            ?.sortedBy { it.name }
-            ?.map { CleanupDirEntry(it.name, formatCleanupFileSize(it.length())) }
-            ?: emptyList()
-    }
-}
-
-private fun formatCleanupFileSize(bytes: Long): String = when {
-    bytes >= 1L shl 20 -> String.format(Locale.US, "%.1f MB", bytes / 1048576.0)
-    bytes >= 1L shl 10 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
-    else -> "$bytes B"
+    return false
 }

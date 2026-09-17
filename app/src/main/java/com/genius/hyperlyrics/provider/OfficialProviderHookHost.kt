@@ -1540,7 +1540,16 @@ internal class OfficialProviderHookHost(
         val dexKitLoaded = AtomicBoolean(false)
         val dexKitLoadLock = Any()
 
-        fun ensureDexKitLoaded(module: XposedModule) {
+        /**
+         * 加载 libdexkit.so，需兼容 32 位宿主进程：
+         * - Android 安装模块时只解压设备首选 ABI（arm64）到 nativeLibraryDir，
+         *   v7a 的 so 仅存在于模块 APK 内、不落盘；
+         * - 酷狗概念版等 32 位进程按 nativeLibraryDir 只能找到 64 位 so，
+         *   dlopen 报 "is 64-bit instead of 32-bit"。
+         * 因此 32 位进程走「从模块 APK 解压 lib/armeabi-v7a/libdexkit.so 到宿主
+         * codeCache 再 System.load」的路径；64 位进程维持直接加载。
+         */
+        fun ensureDexKitLoaded(module: XposedModule, application: Application) {
             if (dexKitLoaded.get()) return
             synchronized(dexKitLoadLock) {
                 if (dexKitLoaded.get()) return
@@ -1549,12 +1558,48 @@ internal class OfficialProviderHookHost(
                     moduleInfo.nativeLibraryDir,
                     "libdexkit.so",
                 )
+                if (android.os.Process.is64Bit() && nativeLibrary.isFile) {
+                    System.load(nativeLibrary.absolutePath)
+                    dexKitLoaded.set(true)
+                    return
+                }
+                val abi = if (android.os.Process.is64Bit()) "arm64-v8a" else "armeabi-v7a"
+                val extracted = extractDexKitFromModuleApk(moduleInfo.sourceDir, abi, application)
+                if (extracted != null) {
+                    System.load(extracted.absolutePath)
+                    dexKitLoaded.set(true)
+                    return
+                }
+                // APK 内无对应 ABI（如未打包 v7a）时回退原路径，保留明确报错。
                 require(nativeLibrary.isFile) {
                     "DexKit native library missing: ${nativeLibrary.absolutePath}"
                 }
                 System.load(nativeLibrary.absolutePath)
                 dexKitLoaded.set(true)
             }
+        }
+
+        private fun extractDexKitFromModuleApk(
+            moduleApkPath: String?,
+            abi: String,
+            application: Application,
+        ): java.io.File? {
+            if (moduleApkPath.isNullOrBlank()) return null
+            return runCatching {
+                java.util.zip.ZipFile(moduleApkPath).use { zip ->
+                    val entry = zip.getEntry("lib/$abi/libdexkit.so") ?: return null
+                    val outputDir = java.io.File(application.codeCacheDir, "dexkit_$abi")
+                    val output = java.io.File(outputDir, "libdexkit.so")
+                    outputDir.mkdirs()
+                    zip.getInputStream(entry).use { input ->
+                        output.outputStream().use { outputStream ->
+                            input.copyTo(outputStream)
+                        }
+                    }
+                    output.setExecutable(false, false)
+                    output
+                }
+            }.getOrNull()
         }
     }
 
@@ -1565,7 +1610,7 @@ internal class OfficialProviderHookHost(
 
         fun bridge(threadCount: Int): DexKitBridge {
             bridge?.let { return it }
-            ensureDexKitLoaded(module)
+            ensureDexKitLoaded(module, application)
             return DexKitBridge.create(application.applicationInfo.sourceDir).also { created ->
                 created.setThreadNum(threadCount)
                 created.setMaxConcurrentQueries(1)
