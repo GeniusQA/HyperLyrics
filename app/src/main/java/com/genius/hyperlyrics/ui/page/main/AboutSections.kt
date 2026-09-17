@@ -40,6 +40,7 @@ fun LazyListScope.aboutPageSections(
     onHelpClick: () -> Unit,
     onLicensesClick: () -> Unit,
     onChangelogClick: () -> Unit,
+    onCheckUpdateClick: () -> Unit,
     onContributorsClick: () -> Unit,
 ) {
     item(key = "about_header") {
@@ -125,6 +126,10 @@ fun LazyListScope.aboutPageSections(
                 ArrowPreference(
                     title = stringResource(R.string.title_changelog),
                     onClick = onChangelogClick,
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.title_check_update),
+                    onClick = onCheckUpdateClick,
                 )
             }
         }

@@ -231,6 +231,7 @@ fun LogPage() {
     val clearLabel = stringResource(R.string.clear_logs)
     val autoCleanupLabel = stringResource(R.string.auto_cleanup_logs)
     val autoCleanupOffLabel = stringResource(R.string.auto_cleanup_off)
+    val autoCleanup1hLabel = stringResource(R.string.auto_cleanup_1h)
     val autoCleanup24hLabel = stringResource(R.string.auto_cleanup_24h)
     val autoCleanup7dLabel = stringResource(R.string.auto_cleanup_7d)
     val allLabel = stringResource(R.string.all)
@@ -243,10 +244,12 @@ fun LogPage() {
     val autoCleanupSummary = remember(
         autoCleanupIntervalHours,
         autoCleanupOffLabel,
+        autoCleanup1hLabel,
         autoCleanup24hLabel,
         autoCleanup7dLabel,
     ) {
         when (autoCleanupIntervalHours) {
+            1 -> autoCleanup1hLabel
             24 -> autoCleanup24hLabel
             168 -> autoCleanup7dLabel
             else -> autoCleanupOffLabel
@@ -262,8 +265,10 @@ fun LogPage() {
     ) {
         val levels = listOf("ALL", "D", "I", "W", "E", "C")
         val levelNames = listOf(allLabel, levelDebug, levelInfo, levelWarn, levelError, levelCrash)
-        val cleanupOptionValues = listOf(0, 24, 168)
-        val cleanupOptionLabels = listOf(autoCleanupOffLabel, autoCleanup24hLabel, autoCleanup7dLabel)
+        val cleanupOptionValues = listOf(0, 1, 24, 168)
+        val cleanupOptionLabels = listOf(
+            autoCleanupOffLabel, autoCleanup1hLabel, autoCleanup24hLabel, autoCleanup7dLabel
+        )
         listOf(
             DropdownEntry(
                 items = listOf(
