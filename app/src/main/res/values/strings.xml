@@ -771,10 +771,7 @@
     <string name="cleanup_status_failed_files">失败文件：%1$s</string>
     <string name="cleanup_failure_solution">部分文件因被占用或权限不足未能清理，可重启系统或手动删除。</string>
     <string name="cleanup_file_detail_title">清理文件明细</string>
-    <string name="cleanup_dir_title">日志目录</string>
-    <string name="cleanup_dir_loading">正在加载…</string>
-    <string name="cleanup_dir_browse_failed">无法访问该目录（可能需要 Root 授权）</string>
-    <string name="cleanup_dir_empty">目录下暂无日志文件</string>
+    <string name="jump_file_manager_required">请安装 MT/NP/ES 文件管理器并授予 Root 权限后才允许跳转文件目录</string>
 
     <!-- 二次匹配结果提示（LyriconSource 在 hook 进程用 moduleString 取模块自有资源） -->
     <string name="manual_match_result_no_song">二次匹配失败：当前没有三方播放歌曲</string>

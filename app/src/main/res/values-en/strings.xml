@@ -765,4 +765,6 @@
     <string name="title_lyric_area_height">Lyric Lines</string>
     <string name="summary_lyric_area_height">Total line limit for the lyric block, also limits single-line wrapping and upcoming lyric lines</string>
     <string name="format_lyric_area_height">%d lines</string>
+
+    <string name="jump_file_manager_required">Install MT/NP/ES file manager (with root permission) to enable path navigation</string>
 </resources>
