@@ -259,18 +259,35 @@ internal object NotificationMediaBackgroundController {
 
     fun releaseAll() {
         executor.shutdownNow()
-        val snapshot = synchronized(states) { states.values.toList() }
-        snapshot.forEach { state ->
-            state.request.incrementAndGet()
-            restoreMediaBackground(state)
-        }
+        val mediaSnapshot = synchronized(states) { states.values.toList() }
+        mediaSnapshot.forEach { state -> state.request.incrementAndGet() }
         states.clear()
-        unavailableLoaders.clear()
-        supportedLoaders.clear()
         val seekBarSnapshot = synchronized(seekBarStates) { seekBarStates.toMap() }
-        seekBarSnapshot.forEach { (seekBar, state) -> restoreSeekBarState(seekBar, state) }
         seekBarStates.clear()
         seekBarColors.clear()
+        unavailableLoaders.clear()
+        supportedLoaders.clear()
+
+        val restoreViews = {
+            mediaSnapshot.forEach { state ->
+                runCatching { restoreMediaBackground(state) }.onFailure {
+                    HookLogger.w(TAG, "恢复媒体背景失败: ${it.message}")
+                }
+            }
+            seekBarSnapshot.forEach { (seekBar, state) ->
+                runCatching { restoreSeekBarState(seekBar, state) }.onFailure {
+                    HookLogger.w(TAG, "恢复 SeekBar 状态失败: ${it.message}")
+                }
+            }
+        }
+        // releaseAll 会从 onHotReloading（LSPosed binder 线程）被调用，
+        // ImageView/SeekBar 触碰必须切回主线程，否则
+        // CalledFromWrongThreadException 会让 LSPosed 判定 SystemUI 热重载失败
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            restoreViews()
+        } else {
+            runCatching { Handler(Looper.getMainLooper()).post(restoreViews) }
+        }
     }
 
     private fun applyBackground(mediaBg: ImageView, bitmap: Bitmap) {
