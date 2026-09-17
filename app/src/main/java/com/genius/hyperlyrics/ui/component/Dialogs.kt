@@ -1,5 +1,6 @@
 package com.genius.hyperlyrics.ui.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,6 +41,11 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.File
+import java.io.InputStreamReader
 
 @Composable
 fun NumberInputDialog(
@@ -487,6 +493,7 @@ fun CleanupHistoryDialog(
     onDismiss: () -> Unit
 ) {
     val timeFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
+    var selectedRecord by remember { mutableStateOf<LogManager.CleanupRecord?>(null) }
 
     WindowDialog(
         title = stringResource(id = R.string.cleanup_history_title),
@@ -563,9 +570,14 @@ fun CleanupHistoryDialog(
                                 text = pathText,
                                 fontSize = 12.sp,
                                 color = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f, fill = false),
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .then(
+                                        if (record.files.isEmpty()) Modifier
+                                        else Modifier.clickable { selectedRecord = record }
+                                    ),
                                 textAlign = TextAlign.End,
-                                maxLines = 3,
+                                maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
@@ -652,4 +664,238 @@ fun CleanupHistoryDialog(
             )
         }
     }
+
+    CleanupFileDetailDialog(
+        show = selectedRecord != null,
+        record = selectedRecord,
+        onDismiss = { selectedRecord = null }
+    )
+}
+
+/** 清理文件明细弹窗：展示单条记录里每个被清理文件的文件名与完整路径，点路径可浏览所在目录。 */
+@Composable
+private fun CleanupFileDetailDialog(
+    show: Boolean,
+    record: LogManager.CleanupRecord?,
+    onDismiss: () -> Unit
+) {
+    val timeFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
+    var browsingDir by remember { mutableStateOf<String?>(null) }
+
+    WindowDialog(
+        title = stringResource(id = R.string.cleanup_file_detail_title),
+        show = show,
+        onDismissRequest = onDismiss
+    ) {
+        if (record == null || record.files.isEmpty()) {
+            Text(
+                text = stringResource(id = R.string.cleanup_status_no_files, ""),
+                color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                textAlign = TextAlign.Center
+            )
+        } else {
+            Text(
+                text = stringResource(id = R.string.cleanup_time_label) + "  " +
+                    timeFormat.format(Date(record.timestamp)),
+                fontSize = 12.sp,
+                color = MiuixTheme.colorScheme.onSecondaryVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp)
+            ) {
+                items(record.files) { file ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = file.path.cleanupDisplayName(),
+                            fontSize = 14.sp,
+                            color = if (file.success) Color(0xFF4CAF50) else Color(0xFFF44336),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = file.path,
+                            fontSize = 11.sp,
+                            color = MiuixTheme.colorScheme.onSecondaryVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { browsingDir = file.path.substringBeforeLast('/') }
+                                .padding(top = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            horizontalArrangement = Arrangement.End,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            TextButton(
+                text = stringResource(id = R.string.confirm),
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColorsPrimary()
+            )
+        }
+    }
+
+    CleanupDirBrowserDialog(
+        show = browsingDir != null,
+        dirPath = browsingDir,
+        onDismiss = { browsingDir = null }
+    )
+}
+
+private data class CleanupDirEntry(val name: String, val sizeText: String?)
+
+/** 日志目录浏览弹窗：列出被清理文件所在目录下的日志文件。 */
+@Composable
+private fun CleanupDirBrowserDialog(
+    show: Boolean,
+    dirPath: String?,
+    onDismiss: () -> Unit
+) {
+    var loading by remember(dirPath) { mutableStateOf(false) }
+    var entries by remember(dirPath) { mutableStateOf<List<CleanupDirEntry>>(emptyList()) }
+    var failed by remember(dirPath) { mutableStateOf(false) }
+
+    LaunchedEffect(show, dirPath) {
+        if (!show || dirPath == null) return@LaunchedEffect
+        loading = true
+        failed = false
+        entries = emptyList()
+        val result = withContext(Dispatchers.IO) {
+            runCatching { listCleanupDirFiles(dirPath) }
+        }
+        entries = result.getOrDefault(emptyList())
+        failed = result.isFailure
+        loading = false
+    }
+
+    WindowDialog(
+        title = stringResource(id = R.string.cleanup_dir_title),
+        show = show,
+        onDismissRequest = onDismiss
+    ) {
+        Text(
+            text = dirPath.orEmpty(),
+            fontSize = 11.sp,
+            color = MiuixTheme.colorScheme.onSecondaryVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        when {
+            loading -> Text(
+                text = stringResource(id = R.string.cleanup_dir_loading),
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                textAlign = TextAlign.Center
+            )
+            failed -> Text(
+                text = stringResource(id = R.string.cleanup_dir_browse_failed),
+                fontSize = 14.sp,
+                color = Color(0xFFF44336),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                textAlign = TextAlign.Center
+            )
+            entries.isEmpty() -> Text(
+                text = stringResource(id = R.string.cleanup_dir_empty),
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                textAlign = TextAlign.Center
+            )
+            else -> LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp)
+            ) {
+                items(entries) { entry ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = entry.name,
+                            fontSize = 14.sp,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        entry.sizeText?.let {
+                            Text(
+                                text = it,
+                                fontSize = 11.sp,
+                                color = MiuixTheme.colorScheme.onSecondaryVariant,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            horizontalArrangement = Arrangement.End,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            TextButton(
+                text = stringResource(id = R.string.confirm),
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColorsPrimary()
+            )
+        }
+    }
+}
+
+/** 列出目录下的日志文件：应用私有目录直接读文件系统；/data/ 下的模块日志走 su。 */
+private fun listCleanupDirFiles(dirPath: String): List<CleanupDirEntry> {
+    return if (dirPath.startsWith("/data/")) {
+        val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "ls \"$dirPath\""))
+        val names = try {
+            BufferedReader(InputStreamReader(process.inputStream)).readLines().filter {
+                it.isNotBlank()
+            }
+        } finally {
+            process.waitFor()
+        }
+        names.sorted().map { CleanupDirEntry(it, null) }
+    } else {
+        val dir = File(dirPath)
+        dir.listFiles()
+            ?.filter { it.isFile }
+            ?.sortedBy { it.name }
+            ?.map { CleanupDirEntry(it.name, formatCleanupFileSize(it.length())) }
+            ?: emptyList()
+    }
+}
+
+private fun formatCleanupFileSize(bytes: Long): String = when {
+    bytes >= 1L shl 20 -> String.format(Locale.US, "%.1f MB", bytes / 1048576.0)
+    bytes >= 1L shl 10 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
+    else -> "$bytes B"
 }

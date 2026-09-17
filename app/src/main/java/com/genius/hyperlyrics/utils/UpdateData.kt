@@ -18,9 +18,23 @@ data class AvailableUpdate(
     val displayVersion: String = "v$versionName-$versionCode"
 }
 
+/** GitHub latest release 的完整信息：版本 + Release 说明。 */
+data class LatestRelease(
+    val update: AvailableUpdate,
+    val releaseNotes: String,
+)
+
+/** 手动检查更新的结果。 */
+sealed class UpdateCheckResult {
+    data object UpToDate : UpdateCheckResult()
+    data class Available(val latest: LatestRelease) : UpdateCheckResult()
+    data object Failed : UpdateCheckResult()
+}
+
 @Serializable
 private data class GitHubLatestRelease(
     @SerialName("tag_name") val tagName: String,
+    val body: String? = null,
     val assets: List<GitHubReleaseAsset> = emptyList(),
 )
 
@@ -37,6 +51,7 @@ object UpdateData {
      * 配置，但默认保持关闭，直到新发布线有正式 Release 后再开启。
      */
     private const val UPDATE_CHECK_ENABLED = false
+    const val RELEASES_PAGE_URL = "https://github.com/GeniusQA/HyperLyrics/releases"
     private const val LATEST_RELEASE_API =
         "https://api.github.com/repos/GeniusQA/HyperLyrics/releases/latest"
     private val json = Json { ignoreUnknownKeys = true }
@@ -53,7 +68,7 @@ object UpdateData {
             return
         }
         runCatching {
-            fetchLatestRelease()?.takeIf { latest ->
+            fetchLatestRelease()?.update?.takeIf { latest ->
                 isUpdateAvailable(
                     latestVersionName = latest.versionName,
                     latestVersionCode = latest.versionCode,
@@ -66,7 +81,30 @@ object UpdateData {
         }
     }
 
-    private suspend fun fetchLatestRelease(): AvailableUpdate? = withContext(Dispatchers.IO) {
+    /**
+     * 手动检查更新（关于页「版本更新」入口）：不受 [UPDATE_CHECK_ENABLED] 开关限制。
+     * 拉取失败返回 [UpdateCheckResult.Failed]；版本号一致或更旧返回 [UpdateCheckResult.UpToDate]。
+     */
+    suspend fun checkForUpdate(
+        currentVersionName: String,
+        currentVersionCode: Long,
+    ): UpdateCheckResult {
+        val latest = runCatching { fetchLatestRelease() }.getOrNull()
+            ?: return UpdateCheckResult.Failed
+        return if (isUpdateAvailable(
+                latestVersionName = latest.update.versionName,
+                latestVersionCode = latest.update.versionCode,
+                currentVersionName = currentVersionName,
+                currentVersionCode = currentVersionCode,
+            )
+        ) {
+            UpdateCheckResult.Available(latest)
+        } else {
+            UpdateCheckResult.UpToDate
+        }
+    }
+
+    private suspend fun fetchLatestRelease(): LatestRelease? = withContext(Dispatchers.IO) {
         val connection = URL(LATEST_RELEASE_API).openConnection() as HttpURLConnection
         try {
             connection.requestMethod = "GET"
@@ -91,7 +129,10 @@ object UpdateData {
                 versionName = versionName,
             ) ?: return@withContext null
 
-            AvailableUpdate(versionName = versionName, versionCode = versionCode)
+            LatestRelease(
+                update = AvailableUpdate(versionName = versionName, versionCode = versionCode),
+                releaseNotes = release.body.orEmpty(),
+            )
         } finally {
             connection.disconnect()
         }

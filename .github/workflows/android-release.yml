@@ -212,7 +212,9 @@ jobs:
         with:
           tag_name: v${{ steps.gate.outputs.full_name }}
           target_commitish: ${{ github.sha }}
-          name: v${{ steps.gate.outputs.full_name }}
+          # Release 标题展示为 "V 1.0.0"（大写 V + 空格）；tag 仍为 v1.0.0，
+          # 供 UpdateData/ChangelogData 按 v1.0.0 格式解析。
+          name: V ${{ steps.gate.outputs.full_name }}
           body: ${{ steps.release_body.outputs.body }}
           draft: false
           prerelease: false

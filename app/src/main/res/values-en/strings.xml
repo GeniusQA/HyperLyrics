@@ -110,6 +110,13 @@
     <string name="info_android_version">Android Version</string>
     <string name="title_help">Help</string>
     <string name="title_changelog">Changelog</string>
+    <string name="title_check_update">Check Updates</string>
+    <string name="update_check_up_to_date">Already up to date</string>
+    <string name="update_check_failed">Failed to check for updates. Try again later</string>
+    <string name="update_dialog_title">New Version Available</string>
+    <string name="update_dialog_current_version">Current version: %1$s</string>
+    <string name="update_dialog_latest_version">Latest version: %1$s</string>
+    <string name="update_dialog_action">Update</string>
     <string name="changelog_load_failed">Unable to load GitHub Releases</string>
     <string name="changelog_retry">Tap to retry</string>
     <string name="changelog_empty">No Release notes available</string>
@@ -165,7 +172,7 @@
     <string name="title_restore">Restore</string>
     <string name="title_debug_info">Debug Info</string>
     <string name="title_view_logs">View Logs</string>
-    <string name="export_all_logs">Export All Logs</string>
+    <string name="export_all_logs">Export Logs</string>
 
     <!-- ———————————————————————— HookSettingsPage ———————————————————————— -->
     <string name="lyric_mode_verbatim">Lyricon Verbatim Lyrics</string>
