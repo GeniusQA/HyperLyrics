@@ -36,6 +36,10 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v4
+        with:
+          # 显式声明所需组件：不指定时 sdkmanager 会尝试安装已被 SDK 仓库移除的
+          # "tools" 包，导致 "Failed to find package 'tools'" 直接失败。
+          packages: platforms;android-34 build-tools;34.0.0
       - name: Resolve provider
         id: provider
         run: |
