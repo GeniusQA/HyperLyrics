@@ -32,6 +32,17 @@ interface OfficialProviderHost {
         callback: OfficialProviderMethodCallback,
     )
 
+    /**
+     * 为精确的构造函数描述符安装执行后 Hook。
+     *
+     * 构造函数使用独立目标类型，避免 Provider Pack 把反编译器显示的 `<init>`
+     * 当作普通反射方法名进行查找。
+     */
+    fun hookAfterConstructor(
+        target: OfficialProviderConstructorTarget,
+        callback: OfficialProviderConstructorCallback,
+    )
+
     fun hookAfterDexMethod(
         application: Application,
         query: OfficialProviderDexMethodQuery,
@@ -70,6 +81,32 @@ data class OfficialProviderMethodTarget(
     val returnTypeName: String,
     val isStatic: Boolean,
 )
+
+data class OfficialProviderConstructorTarget(
+    val className: String,
+    val parameterTypeNames: List<String> = emptyList(),
+    /**
+     * 链式解析模式的放宽约束：完整参数列表未知时按首参类型唯一匹配构造函数。
+     * 与 [parameterTypeNames] 互斥，命中结果必须唯一。
+     */
+    val firstParameterTypeName: String? = null,
+) {
+    /**
+     * Binary-compatible constructor for Provider Packs built before the first-parameter
+     * constraint was added. InMemoryDexClassLoader delegates this API package to the core
+     * class loader, so removing the old JVM constructor would break installed Packs.
+     */
+    @Suppress("unused")
+    @Deprecated("Binary compatibility for Provider Packs", level = DeprecationLevel.HIDDEN)
+    constructor(
+        className: String,
+        parameterTypeNames: List<String> = emptyList(),
+    ) : this(
+        className = className,
+        parameterTypeNames = parameterTypeNames,
+        firstParameterTypeName = null,
+    )
+}
 
 enum class OfficialProviderDexTypeSource {
     DECLARING_CLASS,
@@ -150,6 +187,10 @@ data class OfficialProviderDexMethodQuery(
 
 fun interface OfficialProviderMethodCallback {
     fun onMethodCalled(receiver: Any?, arguments: Array<Any?>)
+}
+
+fun interface OfficialProviderConstructorCallback {
+    fun onConstructed(instance: Any?, arguments: Array<Any?>)
 }
 
 fun interface OfficialProviderDexMethodsCallback {

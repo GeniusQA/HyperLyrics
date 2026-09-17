@@ -8,11 +8,13 @@ package com.juren233.hle.providers.kugou
 
 import android.app.Application
 import android.media.MediaMetadata
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
+import com.genius.hyperlyrics.provider.OfficialProviderConstructorTarget
 import com.genius.hyperlyrics.provider.OfficialProviderControlProtocol
 import com.genius.hyperlyrics.provider.OfficialProviderDexMethodQuery
 import com.genius.hyperlyrics.provider.OfficialProviderDexMethodsCallback
@@ -53,6 +55,9 @@ object KuGouPluginEntry : OfficialProviderPlugin {
     // 的错误文案作 DexKit 锚点（与上游 Lyricon Provider 的酷狗实现同锚点）。
     private const val LYRIC_MANAGER_CLASS = "com.kugou.framework.lyric.LyricManager"
     private const val LYRIC_MANAGER_FILE_ANCHOR = "file is not krc or lyc or txt file"
+    /** 框架层文件读取入口：旧版（歌词类完全混淆）用它观察歌词文件加载。 */
+    private const val FILE_INPUT_STREAM_CLASS = "java.io.FileInputStream"
+    private const val UNKNOWN_VERSION_CODE = -1L
     private const val LYRIC_FILE_HOOK_REGISTRATION_TIMEOUT_MS = 30_000L
     private const val MAX_LYRIC_FILE_BYTES = 4L * 1024L * 1024L
 
@@ -95,14 +100,24 @@ object KuGouPluginEntry : OfficialProviderPlugin {
 
             val currentRuntime = KuGouRuntime(application, provider, host).also { runtime = it }
             currentRuntime.start()
-            host.resolveDexMethods(
-                application = application,
-                queries = nextTrackQueriesFor(host.packageName),
-                callback = OfficialProviderDexMethodsCallback { targets ->
-                    currentRuntime.installNextTrackResolver(targets)
-                },
-            )
-            currentRuntime.scheduleLyricFileHookRegistration()
+            val versionCode = resolvePackageVersionCode(application, host.packageName)
+            if (KuGouVersionProfile.supportsModernDexProfiles(host.packageName, versionCode)) {
+                host.resolveDexMethods(
+                    application = application,
+                    queries = nextTrackQueriesFor(host.packageName),
+                    callback = OfficialProviderDexMethodsCallback { targets ->
+                        currentRuntime.installNextTrackResolver(targets)
+                    },
+                )
+                currentRuntime.scheduleLyricFileHookRegistration()
+            } else {
+                // 旧版/未标定版本：歌词类与播放队列类都不存在同名类型（概念版 2.5.5 的
+                // 歌词类为 com.kugou.framework.lyric.a/b/.../l，且没有带文件路径入参的
+                // 加载方法），语义锚查询只会稳定 count=0 并连带触发自修复。这里不下发
+                // DexKit 查询，改用框架层文件读取兜底，并把版本不兼容显式上报。
+                currentRuntime.installLegacyLyricFileWatch()
+                reportUnsupportedVersionDiagnostics(host, versionCode)
+            }
             Log.i(
                 TAG,
                 "酷狗音乐 Provider 已注册: package=${host.packageName} " +
@@ -189,6 +204,39 @@ object KuGouPluginEntry : OfficialProviderPlugin {
         isStatic = false,
     )
 
+    private fun resolvePackageVersionCode(application: Application, packageName: String): Long =
+        runCatching {
+            val info = application.packageManager.getPackageInfo(packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                info.versionCode.toLong()
+            }
+        }.getOrDefault(UNKNOWN_VERSION_CODE)
+
+    /**
+     * 显式上报“该 App 版本不使用语义锚”。
+     *
+     * 这些版本上对应类型根本不存在，DexKit 查询必然 count=0；提前把原因写进
+     * Provider 校验通道，用户/日志侧就能直接看到版本原因，而不是一连串无意义的
+     * “查询结果必须唯一: count=0”与自修复记录。
+     */
+    private fun reportUnsupportedVersionDiagnostics(
+        host: OfficialProviderHost,
+        versionCode: Long,
+    ) {
+        val detail = "unsupported_app_version:$versionCode"
+        nextTrackQueriesFor(host.packageName).forEach { query ->
+            host.reportDexMethodValidation(query.cacheKey, false, detail)
+        }
+        host.reportDexMethodValidation(
+            "kugou-lyric-file-load-v1",
+            false,
+            "$detail,fallback=framework_file_watch",
+        )
+    }
+
     private class KuGouRuntime(
         private val application: Application,
         val provider: LyriconProvider,
@@ -242,6 +290,8 @@ object KuGouPluginEntry : OfficialProviderPlugin {
         private val lyricHookRegistered = AtomicBoolean(false)
         private val firstLyricFileHit = AtomicBoolean(false)
         private val lyricHookTimeoutRegistration = Runnable { registerLyricFileHook() }
+        private val legacyWatchRegistered = AtomicBoolean(false)
+        private val legacyHitGuard = KuGouLyricFileHitGuard()
 
         // 本地歌词文件源（酷狗自读的精确匹配）最近一次发布结果；本地文件源
         // 优先于 v2 搜索源，命中后同曲不再发起搜索、也不再被搜索结果覆盖。
@@ -464,24 +514,91 @@ object KuGouPluginEntry : OfficialProviderPlugin {
             )
         }
 
+        /**
+         * 旧版兜底：观察框架层文件读取入口。
+         *
+         * 旧版酷狗（如概念版 2.5.5）的歌词类完全混淆，且没有“文件路径入参”的加载方法，
+         * 无法用 DexKit 语义锚定位；改为 Hook `java.io.FileInputStream` 的
+         * `(File)` / `(String)` 构造器，按扩展名过滤出歌词文件后复用同一条解析链路。
+         *
+         * 回调位于 App 内所有文件打开的热路径上，因此过滤只做零分配的 endsWith 判断，
+         * 命中后仍需通过轨道绑定与去重才进入解析。
+         */
+        fun installLegacyLyricFileWatch() {
+            if (!legacyWatchRegistered.compareAndSet(false, true)) return
+            val targets = listOf(
+                OfficialProviderConstructorTarget(
+                    className = FILE_INPUT_STREAM_CLASS,
+                    parameterTypeNames = listOf("java.io.File"),
+                ),
+                OfficialProviderConstructorTarget(
+                    className = FILE_INPUT_STREAM_CLASS,
+                    parameterTypeNames = listOf("java.lang.String"),
+                ),
+            )
+            var installed = 0
+            targets.forEach { target ->
+                runCatching {
+                    host.hookAfterConstructor(target) { _, arguments ->
+                        onLegacyLyricFileOpened(arguments)
+                    }
+                }.onSuccess {
+                    installed++
+                }.onFailure { error ->
+                    Log.w(
+                        TAG,
+                        "酷狗旧版歌词文件兜底 Hook 安装失败: ${target.parameterTypeNames}",
+                        error,
+                    )
+                }
+            }
+            Log.i(
+                TAG,
+                "酷狗旧版歌词文件兜底已安装: FileInputStream 构造器 count=$installed",
+            )
+        }
+
+        private fun onLegacyLyricFileOpened(arguments: Array<Any?>?) {
+            val raw = arguments?.firstOrNull()
+            val path = when (raw) {
+                is File -> raw.path
+                is String -> raw
+                else -> null
+            } ?: return
+            if (!KuGouLyricFilePathPolicy.isLyricFilePath(path)) return
+            onLyricFilePath(path, dedupe = true)
+        }
+
         private fun onLyricFileLoaded(arguments: Array<Any?>?) {
-            val path = arguments?.firstOrNull() as? String
-            if (path.isNullOrBlank()) return
+            onLyricFilePath(arguments?.firstOrNull() as? String, dedupe = false)
+        }
+
+        /**
+         * 统一的歌词文件命中入口。
+         *
+         * @param dedupe 旧版框架层兜底传 true：同一次加载会观察到多次文件打开，
+         * 且未绑定轨道时会放弃本次命中，去重必须放在“确认要解析”之后。
+         */
+        private fun onLyricFilePath(path: String?, dedupe: Boolean) {
+            val value = path?.takeIf { it.isNotBlank() } ?: return
             val boundTrack = track
             if (!KuGouLyricFilePolicy.isBindableTrack(boundTrack)) {
                 // 酷狗可能在 MediaSession 元数据广播前就加载歌词文件；此时无法
                 // 可靠归属，放弃文件源（网络搜索兜底）也不冒错绑风险。
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "酷狗歌词文件命中但当前轨道身份为空，放弃绑定: $path")
+                    Log.d(TAG, "酷狗歌词文件命中但当前轨道身份为空，放弃绑定: $value")
                 }
                 return
             }
-            if (firstLyricFileHit.compareAndSet(false, true)) {
-                Log.i(TAG, "酷狗歌词文件拦截首次命中: $path")
-            } else if (BuildConfig.DEBUG) {
-                Log.d(TAG, "酷狗歌词文件命中: $path")
+            if (dedupe && !legacyHitGuard.shouldHandle(value, SystemClock.elapsedRealtime())) {
+                return
             }
-            executor.submit { loadLyricsFromFile(boundTrack, path) }
+            if (firstLyricFileHit.compareAndSet(false, true)) {
+                Log.i(TAG, "酷狗歌词文件拦截首次命中: $value")
+            } else if (BuildConfig.DEBUG) {
+                Log.d(TAG, "酷狗歌词文件命中: $value")
+            }
+            executor.submit { loadLyricsFromFile(boundTrack, value) }
         }
 
         private fun loadLyricsFromFile(boundTrack: KuGouTrackMetadata, path: String) {
