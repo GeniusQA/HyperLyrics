@@ -164,6 +164,51 @@ class OnlineTranslationSourcePreferencesTest {
         )
     }
 
+    @Test
+    fun `track metadata stays readable for whitelisted apps even when online translation is off`() {
+        // 酷狗概念版：白名单内 + 未启用在线翻译 → 仍要展示当前歌曲（原生源歌词）
+        assertEquals(
+            true,
+            OnlineTranslationSourcePreferences.shouldReadTrackMetadata(
+                onlineTranslationEnabled = false,
+                inLyricsWhitelist = true,
+            ),
+        )
+        // 动态 App 首次进入 appEnabled 前（值为 null）同样允许读取
+        assertEquals(
+            true,
+            OnlineTranslationSourcePreferences.shouldReadTrackMetadata(
+                onlineTranslationEnabled = null,
+                inLyricsWhitelist = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `track metadata is blocked for packages outside the lyrics whitelist`() {
+        assertEquals(
+            false,
+            OnlineTranslationSourcePreferences.shouldReadTrackMetadata(
+                onlineTranslationEnabled = false,
+                inLyricsWhitelist = false,
+            ),
+        )
+        assertEquals(
+            false,
+            OnlineTranslationSourcePreferences.shouldReadTrackMetadata(
+                onlineTranslationEnabled = null,
+                inLyricsWhitelist = false,
+            ),
+        )
+        assertEquals(
+            true,
+            OnlineTranslationSourcePreferences.shouldReadTrackMetadata(
+                onlineTranslationEnabled = true,
+                inLyricsWhitelist = false,
+            ),
+        )
+    }
+
     private class TestSharedPreferences(
         private val values: Map<String, Any?>
     ) : android.content.SharedPreferences {
