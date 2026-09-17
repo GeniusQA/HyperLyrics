@@ -128,6 +128,19 @@ object OnlineTranslationSourcePreferences {
             ?: appDefaultEnabled(packageValue)
     }
 
+    /**
+     * MetaData 页是否允许读取当前歌曲元数据。
+     *
+     * 「启用 App」开关只决定在线源匹配是否参与；白名单内但未启用在线翻译的播放器
+     * （如酷狗概念版走原生源歌词、Spotify 走内置插件）仍应照常展示当前歌曲与歌词来源。
+     * 只有「既未启用在线翻译、又不在超级岛歌词白名单」的包（例如白名单外的视频软件）
+     * 才禁止读取标题/歌手/专辑等敏感信息。
+     */
+    fun shouldReadTrackMetadata(
+        onlineTranslationEnabled: Boolean?,
+        inLyricsWhitelist: Boolean,
+    ): Boolean = onlineTranslationEnabled == true || inLyricsWhitelist
+
     fun isSourcePreference(key: String?): Boolean = key in setOf(
         RootConstants.KEY_HOOK_ONLINE_TRANSLATION_SOURCE_ORDER,
         RootConstants.KEY_HOOK_ONLINE_TRANSLATION_AUTO_SELECT_BEST_SOURCE,

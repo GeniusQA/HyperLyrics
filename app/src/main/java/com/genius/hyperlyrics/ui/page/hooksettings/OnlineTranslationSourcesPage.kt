@@ -247,9 +247,16 @@ fun OnlineTranslationSourcesPage() {
             return false
         }
         val pkg = active.packageName
-        // 隐私/权限：未在“启用 App”中开启的包（如视频软件）不应读取其歌曲元数据。
-        // 只保留包名用于动态展示条目，让用户能手动开启；标题/歌手/专辑等敏感信息不获取。
-        if (pkg != null && appEnabled[pkg] != true) {
+        // 隐私/权限：既未启用在线翻译、又不在超级岛歌词白名单里的包（如视频软件）
+        // 不读取其歌曲元数据，只保留包名用于动态展示条目。
+        // 注意：白名单内但未启用在线翻译的播放器（酷狗概念版原生源歌词、Spotify 内置插件）
+        // 必须继续读取——否则返回上一页再进入本页会因读到已保存的 false 而误报“暂无歌曲播放”。
+        val metadataAllowed = pkg == null ||
+            OnlineTranslationSourcePreferences.shouldReadTrackMetadata(
+                onlineTranslationEnabled = appEnabled[pkg],
+                inLyricsWhitelist = pkg in islandWhitelistPackages,
+            )
+        if (!metadataAllowed) {
             currentTrack = null
             currentAlbum = ""
             currentDurationMs = 0L
@@ -487,9 +494,11 @@ fun OnlineTranslationSourcesPage() {
                         OnlineTranslationSourcePreferences.appDefaultEnabled(pkg),
                 )
                 // 动态 App（如酷狗极速版）首次进入 appEnabled 时，
-                // DisposableEffect 里的初始查询可能因它尚未被标记为启用而错过当前歌曲，
-                // 因此加入启用列表后若仍未读到歌曲信息，立刻再查一次。
-                if (appEnabled[pkg] == true && currentTrack == null) {
+                // DisposableEffect 里的初始查询可能因它尚未被标记而错过当前歌曲，
+                // 因此加入 appEnabled 后若仍未读到歌曲信息，立刻再查一次。
+                // 这里不再要求「已启用在线翻译」：未启用在线翻译但走原生源歌词的
+                // 播放器同样要展示当前歌曲。
+                if (currentTrack == null) {
                     queryCurrentTrack()
                 }
             }
