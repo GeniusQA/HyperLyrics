@@ -56,10 +56,19 @@ data class OfficialProviderUiState(
 )
 
 object OfficialProviderRepository {
-    private const val CATALOG_URL =
-        "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/catalog/catalog.json"
-    private const val CATALOG_SIGNATURE_URL =
-        "https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/catalog/catalog.sig"
+    /**
+     * 官方分发仓库的规范仓库段。
+     *
+     * 目录地址与 Pack 下载地址白名单必须共用这一个常量：两处曾经各写一份，
+     * CI 用 GITHUB_REPOSITORY 生成地址时写入改名后的仓库名，导致整份目录校验
+     * 失败（Provider 页报“插件目录数据异常”且不提示更新）。发布端同样固定使用
+     * 该仓库段（见 .github/workflows/provider-release.yml 的 asset_repo）。
+     */
+    private const val REPOSITORY_SLUG = "QuanTum2088/HyperLyrics"
+    private const val RAW_BASE = "https://raw.githubusercontent.com/$REPOSITORY_SLUG/main"
+    private const val CATALOG_URL = "$RAW_BASE/catalog/catalog.json"
+    private const val CATALOG_SIGNATURE_URL = "$RAW_BASE/catalog/catalog.sig"
+    private const val PROVIDER_ASSET_PATH_PREFIX = "/$REPOSITORY_SLUG/main/providers/"
     private const val MAX_CATALOG_BYTES = 512 * 1024
     private const val MAX_PACK_BYTES = 16 * 1024 * 1024
 
@@ -271,7 +280,7 @@ object OfficialProviderRepository {
         require(uri.scheme == "https" && uri.host == "raw.githubusercontent.com") {
             "Provider 下载地址必须使用 raw.githubusercontent.com HTTPS"
         }
-        require(uri.path.startsWith("/QuanTum2088/HyperLyrics/main/providers/")) {
+        require(uri.path.startsWith(PROVIDER_ASSET_PATH_PREFIX)) {
             "Provider 下载地址不属于官方仓库"
         }
     }

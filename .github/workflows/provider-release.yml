@@ -100,7 +100,19 @@ jobs:
           version_code='${{ steps.pack.outputs.version_code }}'
           target_packages='${{ steps.pack.outputs.target_packages }}'
           pack_sha='${{ steps.pack.outputs.sha256 }}'
-          asset_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/providers/${provider}-${version_name}.hlp"
+          # 下载地址必须使用官方「规范仓库段」：App 侧白名单校验
+          # /QuanTum2088/HyperLyrics/main/providers/，不能用 ${GITHUB_REPOSITORY}
+          # （仓库改名/转移后会写入新名字，导致整份目录校验失败、Provider 页报错）。
+          # 旧名指向同一仓库，GitHub 会自动 302 到当前名字，链接长期有效。
+          asset_repo="QuanTum2088/HyperLyrics"
+          asset_url="https://raw.githubusercontent.com/${asset_repo}/main/providers/${provider}-${version_name}.hlp"
+          case "$asset_url" in
+            https://raw.githubusercontent.com/QuanTum2088/HyperLyrics/main/providers/*) ;;
+            *)
+              echo "生成的下载地址不符合 App 白名单: $asset_url" >&2
+              exit 1
+              ;;
+          esac
 
           git config user.name "QuanTum2088"
           git config user.email "158152582+QuanTum2088@users.noreply.github.com"
