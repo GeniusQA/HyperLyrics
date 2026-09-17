@@ -36,6 +36,7 @@ import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.common.ClassicAodSongInfoConfig
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.lyric.CjkLyricWhitespacePolicy
+import com.genius.hyperlyrics.common.lyric.InterludeDotsSpanFactory
 import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import com.genius.hyperlyrics.common.media.MediaMetadataHelper
 import com.genius.hyperlyrics.lyric.view.SongPreprocessor
@@ -79,6 +80,8 @@ internal data class AodLyricContent(
     val nextAlignment: AodLyricAlignment,
     /** 等待歌词匹配中：主行用动态圆点占位（与摘要态一致）。 */
     val waitingForLyrics: Boolean = false,
+    /** 间奏等待标记：主行用 3 点等亮度大句号占位（呼吸动画由 ticker 驱动）。 */
+    val isInterludeDots: Boolean = false,
 )
 
 internal enum class AodLyricAlignment {
@@ -1463,7 +1466,8 @@ object NotificationMediaAodLyricHooker {
         // 整首歌无翻译时才启用横向跑马灯，避免部分行有翻译部分没有导致的溢出。
         val mainShouldScroll = !songHasAnyTranslation() &&
             textStyle.showNextLyric &&
-            content.main.isNotBlank()
+            content.main.isNotBlank() &&
+            !content.isInterludeDots
         applyMainLyricRowMode(overlay.main, mainShouldScroll, rowMaxLines)
         listOf(
             overlay.translation,
@@ -1504,14 +1508,25 @@ object NotificationMediaAodLyricHooker {
         overlay.overlappingBackingTranslation.setTextColor(translationColor)
         // 后续歌词行固定使用译文样式（颜色/字体），不再提供「下句歌词样式」开关。
         overlay.next.setTextColor(translationColor)
-        // 等待歌词匹配：用动态圆点占位（与摘要态一致），并启动循环高亮动画。
+        // 等待歌词匹配：用动态圆点占位（与摘要态一致），并启动循环高亮动画；
+        // 间奏等待标记：用 3 点等亮度大句号（呼吸动画共用同一 ticker）。
         if (content.waitingForLyrics) {
             overlay.waitingForLyrics = true
+            overlay.isInterludeDots = false
             val base = api.getTitleText(holder).currentTextColor
             overlay.main.text = buildWaitingDots(waitingDotsFrame, base, dimOf(base))
             ensureWaitingDotsTicker()
+        } else if (content.isInterludeDots) {
+            overlay.waitingForLyrics = false
+            overlay.isInterludeDots = true
+            overlay.main.text = buildInterludeDotsFrame(
+                waitingDotsFrame,
+                api.getTitleText(holder).currentTextColor,
+            )
+            ensureWaitingDotsTicker()
         } else {
             overlay.waitingForLyrics = false
+            overlay.isInterludeDots = false
         }
         // 紧凑模式排版基准文本：记录原始内容，后续按布局变化重复排版时
         // 不会把已合并的「歌词 翻译」串再次拼接。
@@ -1705,7 +1720,14 @@ object NotificationMediaAodLyricHooker {
         val translationText = overlay.compactSourceTranslation
         // 主歌词与翻译始终分行展示，不再合并成单行；超长时由 applyCompactMode 的
         // maxLines=2 + ellipsize=END 控制各自换行。
-        if (overlay.main.text.toString() != mainText) overlay.main.text = mainText
+        if (overlay.main.text.toString() != mainText) {
+            overlay.main.text = if (overlay.isInterludeDots) {
+                // 间奏占位重排后保持 3 点 Span（ticker 下一帧会继续刷新呼吸亮度）
+                InterludeDotsSpanFactory.build(overlay.main.currentTextColor)
+            } else {
+                mainText
+            }
+        }
         overlay.translation.visibility =
             if (translationText.isBlank()) View.GONE else View.VISIBLE
 
@@ -2038,7 +2060,8 @@ object NotificationMediaAodLyricHooker {
         // 整首歌无翻译时才启用横向跑马灯，避免部分行有翻译部分没有导致的溢出。
         val mainShouldScroll = !songHasAnyTranslation() &&
             textStyle.showNextLyric &&
-            content.main.isNotBlank()
+            content.main.isNotBlank() &&
+            !content.isInterludeDots
         applyMainLyricRowMode(overlay.main, mainShouldScroll, rowMaxLines)
         listOf(
             overlay.translation,
@@ -2064,14 +2087,22 @@ object NotificationMediaAodLyricHooker {
         applyLyricRowOrder(overlay, textStyle.swapTranslation)
         updateClassicEmbeddedSongInfo(overlay, songInfo)
         updateClassicLineSpacing(overlay)
-        // 等待歌词匹配：用动态圆点占位（与摘要态一致），并启动循环高亮动画。
+        // 等待歌词匹配：用动态圆点占位（与摘要态一致），并启动循环高亮动画；
+        // 间奏等待标记：用 3 点等亮度大句号（呼吸动画共用同一 ticker）。
         if (content.waitingForLyrics) {
             overlay.waitingForLyrics = true
+            overlay.isInterludeDots = false
             val base = overlay.main.currentTextColor
             overlay.main.text = buildWaitingDots(waitingDotsFrame, base, dimOf(base))
             ensureWaitingDotsTicker()
+        } else if (content.isInterludeDots) {
+            overlay.waitingForLyrics = false
+            overlay.isInterludeDots = true
+            overlay.main.text = buildInterludeDotsFrame(waitingDotsFrame, overlay.main.currentTextColor)
+            ensureWaitingDotsTicker()
         } else {
             overlay.waitingForLyrics = false
+            overlay.isInterludeDots = false
         }
         // 字体颜色设置（自定义AOD独立偏好组）非默认时覆盖系统跟随色
         OverlayFontColorApplier.apply(
@@ -3899,6 +3930,9 @@ object NotificationMediaAodLyricHooker {
             // 等待匹配阶段只展示动态圆点，不要把后续歌词拼接行也带进来，
             // 否则开启多行歌词时会出现圆点与多行歌词挤在一起。
             assembled.copy(main = WAITING_DOTS_PLACEHOLDER, next = "", waitingForLyrics = true)
+        } else if (InterludeDotsSpanFactory.isInterludeLine(line)) {
+            // 间奏等待标记：与超级岛摘要态一致，用 3 点等亮度大句号占位（apply 时构建 Span）。
+            assembled.copy(main = InterludeDotsSpanFactory.PLACEHOLDER, isInterludeDots = true)
         } else {
             assembled
         }
@@ -3993,6 +4027,19 @@ object NotificationMediaAodLyricHooker {
         return sb
     }
 
+    /** 间奏 3 点呼吸动画周期步数（每步 WAITING_DOTS_INTERVAL_MS，约 5s 一个呼吸周期）。 */
+    private const val INTERLUDE_DOTS_BREATH_STEPS = 12
+    private const val INTERLUDE_DOTS_MIN_ALPHA_SCALE = 0.55f
+
+    /** 间奏 3 点按帧做三角波呼吸（整体等亮度同步明暗，与摘要态呼吸节奏一致）。 */
+    private fun buildInterludeDotsFrame(frame: Int, base: Int): SpannableString {
+        val period = INTERLUDE_DOTS_BREATH_STEPS * 2
+        val t = frame % period
+        val tri = if (t < INTERLUDE_DOTS_BREATH_STEPS) t else period - t
+        val scale = 1f - (1f - INTERLUDE_DOTS_MIN_ALPHA_SCALE) * tri / INTERLUDE_DOTS_BREATH_STEPS
+        return InterludeDotsSpanFactory.build(base, scale)
+    }
+
     @Volatile
     private var waitingDotsFrame = 0
     private var waitingDotsRunnable: Runnable? = null
@@ -4007,14 +4054,15 @@ object NotificationMediaAodLyricHooker {
                 synchronized(states) {
                     for (state in states.values) {
                         val overlay = state.overlay ?: continue
-                        if (overlay.waitingForLyrics && overlay.root.isShown) {
+                        val dotsActive = overlay.waitingForLyrics || overlay.isInterludeDots
+                        if (dotsActive && overlay.root.isShown) {
                             anyWaiting = true
                             val base = overlay.main.currentTextColor
-                            overlay.main.text = buildWaitingDots(
-                                waitingDotsFrame,
-                                base,
-                                dimOf(base),
-                            )
+                            overlay.main.text = if (overlay.isInterludeDots) {
+                                buildInterludeDotsFrame(waitingDotsFrame, base)
+                            } else {
+                                buildWaitingDots(waitingDotsFrame, base, dimOf(base))
+                            }
                             overlay.root.invalidate()
                         }
                     }
@@ -4022,14 +4070,15 @@ object NotificationMediaAodLyricHooker {
                 synchronized(aodPluginStates) {
                     for (state in aodPluginStates.values) {
                         val overlay = state.overlay ?: continue
-                        if (overlay.waitingForLyrics && overlay.root.isShown) {
+                        val dotsActive = overlay.waitingForLyrics || overlay.isInterludeDots
+                        if (dotsActive && overlay.root.isShown) {
                             anyWaiting = true
                             val base = overlay.main.currentTextColor
-                            overlay.main.text = buildWaitingDots(
-                                waitingDotsFrame,
-                                base,
-                                dimOf(base),
-                            )
+                            overlay.main.text = if (overlay.isInterludeDots) {
+                                buildInterludeDotsFrame(waitingDotsFrame, base)
+                            } else {
+                                buildWaitingDots(waitingDotsFrame, base, dimOf(base))
+                            }
                             overlay.root.invalidate()
                         }
                     }
@@ -4842,6 +4891,7 @@ object NotificationMediaAodLyricHooker {
         var heightAnimator: ValueAnimator? = null,
         var compactMode: Boolean = false,
         var waitingForLyrics: Boolean = false,
+        var isInterludeDots: Boolean = false,
         /** 紧凑模式排版的原始歌词文本：单行合并后可幂等重算，避免重复拼接。 */
         var compactSourceMain: String = "",
         var compactSourceTranslation: String = "",
@@ -4958,6 +5008,7 @@ object NotificationMediaAodLyricHooker {
         var appliedOverlappingBackingAlignment: AodLyricAlignment? = null,
         var appliedNextAlignment: AodLyricAlignment? = null,
         var waitingForLyrics: Boolean = false,
+        var isInterludeDots: Boolean = false,
     )
 
     private data class AodPluginState(

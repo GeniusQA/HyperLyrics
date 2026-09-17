@@ -14,6 +14,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.common.lyric.InterludeDotsSpanFactory
 import com.genius.hyperlyrics.common.lyric.LyricMetadataKeys
 import com.genius.hyperlyrics.root.HookEntry
 import com.genius.hyperlyrics.root.LyriconDataBridge
@@ -409,6 +410,7 @@ object IslandExpandedLyricHooker {
         val packageMatches = lyricPackage.isNullOrBlank() ||
             mediaPackage.isNullOrBlank() || lyricPackage == mediaPackage
         val line = LyriconDataBridge.currentLyricLine
+        val isInterlude = InterludeDotsSpanFactory.isInterludeLine(line)
         val main = line?.text?.trim().orEmpty().ifBlank {
             LyriconDataBridge.currentLyric?.trim().orEmpty()
         }
@@ -450,7 +452,12 @@ object IslandExpandedLyricHooker {
         val lyricState = state
             ?: createOverlay(api, binder, entry.holder, entry.player, entry.expandedView, entry.title, artist)
         if (lyricState == null) return
-        lyricState.main.text = main
+        lyricState.main.text = if (isInterlude) {
+            // 间奏等待标记：先放占位文本，Span 在字体颜色应用后再套（见下方）
+            InterludeDotsSpanFactory.PLACEHOLDER
+        } else {
+            main
+        }
         setOptionalText(lyricState.translation, translation)
         setOptionalText(lyricState.backing, backing)
         setOptionalText(lyricState.backingTranslation, backingTranslation)
@@ -473,6 +480,10 @@ object IslandExpandedLyricHooker {
             albumBitmap = CoverColorHelper.currentArtwork(),
             mediaColorKey = CoverColorHelper.currentMediaKey(),
         )
+        if (isInterlude) {
+            // 字体颜色可能被上方偏好覆盖，Span 颜色取最终生效色，保证三点等亮度且跟随主题
+            lyricState.main.text = InterludeDotsSpanFactory.build(lyricState.main.currentTextColor)
+        }
         if (lyricState.overlay.visibility != View.VISIBLE) {
             lyricState.overlay.visibility = View.VISIBLE
         }
