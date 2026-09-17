@@ -2,6 +2,7 @@ package com.genius.hyperlyrics.ui.page.hooksettings
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1230,6 +1231,13 @@ private suspend fun refreshOfficialProviders(
             )
         }
     }.onFailure { error ->
+        // 目录加载失败原因只在界面上被本地化，线上排查没有依据（Release 构建此前
+        // 完全静默）。这里无条件落一条日志，便于 adb logcat 直接取原始异常。
+        Log.w(
+            PROVIDER_LOG_TAG,
+            "插件目录加载失败: ${error::class.java.simpleName}: ${error.message}",
+            error,
+        )
         stateFlow.update {
             it.copy(
                 isLoading = false,
@@ -1239,3 +1247,5 @@ private suspend fun refreshOfficialProviders(
         }
     }
 }
+
+private const val PROVIDER_LOG_TAG = "HLProviders"
