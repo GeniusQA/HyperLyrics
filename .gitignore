@@ -10,7 +10,7 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
-/keystore/*.pem
+/keystore/provider-signing-private.pem
 .idea
 .mimocode
 .agent/
