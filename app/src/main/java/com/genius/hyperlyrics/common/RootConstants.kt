@@ -236,13 +236,6 @@ object RootConstants {
     const val KEY_HOOK_ISLAND_LEFT_ALBUM = "key_hook_island_left_album"
     const val KEY_HOOK_ISLAND_ALBUM_COVER_STYLE = "key_hook_island_album_cover_style"
 
-    /** 模块隔离：岛背景以本模块为准（屏蔽其它模块对岛背景的写入）。 */
-    const val KEY_HOOK_ISLAND_BACKGROUND_ISOLATION = "key_hook_island_background_isolation"
-    const val DEFAULT_HOOK_ISLAND_BACKGROUND_ISOLATION = true
-
-    /** 屏蔽名单：模块类名前缀集合（如 io.github.hyperisland）。 */
-    const val KEY_HOOK_ISLAND_BLOCKED_MODULES = "key_hook_island_blocked_modules"
-
     const val KEY_HOOK_ISLAND_ALBUM_COVER_STYLE_APP_WHITELIST =
         "key_hook_island_album_cover_style_app_whitelist"
     const val KEY_HOOK_ISLAND_CONTENT_LEFT = "key_hook_island_content_left"

@@ -209,36 +209,6 @@ fun SuperIslandSettingsPage() {
     var showRightContentWidthDialog by remember { mutableStateOf(false) }
     var showProgressCustomColorDialog by remember { mutableStateOf(false) }
 
-    // 模块隔离：屏蔽其它 Xposed 模块对岛背景的写入，保证本模块样式最终生效。
-    var backgroundIsolation by remember {
-        mutableStateOf(
-            prefs.getBoolean(
-                RootConstants.KEY_HOOK_ISLAND_BACKGROUND_ISOLATION,
-                RootConstants.DEFAULT_HOOK_ISLAND_BACKGROUND_ISOLATION,
-            )
-        )
-    }
-    var blockedModules by remember {
-        mutableStateOf<Set<String>>(
-            prefs.getStringSet(RootConstants.KEY_HOOK_ISLAND_BLOCKED_MODULES, null)?.toSet()
-                ?: emptySet()
-        )
-    }
-    var modulePrefixInput by remember { mutableStateOf("") }
-    // 已知会接管超级岛背景的模块；用户手动添加的前缀也会并入列表。
-    val knownInterferingModules: List<Pair<String, String?>> = remember {
-        listOf(
-            "io.github.hyperisland" to "HyperIsland",
-            "com.kiminonawa.HyperLight" to "HyperLight",
-        )
-    }
-    val candidateModules: List<Pair<String, String?>> = remember(blockedModules) {
-        knownInterferingModules + blockedModules
-            .filterNot { prefix -> knownInterferingModules.any { it.first == prefix } }
-            .sorted()
-            .map { prefix -> prefix to null }
-    }
-
     fun saveConfig(key: String, value: Any) {
         prefs.edit {
             when (value) {
@@ -431,102 +401,6 @@ fun SuperIslandSettingsPage() {
                                 endActions = { Text(stringResource(id = R.string.format_padding_pair, rightPaddingLeft, rightPaddingRight), fontSize = MiuixTheme.textStyles.body2.fontSize, color = MiuixTheme.colorScheme.onSurfaceVariantActions) }, 
                                 onClick = { showRightPaddingDialog = true }
                             )
-                        }
-                    }
-                }
-                item(key = "module_isolation_title") {
-                    SmallTitle(text = stringResource(id = R.string.title_island_module_isolation))
-                }
-                item(key = "module_isolation") {
-                    Card(
-                        modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)
-                            .fillMaxWidth()
-                    ) {
-                        Column {
-                            Text(
-                                text = stringResource(id = R.string.summary_island_module_isolation),
-                                fontSize = MiuixTheme.textStyles.body2.fontSize,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-                            SwitchPreference(
-                                title = stringResource(id = R.string.title_island_background_isolation),
-                                checked = backgroundIsolation,
-                                onCheckedChange = {
-                                    backgroundIsolation = it
-                                    saveConfig(
-                                        RootConstants.KEY_HOOK_ISLAND_BACKGROUND_ISOLATION,
-                                        it
-                                    )
-                                }
-                            )
-                            Text(
-                                text = stringResource(id = R.string.summary_island_background_isolation),
-                                fontSize = MiuixTheme.textStyles.body2.fontSize,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                            )
-                            Text(
-                                text = stringResource(id = R.string.title_island_blocked_modules),
-                                fontSize = MiuixTheme.textStyles.body2.fontSize,
-                                color = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(start = 16.dp, top = 10.dp)
-                            )
-                            Text(
-                                text = stringResource(id = R.string.summary_island_blocked_modules),
-                                fontSize = MiuixTheme.textStyles.body2.fontSize,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                            )
-                            candidateModules.forEach { (prefix, label) ->
-                                SwitchPreference(
-                                    title = if (label.isNullOrBlank()) {
-                                        prefix
-                                    } else {
-                                        "$label（$prefix）"
-                                    },
-                                    checked = prefix in blockedModules,
-                                    onCheckedChange = { checked ->
-                                        blockedModules = if (checked) {
-                                            blockedModules + prefix
-                                        } else {
-                                            blockedModules - prefix
-                                        }
-                                        saveConfig(
-                                            RootConstants.KEY_HOOK_ISLAND_BLOCKED_MODULES,
-                                            blockedModules
-                                        )
-                                    }
-                                )
-                            }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                            ) {
-                                TextField(
-                                    value = modulePrefixInput,
-                                    onValueChange = { modulePrefixInput = it },
-                                    label = stringResource(id = R.string.hint_island_blocked_module_prefix),
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                TextButton(
-                                    text = stringResource(id = R.string.action_island_blocked_module_add),
-                                    onClick = {
-                                        val prefix = modulePrefixInput.trim()
-                                        if (prefix.isNotEmpty()) {
-                                            blockedModules = blockedModules + prefix
-                                            saveConfig(
-                                                RootConstants.KEY_HOOK_ISLAND_BLOCKED_MODULES,
-                                                blockedModules
-                                            )
-                                            modulePrefixInput = ""
-                                        }
-                                    }
-                                )
-                            }
                         }
                     }
                 }

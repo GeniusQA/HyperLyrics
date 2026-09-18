@@ -621,14 +621,6 @@
     <string name="option_audio_cover_style_app_icon">应用图标</string>
     <string name="option_audio_cover_style_gradient">渐变封面</string>
     <string name="option_audio_cover_style_linear_gradient">线性渐变</string>
-    <string name="title_island_module_isolation">模块隔离</string>
-    <string name="summary_island_module_isolation">其它模块（如 HyperIsland）会改写超级岛背景，覆盖本模块的样式。勾选后可屏蔽这些模块对岛背景的写入，并让本模块样式最终生效。</string>
-    <string name="title_island_background_isolation">岛背景以本模块为准</string>
-    <string name="summary_island_background_isolation">屏蔽其它模块对岛背景的写入，并始终把本模块的渐变背景绘制在最上层</string>
-    <string name="title_island_blocked_modules">屏蔽的模块</string>
-    <string name="summary_island_blocked_modules">勾选要屏蔽的模块，也可手动填写模块类名前缀（如 io.github.hyperisland）</string>
-    <string name="hint_island_blocked_module_prefix">模块类名前缀</string>
-    <string name="action_island_blocked_module_add">添加</string>
     <string name="title_island_album_cover_whitelist_enabled">已启用</string>
     <string name="title_island_album_cover_whitelist_disabled">未启用</string>
     <string name="hint_island_album_cover_whitelist_search">搜索应用</string>
