@@ -113,6 +113,13 @@
     <string name="info_android_version">Android版本</string>
     <string name="title_help">使用帮助</string>
     <string name="title_changelog">更新日志</string>
+    <string name="title_check_update">版本更新</string>
+    <string name="update_check_up_to_date">当前已是最新版本</string>
+    <string name="update_check_failed">检查更新失败，请稍后重试</string>
+    <string name="update_dialog_title">发现新版本</string>
+    <string name="update_dialog_current_version">当前版本：%1$s</string>
+    <string name="update_dialog_latest_version">最新版本：%1$s</string>
+    <string name="update_dialog_action">更新</string>
     <string name="changelog_load_failed">无法获取 GitHub Release</string>
     <string name="changelog_retry">点击重试</string>
     <string name="changelog_empty">暂无 Release 更新日志</string>
@@ -238,7 +245,7 @@
     <string name="provider_status_universal">通用</string>
     <string name="lyric_error_no_lyrics">MetaData平台源匹配歌词/翻译失败</string>
     <string name="lyric_error_no_translation">MetaData平台源匹配歌词/翻译失败</string>
-    <string name="title_manual_match">手动二次匹配</string>
+    <string name="title_manual_match">二次匹配</string>
     <string name="summary_manual_match">歌词/翻译匹配不准时，手动输入正确的歌名、歌手与专辑搜索候选，选中后重新匹配歌词与翻译</string>
     <string name="manual_match_title">歌名（必填）</string>
     <string name="manual_match_artist">歌手（必填）</string>
@@ -517,13 +524,13 @@
     <string name="lyric_origin_lrclib_with_translation">歌词来源：通用插件 LRCLIB 歌词 + %1$s 翻译</string>
     <string name="lyric_origin_provider_format">歌词来源：%1$s 插件（歌词+翻译）</string>
     <string name="lyric_origin_provider_unknown_format">歌词来源：%1$s</string>
-    <string name="title_online_translation_enabled_apps">启用App</string>
+    <string name="title_online_translation_enabled_apps">启用播放器</string>
     <string name="summary_online_translation_app_translation">仅翻译</string>
     <string name="summary_online_translation_app_lyrics_translation">歌词、翻译</string>
     <string name="title_online_translation_no_enabled_apps">暂无可启用的App</string>
     <string name="online_translation_help">查看在线源补全逻辑</string>
     <string name="title_online_translation_help_dialog">在线源补全逻辑</string>
-    <string name="summary_online_translation_help_dialog">平台来源按优先级依次匹配 QQ音乐、网易云音乐、酷我音乐、酷狗音乐；开启“自动选择最优来源”时会比较所有已启用来源，自动采用匹配质量最优的结果。此外通用歌词源 LRCLIB 固定殿后：四库全部未命中时由它提供歌词（开源歌词库，仅歌词、无翻译），命中后缺失的翻译会自动向四库补齐。</string>
+    <string name="summary_online_translation_help_dialog">在线源只在当前播放器的歌词或翻译不完整时介入：原生/插件源已同时提供歌词与翻译时直接使用，不再在线匹配。\n① 平台匹配：QQ音乐、网易云音乐、酷我音乐、酷狗音乐按优先级依次匹配，默认采用第一个达标（匹配分≥85）且成功取到歌词的来源；开启“自动选择最优来源”后，会比较全部已启用来源、采用质量最优的结果。评分未达标但标题精确、时长吻合的“近失候选”也会尝试抓词兜底。\n② 通用源殿后：四库全部未命中时，由开源歌词库 LRCLIB 提供歌词（仅歌词、无翻译）；命中后缺失的翻译会自动向四库补齐。\n③ 二次匹配：仍匹配不准时，点“二次匹配”手动输入歌名、歌手与专辑，选中候选后重新匹配歌词与翻译。</string>
     <string name="title_online_translation_help_table_app">App</string>
     <string name="title_online_translation_help_table_content">在线源补全内容</string>
     <string name="title_lyric_source_chain">歌词来源链路</string>
@@ -547,7 +554,7 @@
     <string name="chain_status_search_fail">搜索失败</string>
     <string name="chain_final_format">%1$s（%2$d分 · %3$d行）</string>
     <string name="chain_dialog_empty">当前没有可展示的链路数据，请先播放歌曲并等待诊断完成。</string>
-    <string name="summary_online_translation_help_note">“仅翻译”指只补齐原歌词缺少的中文翻译或罗马音/拼音；“歌词、翻译”指在无歌词或允许在线取词时，整首从在线源获取歌词并带上翻译。歌词来自通用源 LRCLIB 时岛上仅显示歌词，翻译会自动向四库补齐或暂缺。</string>
+    <string name="summary_online_translation_help_note">下表为各播放器的在线源补全内容：“仅翻译”指只补齐原歌词缺少的中文翻译或罗马音/拼音；“歌词、翻译”指在无歌词或允许在线取词时，整首从在线源获取歌词并带上翻译。歌词来自通用源 LRCLIB 时岛上仅显示歌词，翻译会自动向四库补齐或暂缺。</string>
     <string name="title_online_translation_salt_special_settings">特殊设置</string>
     <string name="title_online_translation_salt_prefer_online">椒盐音乐优先使用在线源</string>
     <string name="summary_online_translation_salt_prefer_online">开启时不再优先读取歌曲文件内置歌词与同目录中的歌词文件</string>
@@ -613,6 +620,15 @@
     <string name="option_audio_cover_style_rotating_circle">旋转圆形封面</string>
     <string name="option_audio_cover_style_app_icon">应用图标</string>
     <string name="option_audio_cover_style_gradient">渐变封面</string>
+    <string name="option_audio_cover_style_linear_gradient">线性渐变</string>
+    <string name="title_island_module_isolation">模块隔离</string>
+    <string name="summary_island_module_isolation">其它模块（如 HyperIsland）会改写超级岛背景，覆盖本模块的样式。勾选后可屏蔽这些模块对岛背景的写入，并让本模块样式最终生效。</string>
+    <string name="title_island_background_isolation">岛背景以本模块为准</string>
+    <string name="summary_island_background_isolation">屏蔽其它模块对岛背景的写入，并始终把本模块的渐变背景绘制在最上层</string>
+    <string name="title_island_blocked_modules">屏蔽的模块</string>
+    <string name="summary_island_blocked_modules">勾选要屏蔽的模块，也可手动填写模块类名前缀（如 io.github.hyperisland）</string>
+    <string name="hint_island_blocked_module_prefix">模块类名前缀</string>
+    <string name="action_island_blocked_module_add">添加</string>
     <string name="title_island_album_cover_whitelist_enabled">已启用</string>
     <string name="title_island_album_cover_whitelist_disabled">未启用</string>
     <string name="hint_island_album_cover_whitelist_search">搜索应用</string>
@@ -763,6 +779,8 @@
     <string name="cleanup_status_partial_failed">（%1$s）部分失败：%2$s</string>
     <string name="cleanup_status_failed_files">失败文件：%1$s</string>
     <string name="cleanup_failure_solution">部分文件因被占用或权限不足未能清理，可重启系统或手动删除。</string>
+    <string name="cleanup_file_detail_title">清理文件明细</string>
+    <string name="jump_file_manager_required">请安装 MT/NP/ES 文件管理器并授予 Root 权限后才允许跳转文件目录</string>
 
     <!-- 二次匹配结果提示（LyriconSource 在 hook 进程用 moduleString 取模块自有资源） -->
     <string name="manual_match_result_no_song">二次匹配失败：当前没有三方播放歌曲</string>
