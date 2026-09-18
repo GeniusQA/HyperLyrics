@@ -235,14 +235,6 @@ object RootConstants {
 
     const val KEY_HOOK_ISLAND_LEFT_ALBUM = "key_hook_island_left_album"
     const val KEY_HOOK_ISLAND_ALBUM_COVER_STYLE = "key_hook_island_album_cover_style"
-
-    /** 模块隔离：岛背景以本模块为准（屏蔽其它模块对岛背景的写入）。 */
-    const val KEY_HOOK_ISLAND_BACKGROUND_ISOLATION = "key_hook_island_background_isolation"
-    const val DEFAULT_HOOK_ISLAND_BACKGROUND_ISOLATION = true
-
-    /** 屏蔽名单：模块类名前缀集合（如 io.github.hyperisland）。 */
-    const val KEY_HOOK_ISLAND_BLOCKED_MODULES = "key_hook_island_blocked_modules"
-
     const val KEY_HOOK_ISLAND_ALBUM_COVER_STYLE_APP_WHITELIST =
         "key_hook_island_album_cover_style_app_whitelist"
     const val KEY_HOOK_ISLAND_CONTENT_LEFT = "key_hook_island_content_left"
@@ -359,9 +351,7 @@ object RootConstants {
     const val KEY_HOOK_NEXT_LYRIC_LINE = "key_hook_next_lyric_line"
     const val KEY_HOOK_LYRIC_MAX_LINES = "key_hook_lyric_max_lines"
     const val MIN_LYRIC_MAX_LINES = 2
-
-    /** 歌词总行数上限：最多 5 行（再多会挤压岛/AOD 单行折行空间，观感反而变差）。 */
-    const val MAX_LYRIC_MAX_LINES = 5
+    const val MAX_LYRIC_MAX_LINES = 20
     const val DEFAULT_HOOK_LYRIC_MAX_LINES = 5
     const val KEY_HOOK_AUTO_SWITCH_TRANSLATION = "key_hook_auto_switch_translation"
     const val KEY_HOOK_ADJACENT_BACKGROUND_TRANSLATION =

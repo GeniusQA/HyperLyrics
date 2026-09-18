@@ -1,0 +1,157 @@
+build	构建 Debug 或 Release Build	﻿2026-09-18T11:57:09.5818207Z ##[group]Run set -euo pipefail
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5818838Z ^[[36;1mset -euo pipefail^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5819353Z ^[[36;1m^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5819939Z ^[[36;1m# release 变体要跑 Kotlin 后端 + R8，与 debug 在同一个 Gradle 进程里并发编译^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5820901Z ^[[36;1m# 会撞上默认 kotlin.daemon.jvmargs=1536m 的堆上限（GC overhead limit exceeded）。^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5821781Z ^[[36;1m# 因此：①拆成两次独立 Gradle 调用，②放宽 Gradle 与 Kotlin 编译器的堆。^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5822428Z ^[[36;1mBUILD_ARGS=(^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5822911Z ^[[36;1m  --no-daemon^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5823655Z ^[[36;1m  --max-workers=2^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5824184Z ^[[36;1m  --build-cache^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5824835Z ^[[36;1m  "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5825740Z ^[[36;1m  "-Pkotlin.daemon.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m"^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5826539Z ^[[36;1m  -PciVersionName="$FULL_NAME"^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5827117Z ^[[36;1m)^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5827528Z ^[[36;1m^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5828029Z ^[[36;1mif [[ "$CHANNEL" == "stable" ]]; then^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5828722Z ^[[36;1m  ./gradlew "${BUILD_ARGS[@]}" assembleDebug^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5829452Z ^[[36;1m  ./gradlew "${BUILD_ARGS[@]}" assembleRelease^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5830144Z ^[[36;1melif [[ "$CHANNEL" == "canary" ]]; then^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5830827Z ^[[36;1m  ./gradlew "${BUILD_ARGS[@]}" assembleDebug^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5831445Z ^[[36;1melse^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5832034Z ^[[36;1m  # beta：仅构建 release 变体，不发布 Release/Tag（与 canary 一样只产出产物）^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5833031Z ^[[36;1m  ./gradlew "${BUILD_ARGS[@]}" assembleRelease^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5833835Z ^[[36;1mfi^[[0m
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5876032Z shell: /usr/bin/bash -e {0}
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5876561Z env:
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5877197Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.12-1/x64
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5878202Z   JAVA_HOME_21_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.12-1/x64
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5878993Z   MAVEN_ARGS: -ntp
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5879507Z   ANDROID_HOME: /usr/local/lib/android/sdk
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5880145Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5880820Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5881467Z   GRADLE_USER_HOME: /home/runner/.gradle
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5882086Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5883006Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5884177Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5884864Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5885441Z   CHANNEL: beta
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5885875Z   FULL_NAME: 1.0.1-beta
+build	构建 Debug 或 Release Build	2026-09-18T11:57:09.5886346Z ##[endgroup]
+build	构建 Debug 或 Release Build	2026-09-18T11:57:10.4594091Z To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.5.0/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+build	构建 Debug 或 Release Build	2026-09-18T11:57:11.9612140Z Daemon will be stopped at the end of the build 
+build	构建 Debug 或 Release Build	2026-09-18T11:57:20.9591394Z > Task :app:preBuild UP-TO-DATE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:20.9592730Z > Task :app:preReleaseBuild UP-TO-DATE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:21.1592905Z > Task :app:mergeReleaseJniLibFolders
+build	构建 Debug 或 Release Build	2026-09-18T11:57:21.8585793Z > Task :app:mergeReleaseNativeLibs
+build	构建 Debug 或 Release Build	2026-09-18T11:57:22.0584990Z > Task :app:checkReleaseDuplicateClasses
+build	构建 Debug 或 Release Build	2026-09-18T11:57:22.3631904Z > Task :app:compileReleaseAidl FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:22.3689384Z > Task :app:generateReleaseBuildConfig FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:22.3690444Z > Task :app:generateReleaseResources
+build	构建 Debug 或 Release Build	2026-09-18T11:57:22.4584604Z > Task :app:stripReleaseDebugSymbols
+build	构建 Debug 或 Release Build	2026-09-18T11:57:22.7604894Z > Task :app:packageReleaseResources
+build	构建 Debug 或 Release Build	2026-09-18T11:57:22.7614162Z > Task :app:extractReleaseNativeSymbolTables FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:22.7622521Z > Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:22.8580324Z > Task :app:processReleaseNavigationResources
+build	构建 Debug 或 Release Build	2026-09-18T11:57:24.1580636Z > Task :app:javaPreCompileRelease FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:24.2611389Z > Task :app:parseReleaseLocalResources
+build	构建 Debug 或 Release Build	2026-09-18T11:57:24.2634205Z > Task :app:mergeReleaseArtProfile
+build	构建 Debug 或 Release Build	2026-09-18T11:57:24.3579808Z > Task :app:generateReleaseRFile
+build	构建 Debug 或 Release Build	2026-09-18T11:57:24.4586471Z > Task :app:checkReleaseAarMetadata
+build	构建 Debug 或 Release Build	2026-09-18T11:57:25.7591139Z > Task :app:mapReleaseSourceSetPaths
+build	构建 Debug 或 Release Build	2026-09-18T11:57:25.7604904Z > Task :app:compileReleaseNavigationResources FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:34.6645529Z > Task :app:mergeReleaseResources
+build	构建 Debug 或 Release Build	2026-09-18T11:57:34.7624742Z > Task :app:createReleaseCompatibleScreenManifests
+build	构建 Debug 或 Release Build	2026-09-18T11:57:34.7684280Z > Task :app:extractDeepLinksRelease FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:35.0669663Z > Task :app:processReleaseMainManifest FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:35.0754634Z > Task :app:processReleaseManifest FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:35.0808676Z > Task :app:processReleaseManifestForPackage FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:37.6624882Z > Task :app:processReleaseResources
+build	构建 Debug 或 Release Build	2026-09-18T11:57:37.6667249Z > Task :app:extractProguardFiles
+build	构建 Debug 或 Release Build	2026-09-18T11:57:37.7584590Z > Task :app:mergeReleaseStartupProfile
+build	构建 Debug 或 Release Build	2026-09-18T11:57:37.7594035Z > Task :app:generateReleaseAssets UP-TO-DATE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:37.8594415Z > Task :app:mergeReleaseAssets
+build	构建 Debug 或 Release Build	2026-09-18T11:57:37.8624316Z > Task :app:compressReleaseAssets FROM-CACHE
+build	构建 Debug 或 Release Build	2026-09-18T11:57:37.9584421Z > Task :app:extractReleaseVersionControlInfo
+build	构建 Debug 或 Release Build	2026-09-18T11:57:38.2591793Z > Task :app:collectReleaseDependencies
+build	构建 Debug 或 Release Build	2026-09-18T11:57:38.4604553Z > Task :app:sdkReleaseDependencyData
+build	构建 Debug 或 Release Build	2026-09-18T11:57:38.4633923Z > Task :app:writeReleaseAppMetadata
+build	构建 Debug 或 Release Build	2026-09-18T11:57:38.5607256Z > Task :app:writeReleaseSigningConfigVersions
+build	构建 Debug 或 Release Build	2026-09-18T11:57:54.3578981Z > Task :app:compileReleaseKotlin
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2649583Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:221:24 Property delegate must have a 'setValue(Nothing?, KMutableProperty0<*>, Any?)' method. None of the following functions is applicable:
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2694575Z fun MutableFloatState.setValue(thisObj: Any?, property: KProperty<*>, value: Float): Unit
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2734693Z fun MutableDoubleState.setValue(thisObj: Any?, property: KProperty<*>, value: Double): Unit
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2754878Z fun MutableIntState.setValue(thisObj: Any?, property: KProperty<*>, value: Int): Unit
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2784913Z fun MutableLongState.setValue(thisObj: Any?, property: KProperty<*>, value: Long): Unit
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2790798Z fun <T> MutableState<T>.setValue(thisObj: Any?, property: KProperty<*>, value: T): Unit
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2794000Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:235:28 Cannot infer type for type parameter 'T'. Specify it explicitly.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2797617Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:237:14 Unresolved reference 'filterNot'.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2801214Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:237:26 Cannot infer type for value parameter 'prefix'. Specify it explicitly.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2804779Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:239:20 Unresolved reference 'it'.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2808072Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:239:23 Cannot infer type for type parameter 'A'. Specify it explicitly.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2811247Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:239:23 Cannot infer type for type parameter 'B'. Specify it explicitly.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2813569Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:481:56 Cannot infer type for implicit value parameter 'it'. Specify it explicitly.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2819395Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:481:56 Operator call 'component1()' is ambiguous for destructuring of type '??? (Unknown type for value parameter <destruct>)'. Applicable candidates:
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2822039Z fun <T> Array<out T>.component1(): T
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2822795Z fun ByteArray.component1(): Byte
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2823709Z fun ShortArray.component1(): Short
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2824409Z fun IntArray.component1(): Int
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2825075Z fun LongArray.component1(): Long
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2825753Z fun FloatArray.component1(): Float
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2826452Z fun DoubleArray.component1(): Double
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2827175Z fun BooleanArray.component1(): Boolean
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2827894Z fun CharArray.component1(): Char
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2828544Z fun <T> List<T>.component1(): T
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2829239Z fun <K, V> Map.Entry<K, V>.component1(): K
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2829940Z fun UIntArray.component1(): UInt
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2830611Z fun ULongArray.component1(): ULong
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2831296Z fun UByteArray.component1(): UByte
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2831986Z fun UShortArray.component1(): UShort
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2846124Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:481:56 Operator call 'component2()' is ambiguous for destructuring of type '??? (Unknown type for value parameter <destruct>)'. Applicable candidates:
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2847743Z fun <T> Array<out T>.component2(): T
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2848176Z fun ByteArray.component2(): Byte
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2848587Z fun ShortArray.component2(): Short
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2848987Z fun IntArray.component2(): Int
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2849371Z fun LongArray.component2(): Long
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2849752Z fun FloatArray.component2(): Float
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2850143Z fun DoubleArray.component2(): Double
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2850552Z fun BooleanArray.component2(): Boolean
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2850961Z fun CharArray.component2(): Char
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2851353Z fun <T> List<T>.component2(): T
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2851749Z fun <K, V> Map.Entry<K, V>.component2(): V
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2852159Z fun UIntArray.component2(): UInt
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2852557Z fun ULongArray.component2(): ULong
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2852963Z fun UByteArray.component2(): UByte
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2853722Z fun UShortArray.component2(): UShort
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2856255Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:482:33 @Composable invocations can only happen from the context of a @Composable function
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2859686Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:490:73 Unresolved reference 'toMutableSet'.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2862764Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:490:88 Cannot infer type for type parameter 'T'. Specify it explicitly.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2866523Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:490:94 Cannot infer type for type parameter 'T'. Specify it explicitly.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2869693Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:491:58 Unresolved reference 'add'.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2903466Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:491:75 'fun <T> MutableList<T>.remove(index: Int): T' is deprecated. Use removeAt(index) instead.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.2907098Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:495:60 Unresolved reference 'toSet'.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.3581198Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:518:77 Unresolved reference 'toMutableSet'.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.3636001Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:519:50 Cannot infer type for type parameter 'T'. Specify it explicitly.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.3637705Z 
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.3639666Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:519:56 Cannot infer type for type parameter 'T'. Specify it explicitly.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.3642870Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:519:58 Unresolved reference 'add'.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.3646120Z e: file:///home/runner/work/HyperLyrics/HyperLyrics/app/src/main/java/com/genius/hyperlyrics/ui/page/hooksettings/SuperIslandSettingsPage.kt:522:64 Unresolved reference 'toSet'.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.3649722Z > Task :app:compileReleaseKotlin FAILED
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.3674572Z gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1789732633907.json
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4577393Z 
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4578415Z FAILURE: Build failed with an exception.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4594090Z 
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4628942Z * What went wrong:
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4629737Z 34 actionable tasks: 24 executed, 10 from cache
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4634408Z Execution failed for task ':app:compileReleaseKotlin' (registered by plugin 'com.android.internal.application').
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4636740Z > A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4638420Z    > Compilation error. See log for more details
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4639132Z 
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4639525Z * Try:
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4640449Z > Run with --stacktrace option to get the stack trace.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4641649Z > Run with --info or --debug option to get more log output.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4643010Z > Run with --scan to get full insights from a Build Scan (powered by Develocity).
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4644800Z > Get more help at https://help.gradle.org.
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4645511Z 
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.4646005Z BUILD FAILED in 1m 11s
+build	构建 Debug 或 Release Build	2026-09-18T11:58:21.8938119Z ##[error]Process completed with exit code 1.
