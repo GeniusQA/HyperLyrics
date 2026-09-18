@@ -20,6 +20,9 @@ object OfficialProviderSystemMediaRuntime {
     private const val TAG = "OfficialProviderSystemMediaRuntime"
     private val activeRuntimes = ConcurrentHashMap<String, ActiveRuntime>()
 
+    /** 未加载原因去重：偏好刷新会反复重试加载，同一 (id, package, reason) 只记一次，避免刷屏。 */
+    private val loggedUnavailableReasons = ConcurrentHashMap.newKeySet<String>()
+
     fun installIfAvailable(
         module: XposedModule,
         application: Application,
@@ -98,12 +101,18 @@ object OfficialProviderSystemMediaRuntime {
             )
             true
         }.onFailure { error ->
-            module.log(
-                Log.WARN,
-                TAG,
-                "SystemMedia Provider 未加载: id=${definition.id} package=$targetPackage " +
-                    "reason=${error.message}",
-            )
+            val reason = error.message ?: "unknown"
+            // disabled 属预期状态（用户未启用该 Provider 包），降级为 INFO；
+            // 其余（文件缺失/校验失败等）保持 WARN。均只记一次，防止刷新循环刷屏。
+            val level = if (reason == "disabled") Log.INFO else Log.WARN
+            if (loggedUnavailableReasons.add("${definition.id}:$targetPackage:$reason")) {
+                module.log(
+                    level,
+                    TAG,
+                    "SystemMedia Provider 未加载: id=${definition.id} package=$targetPackage " +
+                        "reason=$reason",
+                )
+            }
         }.getOrDefault(false)
     }
 

@@ -70,7 +70,7 @@ internal class InterludeDotsRenderer {
         dotPaint.color = textPaint.color
         dotPaint.shader = textPaint.shader
 
-        // 三点等亮度间奏点（紧凑大句号造型：直径 = 字号 × 0.6）
+        // 三点等亮度间奏点（紧凑大句号造型：直径 = 字号 × 0.45）
         val step = diameter * DOT_STEP_IN_DIAMETERS
         repeat(DOT_COUNT) { index ->
             dotPaint.alpha = frame.dotAlphas[index] * frame.groupAlpha / 255
@@ -107,7 +107,7 @@ internal class InterludeDotsRenderer {
 }
 
 internal fun resolveInterludeDotSize(textSize: Float): Float =
-    textSize * 0.60f
+    textSize * 0.45f
 
 internal data class InterludeDotsFrame(
     val dotAlphas: List<Int>,

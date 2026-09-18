@@ -601,21 +601,21 @@ fun OnlineTranslationSourcesPage() {
         if (!currentAppDisabled) {
         item(key = "platform_sources_title") {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
+                // 与「启用播放器」等分组标题一致：SmallTitle（subtitle 字号 + onBackgroundVariant 色）。
+                SmallTitle(
                     text = stringResource(R.string.title_online_translation_platform_sources),
                     modifier = Modifier.weight(1f),
-                    fontSize = MiuixTheme.textStyles.title4.fontSize,
-                    color = MiuixTheme.colorScheme.onBackground,
                 )
-                IconButton(onClick = {
-                    queryCurrentTrack()
-                    runSourceDiagnosis(force = true)
-                }) {
+                IconButton(
+                    onClick = {
+                        queryCurrentTrack()
+                        runSourceDiagnosis(force = true)
+                    },
+                    modifier = Modifier.padding(end = 12.dp),
+                ) {
                     Icon(
                         imageVector = MiuixIcons.Refresh,
                         contentDescription = stringResource(R.string.online_translation_diagnose_refresh),
@@ -653,7 +653,8 @@ fun OnlineTranslationSourcesPage() {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
+                    // 与下方卡片内文字对齐：卡片外 12dp + ProComponent insideMargin 16dp = 28dp。
+                    .padding(start = 28.dp, end = 16.dp)
                     .padding(bottom = 8.dp),
             ) {
                 Text(

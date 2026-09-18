@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
  *
  * 超级岛摘要态走自绘 InterludeDotsRenderer；锁屏/AOD/通知中心/展开岛这些
  * 原生 TextView 路径没有 Canvas，统一用本工厂把占位文本渲染成与摘要态
- * 造型一致的 3 点大句号：● ● ●（字号 1.2 倍、三点等亮度，不做暗点区分）。
+ * 造型一致的 3 点大句号：● ● ●（字号 0.9 倍、三点等亮度，不做暗点区分）。
  */
 object InterludeDotsSpanFactory {
 
@@ -21,8 +21,8 @@ object InterludeDotsSpanFactory {
 
     const val DOT_COUNT = 3
 
-    /** 圆点相对正文色素放大倍数：● 字形本身约 0.5em，放大后直径约 0.6 倍字号，与摘要态一致。 */
-    private const val DOT_RELATIVE_SIZE = 1.2f
+    /** 圆点相对正文色素放大倍数：● 字形本身约 0.5em，放大后直径约 0.45 倍字号，与摘要态一致。 */
+    private const val DOT_RELATIVE_SIZE = 0.9f
 
     /** 当前行是否为间奏等待标记（由 LyriconDataBridge 生成，带 INSTRUMENTAL 元数据）。 */
     fun isInterludeLine(line: IRichLyricLine?): Boolean =
