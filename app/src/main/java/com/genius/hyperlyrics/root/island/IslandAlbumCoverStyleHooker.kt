@@ -382,6 +382,9 @@ internal object IslandAlbumCoverStyleHooker {
         if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT) {
             restoreGradientCover(fixIcon)
         }
+        if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT) {
+            IslandLinearGradientBackgroundApplier.restoreFor(fixIcon)
+        }
 
         when (style) {
             RootConstants.ISLAND_ALBUM_COVER_STYLE_CIRCLE -> {
@@ -408,6 +411,13 @@ internal object IslandAlbumCoverStyleHooker {
                     fixIcon = fixIcon,
                     fakeContentView = fakeContentView,
                     packageName = IslandProbeUtils.extractMediaIslandInfo(dynamicIslandData)?.packageName,
+                )
+            }
+
+            RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT -> {
+                applyLinearGradientBackground(
+                    fixIcon = fixIcon,
+                    dynamicIslandData = dynamicIslandData,
                 )
             }
         }
@@ -688,6 +698,21 @@ internal object IslandAlbumCoverStyleHooker {
         }
     }
 
+    /**
+     * 「线性渐变」样式：把按封面取色渲染出的线性渐变位图铺到岛背景视图上，
+     * 封面缩略图与歌词文字布局保持原生，只替换岛背景以贴近焦点通知卡片观感。
+     */
+    private fun applyLinearGradientBackground(
+        fixIcon: ImageView,
+        dynamicIslandData: Any,
+    ) {
+        IslandLinearGradientBackgroundApplier.apply(
+            owner = fixIcon,
+            artwork = fixIcon.drawable,
+            packageName = IslandProbeUtils.extractMediaIslandInfo(dynamicIslandData)?.packageName,
+        )
+    }
+
     private fun restoreGradientCover(fixIcon: ImageView) {
         val state = gradientStates.remove(fixIcon) ?: return
         restoreGradientState(state)
@@ -696,6 +721,7 @@ internal object IslandAlbumCoverStyleHooker {
     private fun restoreAllGradientCovers() {
         gradientStates.values.toList().forEach { restoreGradientState(it) }
         gradientStates.clear()
+        IslandLinearGradientBackgroundApplier.restoreAll()
     }
 
     private fun restoreGradientState(state: GradientCoverState) {
