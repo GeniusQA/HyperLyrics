@@ -26,6 +26,13 @@ object LyriconDataBridge : StateResetter {
 
     val versionCounter = java.util.concurrent.atomic.AtomicInteger(0)
 
+    /**
+     * 当前活动歌词源 id（lyricon/superlyric/lyricinfo），由 SourceManager 维护。
+     * 平台在线翻译只在 LyriconSource 内调度，翻译相关逻辑需按此判定是否可用。
+     */
+    @Volatile
+    var currentSourceId: String? = null
+
     @Volatile
     var currentSong: Song? = null
 

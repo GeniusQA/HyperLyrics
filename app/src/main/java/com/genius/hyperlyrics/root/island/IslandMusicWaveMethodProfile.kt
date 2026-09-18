@@ -40,4 +40,21 @@ internal object IslandMusicWaveMethodProfile {
             returnTypeName == OS4_COLOR_RETURN_TYPE &&
             parameterTypeNames == listOf(Bitmap::class.java.name)
     }
+
+    /**
+     * 形态兜底匹配：部分 ROM 构建混淆更彻底，取色入口方法名（setLottieColor/getLottieColor）
+     * 也被改掉，按名字匹配会整体失效。但入口的签名形态不变——非静态、Bitmap 为首参。
+     * Hook 仅在原方法执行后读取结果（不改写返回值/参数），按形态兜底挂载是安全的。
+     */
+    fun isFallbackColorMethod(method: Method): Boolean {
+        if (Modifier.isStatic(method.modifiers)) return false
+        if (method.parameterTypes.isEmpty()) return false
+        return method.parameterTypes[0] == Bitmap::class.java
+    }
+
+    fun describe(method: Method): String {
+        return "${method.name}(" +
+            method.parameterTypes.joinToString(",") { it.name } +
+            "):${method.returnType.name}"
+    }
 }

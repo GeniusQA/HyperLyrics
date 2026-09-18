@@ -215,17 +215,21 @@ fun LyricSettingsPage() {
             }
         }
 
-        item(key = "online_translation_sources") {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp)
-                    .fillMaxWidth()
-            ) {
-                ArrowPreference(
-                    title = stringResource(R.string.title_online_translation_sources),
-                    onClick = { navigator.navigate(Route.OnlineTranslationSources) },
-                )
+        // MetaData 在线歌词/翻译调度仅在 LyriconSource 内实现（SuperLyric/LyricInfo
+        // 均直接发布歌词、不经过该流水线），非 Lyricon 源下入口无效，直接隐藏。
+        if (lyricSource == "lyricon") {
+            item(key = "online_translation_sources") {
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp)
+                        .fillMaxWidth()
+                ) {
+                    ArrowPreference(
+                        title = stringResource(R.string.title_online_translation_sources),
+                        onClick = { navigator.navigate(Route.OnlineTranslationSources) },
+                    )
+                }
             }
         }
 

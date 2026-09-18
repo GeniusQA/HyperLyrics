@@ -86,21 +86,39 @@ internal object IslandMusicWaveColorHooker {
                 }
             )
 
-            val colorInputMethods = holderClass.declaredMethods
+            var colorInputMethods = holderClass.declaredMethods
                 .filter { IslandMusicWaveMethodProfile.isLegacyColorMethod(it) ||
                     IslandMusicWaveMethodProfile.isOs4ColorMethod(it) }
                 .distinctBy { it.name + it.parameterTypes.contentToString() }
+            var matchMode = "exact"
+            if (colorInputMethods.isEmpty()) {
+                // 部分 ROM 构建混淆了方法名，按名字匹配不到取色入口；
+                // Hook 只读不改行为，改按“非静态 + Bitmap 首参”形态兜底。
+                colorInputMethods = holderClass.declaredMethods
+                    .filter { IslandMusicWaveMethodProfile.isFallbackColorMethod(it) }
+                    .distinctBy { it.name + it.parameterTypes.contentToString() }
+                matchMode = "fallback"
+            }
             colorInputMethods.forEach { method ->
                 method.isAccessible = true
                 xposedModule.deoptimize(method)
                 xposedModule.hook(method).intercept(SetLottieColorHook(method.name))
             }
             if (colorInputMethods.isEmpty()) {
-                HookLogger.w(TAG, "音频律动原生取色接口不可用: targets=setLottieColor/getLottieColor")
+                val signatures = holderClass.declaredMethods
+                    .joinToString(separator = ";", limit = 30) {
+                        IslandMusicWaveMethodProfile.describe(it)
+                    }
+                HookLogger.w(
+                    TAG,
+                    "音频律动原生取色接口不可用: targets=setLottieColor/getLottieColor, " +
+                        "methods=$signatures"
+                )
             } else {
                 HookLogger.i(
                     TAG,
-                    "音频律动原生取色接口已匹配: targets=${colorInputMethods.joinToString { it.name }}"
+                    "音频律动原生取色接口已匹配: mode=$matchMode, " +
+                        "targets=${colorInputMethods.joinToString { it.name }}"
                 )
             }
 

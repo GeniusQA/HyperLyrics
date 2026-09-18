@@ -90,6 +90,13 @@ class RootLyricSink(
         activeAiTranslationJob?.cancel()
         activeAiTranslationJob = null
 
+        // 新歌发布时必须无条件刷新岛屿渲染，与 AI 开关无关。
+        // Lyricon 源会在自身发布后调用 refreshActiveIsland()，而其它源（如 LyricInfo）
+        // 完全依赖 sink 触发；若没有这一步，不开 AI 时岛屿永远不会被刷新，歌词不显示。
+        if (song is Song) {
+            renderer.refreshActiveIsland()
+        }
+
         if (song is Song && prefs != null) {
             val aiEnabled = prefs.getBoolean(
                 RootConstants.KEY_HOOK_AI_TRANS_ENABLE,
@@ -194,6 +201,11 @@ class RootLyricSink(
     }
 
     override fun onPlaybackStateChanged(isPlaying: Boolean) {
+        // 播放开始（或继续）时岛屿通常已挂载完成，刷新一次以显示已发布的歌词。
+        // 修复 LyricInfo 等依赖 sink 刷新的源在发布早于挂载时歌词不显示的问题。
+        if (isPlaying) {
+            renderer.refreshActiveIsland()
+        }
         MediaCardDiagnosticLogger.log(
             stage = "root_sink",
             event = "playback_state_callback",
@@ -367,6 +379,9 @@ class RootLyricSink(
                 if (translatedSong !== song && translatedSong.lyrics != null) {
                     LyriconDataBridge.applyTranslation(translatedSong)
                     LyriconDataBridge.onAiTranslationComplete?.invoke()
+                    // 兜底刷新：onAiTranslationComplete 仅 Lyricon 源会设置，
+                    // 其它源（LyricInfo）AI 结果同样需要刷新岛屿渲染。
+                    renderer.refreshActiveIsland()
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -379,6 +394,14 @@ class RootLyricSink(
         song: Song,
         prefs: SharedPreferences
     ): Boolean {
+        // 平台在线翻译只在 LyriconSource 内调度（SuperLyric/LyricInfo 直接发布歌词，
+        // 不经过该流水线，也不会有 onOnlineTranslationUnavailable 补偿回调）。
+        // 非 Lyricon 源下 defer 会让 AI 翻译被永久推迟，直接不 defer。
+        if (LyriconDataBridge.currentSourceId != null &&
+            LyriconDataBridge.currentSourceId != "lyricon"
+        ) {
+            return false
+        }
         val packageName = LyriconDataBridge.currentLyricPackageName ?: return false
         if (song.lyrics.isNullOrEmpty()) return false
         if (song.lyrics?.any { !it.translation.isNullOrBlank() } == true) return false

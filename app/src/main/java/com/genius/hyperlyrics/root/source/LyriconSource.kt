@@ -258,11 +258,14 @@ class LyriconSource : LyricSource {
         set(value) {
             if (field != value) {
                 field = value
-                // 必须写 LSPosed 远程偏好（prefs），App 侧才能读到；
-                // PrefsBridge 只服务 App 进程本地偏好，在 hook 进程写入不可见。
-                prefs?.edit()
-                    ?.putString(RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER, value)
-                    ?.apply()
+                // hook 进程（SystemUI 等）拿到的 LSPosed 远程偏好是只读实现，
+                // edit() 会抛 UnsupportedOperationException("Read only implementation")；
+                // App 侧实际通过 hook 广播写入的本地偏好读取来源标记，这里仅尽力写入。
+                runCatching {
+                    prefs?.edit()
+                        ?.putString(RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER, value)
+                        ?.apply()
+                }
             }
         }
     @Volatile

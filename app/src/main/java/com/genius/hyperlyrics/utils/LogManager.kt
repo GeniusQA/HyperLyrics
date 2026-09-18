@@ -88,6 +88,16 @@ object LogManager : HyperLogger {
     const val TRIGGER_SCHEDULED = "scheduled"
     private const val MAX_HISTORY_RECORDS = 50
 
+    /**
+     * 清理记录去重窗口：同触发器在此间隔内的第二条记录视为同一次执行的重复写入，
+     * 不再落盘。背景：WorkManager 在个别 ROM 上会把同一逻辑任务经多个 JobScheduler
+     * 作业并发启动（实测同一秒内 START 两个 jobId），导致「清理记录」出现成对重复。
+     */
+    private const val CLEANUP_RECORD_DEDUPE_WINDOW_MS = 3_000L
+
+    /** 清理记录的读改写锁：saveCleanupRecord 的读取-合并-写入必须原子，否则并发时丢记录。 */
+    private val cleanupHistoryLock = Any()
+
     /** 读取已保存的清理历史。 */
     fun getCleanupHistory(context: Context): List<CleanupRecord> {
         return try {
@@ -116,32 +126,43 @@ object LogManager : HyperLogger {
 
     /** 保存一条新的清理记录，并截断到最大条数。 */
     private fun saveCleanupRecord(context: Context, record: CleanupRecord) {
-        val existing = getCleanupHistory(context).toMutableList()
-        existing.add(0, record)
-        while (existing.size > MAX_HISTORY_RECORDS) existing.removeAt(existing.lastIndex)
-        try {
-            val array = JSONArray()
-            existing.forEach { r ->
-                val filesArray = JSONArray()
-                r.files.forEach { f ->
-                    filesArray.put(
+        synchronized(cleanupHistoryLock) {
+            val existing = getCleanupHistory(context).toMutableList()
+            // 去重：同触发器在窗口内的第二条记录是同一次清理的重复执行（WorkManager
+            // 并发启动同一任务所致），跳过写入，避免「清理记录」里出现成对同秒条目。
+            val newest = existing.firstOrNull()
+            if (newest != null &&
+                newest.trigger == record.trigger &&
+                kotlin.math.abs(record.timestamp - newest.timestamp) <= CLEANUP_RECORD_DEDUPE_WINDOW_MS
+            ) {
+                return
+            }
+            existing.add(0, record)
+            while (existing.size > MAX_HISTORY_RECORDS) existing.removeAt(existing.lastIndex)
+            try {
+                val array = JSONArray()
+                existing.forEach { r ->
+                    val filesArray = JSONArray()
+                    r.files.forEach { f ->
+                        filesArray.put(
+                            JSONObject().apply {
+                                put("path", f.path)
+                                put("success", f.success)
+                            }
+                        )
+                    }
+                    array.put(
                         JSONObject().apply {
-                            put("path", f.path)
-                            put("success", f.success)
+                            put("timestamp", r.timestamp)
+                            put("trigger", r.trigger)
+                            put("files", filesArray)
                         }
                     )
                 }
-                array.put(
-                    JSONObject().apply {
-                        put("timestamp", r.timestamp)
-                        put("trigger", r.trigger)
-                        put("files", filesArray)
-                    }
-                )
+                val file = File(context.filesDir, "cleanup_history.json")
+                file.writeText(JSONObject().put("records", array).toString())
+            } catch (_: Exception) {
             }
-            val file = File(context.filesDir, "cleanup_history.json")
-            file.writeText(JSONObject().put("records", array).toString())
-        } catch (_: Exception) {
         }
     }
 

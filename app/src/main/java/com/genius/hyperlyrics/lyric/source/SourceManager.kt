@@ -11,7 +11,9 @@ class SourceManager(
     private val prefKey: String,
     private val defaultSourceId: String,
     private val stateResetter: StateResetter,
-    private val logger: HyperLogger
+    private val logger: HyperLogger,
+    /** 当前活动源变化回调（start/switch/stop），null 表示无活动源。 */
+    private val onActiveSourceChanged: ((String?) -> Unit)? = null,
 ) {
     private var activeSource: LyricSource? = null
 
@@ -39,6 +41,7 @@ class SourceManager(
         }
 
         activeSource = source
+        onActiveSourceChanged?.invoke(source.id)
         logger.i("SourceManager", "启动歌词源: ${source.displayName}")
         source.start(sink)
         diagnostic("stage=start_returned, active=${source.id}/${source.displayName}")
@@ -68,6 +71,7 @@ class SourceManager(
         }
 
         activeSource = source
+        onActiveSourceChanged?.invoke(source.id)
         logger.i("SourceManager", "切换歌词源: ${source.displayName}")
         source.start(sink)
         diagnostic("stage=switch_returned, active=${source.id}/${source.displayName}")
@@ -82,6 +86,7 @@ class SourceManager(
         )
         activeSource?.stop()
         activeSource = null
+        onActiveSourceChanged?.invoke(null)
         diagnostic("stage=stop_completed")
     }
 

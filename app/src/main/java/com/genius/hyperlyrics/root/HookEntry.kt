@@ -465,6 +465,7 @@ class HookEntry : XposedModule() {
                 prefKey = RootConstants.KEY_HOOK_LYRIC_SOURCE,
                 defaultSourceId = RootConstants.DEFAULT_HOOK_LYRIC_SOURCE,
                 stateResetter = LyriconDataBridge,
+                onActiveSourceChanged = { LyriconDataBridge.currentSourceId = it },
                 logger = HookLogger
             )
             activeMode = prefs.getInt(
