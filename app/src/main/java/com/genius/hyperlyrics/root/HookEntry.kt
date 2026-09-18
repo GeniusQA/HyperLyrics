@@ -273,6 +273,42 @@ class HookEntry : XposedModule() {
         )
     }
 
+    /**
+     * 官方 Provider（Lyricon `.hlp` 插件）运行时只服务 Lyricon 歌词源。
+     *
+     * 其它歌词源（SuperLyric / 内置信息源）不经过 Lyricon 通道，此时初始化内嵌 Central、
+     * 加载 Provider 包、按插件偏好重评估都是空转——还会在模块日志里刷出大量
+     * “官方 Provider 配置已重评估”。因此统一以当前歌词源（或即将切换到的源）为门控，
+     * 切回 Lyricon 时再补上这套初始化。
+     */
+    private fun shouldEngageOfficialProviderRuntime(newSourceId: String? = null): Boolean {
+        val sourceId = newSourceId
+            ?: runCatching { prefs.getString(RootConstants.KEY_HOOK_LYRIC_SOURCE, null) }
+                .getOrNull()
+            ?: RootConstants.DEFAULT_HOOK_LYRIC_SOURCE
+        return sourceId == lyriconSource.id
+    }
+
+    private fun engageOfficialProviderRuntime(app: Application, reason: String) {
+        if (!shouldEngageOfficialProviderRuntime()) {
+            HookLogger.i(
+                "HookEntry",
+                "跳过官方 Provider 运行时: reason=$reason, " +
+                    "source=${runCatching { prefs.getString(RootConstants.KEY_HOOK_LYRIC_SOURCE, null) }.getOrNull()}",
+            )
+            return
+        }
+        OfficialProviderPreferencePolicy.configure(prefs)
+        val officialProviderPlayers = OfficialProviderCatalog.definitions
+            .flatMapTo(linkedSetOf()) { definition -> definition.targetPackages }
+        NextTrackMetadataCache.clearPlayers(officialProviderPlayers)
+        EmbeddedLyriconCentralController.prepare(app)
+        OfficialProviderSystemMediaRuntime.installIfAvailable(this, app)
+        EmbeddedLyriconCentralController.onOfficialProviderPreferencesChanged(
+            officialProviderPlayers,
+        )
+    }
+
     override fun onPackageLoaded(param: PackageLoadedParam) {
         val processName = runCatching { android.app.Application.getProcessName() }.getOrNull() ?: ""
         val packageName = param.packageName
@@ -408,15 +444,7 @@ class HookEntry : XposedModule() {
             val renderer = BaseIslandRenderer
             val sink = RootLyricSink(renderer, prefs)
 
-            OfficialProviderPreferencePolicy.configure(prefs)
-            val officialProviderPlayers = OfficialProviderCatalog.definitions
-                .flatMapTo(linkedSetOf()) { definition -> definition.targetPackages }
-            NextTrackMetadataCache.clearPlayers(officialProviderPlayers)
-            EmbeddedLyriconCentralController.prepare(app)
-            OfficialProviderSystemMediaRuntime.installIfAvailable(this, app)
-            EmbeddedLyriconCentralController.onOfficialProviderPreferencesChanged(
-                officialProviderPlayers,
-            )
+            engageOfficialProviderRuntime(app, reason = "systemui_init")
             lyriconSource.initialize(
                 app = app,
                 prefs = prefs,
@@ -465,7 +493,9 @@ class HookEntry : XposedModule() {
                 }
                 val affectedOfficialProviderPlayers =
                     OfficialProviderPreferencePolicy.affectedPlayerPackages(key)
-                if (affectedOfficialProviderPlayers.isNotEmpty()) {
+                if (affectedOfficialProviderPlayers.isNotEmpty() &&
+                    shouldEngageOfficialProviderRuntime()
+                ) {
                     NextTrackMetadataCache.clearPlayers(affectedOfficialProviderPlayers)
                     val affectsSystemMediaProvider = affectedOfficialProviderPlayers.any { packageName ->
                         OfficialProviderCatalog.definitionForPackage(packageName)
@@ -514,8 +544,17 @@ class HookEntry : XposedModule() {
                             return@OnSharedPreferenceChangeListener
                         }
                         HookLogger.i("HookEntry", "切换歌词源: source=$newSourceId")
+                        val engageOfficialProviders =
+                            shouldEngageOfficialProviderRuntime(newSourceId)
                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                             sourceManager?.switchSource(newSourceId)
+                            // 切回 Lyricon 源时补上官方 Provider 运行时；切到其它源则不参与
+                            if (engageOfficialProviders) {
+                                engageOfficialProviderRuntime(
+                                    app,
+                                    reason = "source_switched_to_lyricon",
+                                )
+                            }
                         }
                     }
                     RootConstants.KEY_HOOK_LYRIC_MODE -> {
