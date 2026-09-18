@@ -280,7 +280,7 @@ object OfficialProviderRepository {
         require(uri.scheme == "https" && uri.host == "raw.githubusercontent.com") {
             "Provider 下载地址必须使用 raw.githubusercontent.com HTTPS"
         }
-        require(uri.path.startsWith("/QuanTum2088/HyperLyrics/main/providers/")) {
+        require(uri.path.startsWith(PROVIDER_ASSET_PATH_PREFIX)) {
             "Provider 下载地址不属于官方仓库"
         }
     }
