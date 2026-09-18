@@ -31,6 +31,12 @@ import java.util.concurrent.Executors
 internal object IslandLinearGradientBackgroundApplier {
     private const val TAG = "IslandLinearGradientBg"
 
+    /** 是否叠加暗色压边（false = 纯封面直出，不做任何处理）。 */
+    private const val APPLY_SCRIM = false
+
+    /** 是否叠加封面平均色提色（APPLY_SCRIM 为 false 时无效）。 */
+    private const val APPLY_TINT = false
+
     /** 暗色压边各档透明度（左→右），中间最轻以便露出封面。 */
     private val SCRIM_ALPHAS = intArrayOf(184, 96, 36, 140)
     private val SCRIM_STOPS = floatArrayOf(0f, 0.35f, 0.62f, 1f)
@@ -77,9 +83,15 @@ internal object IslandLinearGradientBackgroundApplier {
     /**
      * 应用线性渐变背景。
      * @param owner 岛的封面 ImageView（用于定位所属岛的背景视图）
-     * @param artwork 当前封面 Drawable，为空时回退到播放器应用图标
+     * @param artwork 当前封面 Drawable；为空时回退到播放器应用图标
+     * @param artworkBitmap 本模块缓存的原始封面位图（优先使用，避免取到过渡/组合 Drawable）
      */
-    fun apply(owner: View, artwork: Drawable?, packageName: String?) {
+    fun apply(
+        owner: View,
+        artwork: Drawable?,
+        packageName: String?,
+        artworkBitmap: Bitmap? = null,
+    ) {
         val backgroundView = resolveIslandBackgroundView(owner) ?: run {
             logOnce("未找到岛背景视图 owner=${owner.javaClass.simpleName}")
             return
@@ -98,7 +110,10 @@ internal object IslandLinearGradientBackgroundApplier {
         val state = states.getOrPut(backgroundView) {
             State(backgroundView, backgroundView.background)
         }
-        val artworkFingerprint = artworkFingerprint(artwork)
+        val artworkFingerprint = artworkBitmap
+            ?.takeIf { !it.isRecycled }
+            ?.let { System.identityHashCode(it).toLong() }
+            ?: artworkFingerprint(artwork)
         if (state.fingerprint == artworkFingerprint &&
             state.width == width &&
             state.height == height
@@ -112,7 +127,7 @@ internal object IslandLinearGradientBackgroundApplier {
         val context = backgroundView.context
         executor.execute {
             val rendered = runCatching {
-                renderIslandBackground(context, artwork, packageName, width, height)
+                renderIslandBackground(context, artwork, artworkBitmap, packageName, width, height)
             }.onFailure { error ->
                 HookLogger.e(TAG, "渲染摘要态线性渐变背景失败", error)
             }.getOrNull() ?: return@execute
@@ -211,11 +226,14 @@ internal object IslandLinearGradientBackgroundApplier {
     private fun renderIslandBackground(
         context: Context,
         artwork: Drawable?,
+        artworkBitmap: Bitmap?,
         packageName: String?,
         width: Int,
         height: Int,
     ): Bitmap? {
-        val source = resolveArtworkBitmap(context, artwork, packageName) ?: return null
+        val source = artworkBitmap?.takeIf { !it.isRecycled }
+            ?: resolveArtworkBitmap(context, artwork, packageName)
+            ?: return null
         val result = createBitmap(width, height)
         val canvas = Canvas(result)
         val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
@@ -226,27 +244,32 @@ internal object IslandLinearGradientBackgroundApplier {
             bitmapPaint,
         )
 
-        val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                0f,
-                0f,
-                width.toFloat(),
-                0f,
-                SCRIM_ALPHAS.map { alpha -> Color.argb(alpha, 0, 0, 0) }.toIntArray(),
-                SCRIM_STOPS,
-                Shader.TileMode.CLAMP,
-            )
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
-
-        // 与封面同色调的低透明度提色：让暗部与封面配色融合而非纯黑。
-        val tint = averageColor(source)
-        runCatching {
-            val tintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.argb(TINT_ALPHA, Color.red(tint), Color.green(tint), Color.blue(tint))
-                blendMode = BlendMode.SOFT_LIGHT
+        if (APPLY_SCRIM) {
+            val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f,
+                    0f,
+                    width.toFloat(),
+                    0f,
+                    SCRIM_ALPHAS.map { alpha -> Color.argb(alpha, 0, 0, 0) }.toIntArray(),
+                    SCRIM_STOPS,
+                    Shader.TileMode.CLAMP,
+                )
             }
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), tintPaint)
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
+        }
+
+        if (APPLY_SCRIM && APPLY_TINT) {
+            // 与封面同色调的低透明度提色：让暗部与封面配色融合而非纯黑。
+            val tint = averageColor(source)
+            runCatching {
+                val tintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color =
+                        Color.argb(TINT_ALPHA, Color.red(tint), Color.green(tint), Color.blue(tint))
+                    blendMode = BlendMode.SOFT_LIGHT
+                }
+                canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), tintPaint)
+            }
         }
         return result
     }

@@ -68,6 +68,8 @@ internal object IslandAlbumCoverStyleHooker {
     private val captureGenerationByView = WeakHashMap<ImageView, Int>()
     private val gradientStates = WeakHashMap<ImageView, GradientCoverState>()
     private val fakeTransitionLogSignatures = WeakHashMap<ViewGroup, String>()
+    private const val MAX_ARTWORK_RETRIES = 3
+    private val artworkRetryCounts = WeakHashMap<ImageView, Int>()
     private val artworkDiagnosticStates = WeakHashMap<ImageView, String>()
     private val artworkIdentityByView = WeakHashMap<ImageView, ArtworkIdentity>()
     private val restoringNative = ThreadLocal<Boolean>()
@@ -710,11 +712,35 @@ internal object IslandAlbumCoverStyleHooker {
         fixIcon: ImageView,
         dynamicIslandData: Any,
     ) {
+        // 优先拿本模块缓存的原始封面位图：fixIcon.drawable 可能是过渡/组合 Drawable，
+        // 直接绘制会得到半张图或混色结果。
+        val identity = resolveArtworkIdentity(fixIcon, dynamicIslandData)
+        val artworkBitmap = identity?.let { artwork ->
+            MediaMetadataHelper.currentCachedArtwork(
+                context = fixIcon.context,
+                packageName = artwork.packageName,
+                expectedTitle = artwork.title,
+            )
+        }
         IslandLinearGradientBackgroundApplier.apply(
             owner = fixIcon,
             artwork = fixIcon.drawable,
             packageName = IslandProbeUtils.extractMediaIslandInfo(dynamicIslandData)?.packageName,
+            artworkBitmap = artworkBitmap,
         )
+        if (artworkBitmap == null) {
+            // 首帧可能还没抓到封面（原生封面采集是延迟执行的），有限次重试直到拿到原始位图。
+            val attempts = artworkRetryCounts[fixIcon] ?: 0
+            if (attempts < MAX_ARTWORK_RETRIES) {
+                artworkRetryCounts[fixIcon] = attempts + 1
+                fixIcon.postDelayed(
+                    { applyLinearGradientBackground(fixIcon, dynamicIslandData) },
+                    400L * (attempts + 1),
+                )
+            }
+        } else {
+            artworkRetryCounts.remove(fixIcon)
+        }
     }
 
     private fun restoreGradientCover(fixIcon: ImageView) {
