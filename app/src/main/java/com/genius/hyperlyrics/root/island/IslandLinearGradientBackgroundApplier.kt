@@ -1,52 +1,50 @@
 package com.genius.hyperlyrics.root.island
 
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BlendMode
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorFilter
 import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Rect
+import android.graphics.Path
+import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.View
-import androidx.core.graphics.createBitmap
 import com.genius.hyperlyrics.root.utils.HookLogger
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.Executors
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
  * 摘要态超级岛「线性渐变」背景（音频封面样式 = 线性渐变）。
  *
- * 渲染方式对齐焦点通知卡片的线性渐变观感：**专辑封面铺满整条胶囊**（centerCrop），
- * 再叠一层「左重-中轻-右中」的暗色线性渐变压边，最后按封面平均色做一次低透明度提色。
- * 这样封面本身清晰可辨，同时保证歌词文字可读、配色与封面同源。
- *
- * 注意：不复用通知卡片的线性渐变渲染器——那套几何按「高卡片」设计（封面只占 1.25×高度
- * 的一小条并被底色覆盖），放到 4.5:1 的胶囊上会只剩底色渐变，看不出封面。
+ * 直接以当前专辑封面铺满整条岛背景：封面按 pill 尺寸等比放大后裁出中间偏上的一条
+ * （保留封面主体、看得清是封面），再叠一层左右重、中间轻的横向线性渐变压暗，
+ * 让岛内文字在任意封面上都能看清；最后按胶囊圆角裁剪，避免方角露出。
  */
 internal object IslandLinearGradientBackgroundApplier {
     private const val TAG = "IslandLinearGradientBg"
 
-    /** 是否叠加暗色压边（false = 纯封面直出，不做任何处理）。 */
-    private const val APPLY_SCRIM = false
+    /** 裁切取景位置：0=封面顶部，1=底部；略偏上，优先取到封面主体/人像。 */
+    private const val CROP_FOCUS_Y = 0.38f
 
-    /** 是否叠加封面平均色提色（APPLY_SCRIM 为 false 时无效）。 */
-    private const val APPLY_TINT = false
-
-    /** 暗色压边各档透明度（左→右），中间最轻以便露出封面。 */
-    private val SCRIM_ALPHAS = intArrayOf(184, 96, 36, 140)
-    private val SCRIM_STOPS = floatArrayOf(0f, 0.35f, 0.62f, 1f)
-
-    /** 封面平均色提色的透明度（越低越保留封面原貌）。 */
-    private const val TINT_ALPHA = 56
+    /** 压暗渐变：两端稍重（文字起止处）、中间最轻，尽量保留封面观感。 */
+    private val SCRIM_COLORS = intArrayOf(
+        Color.argb(158, 0, 0, 0),
+        Color.argb(70, 0, 0, 0),
+        Color.argb(56, 0, 0, 0),
+        Color.argb(140, 0, 0, 0),
+    )
+    private val SCRIM_STOPS = floatArrayOf(0f, 0.30f, 0.65f, 1f)
 
     private val states = Collections.synchronizedMap(WeakHashMap<View, State>())
     private val executor = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "HyperLyrics-IslandLinearGradient").apply { isDaemon = true }
+        Thread(runnable, "HyperLyrics-IslandCoverBackground").apply { isDaemon = true }
     }
 
     private class State(
@@ -56,115 +54,65 @@ internal object IslandLinearGradientBackgroundApplier {
         var fingerprint: Long = 0L
         var width: Int = 0
         var height: Int = 0
-
-        /** 本模块写入的渐变背景，用于绘制兜底时判断背景是否被其它模块替换。 */
-        var drawable: BitmapDrawable? = null
-
-        /** 背景重 assert 观察者（其它模块改写背景后把本模块背景写回）。 */
-        var reassertListener: android.view.ViewTreeObserver.OnPreDrawListener? = null
-    }
-
-    private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFilterBitmap = true
-        alpha = 255
-    }
-
-    private val loggedReasons = Collections.synchronizedSet(mutableSetOf<String>())
-
-    /** 去重日志：release 版也能从 logcat 判断本模块样式是否被应用以及未应用的原因。 */
-    private fun logOnce(reason: String) {
-        val isNew = synchronized(loggedReasons) {
-            if (loggedReasons.size > 32) loggedReasons.clear()
-            loggedReasons.add(reason)
-        }
-        if (isNew) HookLogger.i(TAG, "线性渐变背景未应用: $reason")
     }
 
     /**
-     * 应用线性渐变背景。
+     * 应用封面背景。
      * @param owner 岛的封面 ImageView（用于定位所属岛的背景视图）
-     * @param artwork 当前封面 Drawable；为空时回退到播放器应用图标
-     * @param artworkBitmap 本模块缓存的原始封面位图（优先使用，避免取到过渡/组合 Drawable）
+     * @param artwork 当前封面 Drawable
      */
-    fun apply(
-        owner: View,
-        artwork: Drawable?,
-        packageName: String?,
-        artworkBitmap: Bitmap? = null,
-    ) {
-        val backgroundView = resolveIslandBackgroundView(owner) ?: run {
-            logOnce("未找到岛背景视图 owner=${owner.javaClass.simpleName}")
-            return
-        }
-        val width = backgroundView.width.takeIf { it > 0 } ?: backgroundView.measuredWidth
-        val height = backgroundView.height.takeIf { it > 0 } ?: backgroundView.measuredHeight
-        if (width <= 0 || height <= 0) {
-            logOnce("岛背景尺寸无效: ${width}x$height")
-            return
-        }
-        if (!backgroundView.isAttachedToWindow) {
-            logOnce("岛背景视图未 attach")
+    fun apply(owner: View, artwork: Drawable?, packageName: String?) {
+        val owned = resolveCoverBitmap(artwork)
+        val cover = owned?.bitmap ?: return
+        val backgroundView = resolveIslandBackgroundView(owner)
+        val width = backgroundView?.width?.takeIf { it > 0 } ?: backgroundView?.measuredWidth ?: 0
+        val height = backgroundView?.height?.takeIf { it > 0 } ?: backgroundView?.measuredHeight ?: 0
+        if (backgroundView == null || width <= 0 || height <= 0 ||
+            !backgroundView.isAttachedToWindow
+        ) {
+            if (owned.created) cover.recycle()
             return
         }
 
         val state = states.getOrPut(backgroundView) {
             State(backgroundView, backgroundView.background)
         }
-        val artworkFingerprint = artworkBitmap
-            ?.takeIf { !it.isRecycled }
-            ?.let { System.identityHashCode(it).toLong() }
-            ?: artworkFingerprint(artwork)
-        if (state.fingerprint == artworkFingerprint &&
-            state.width == width &&
-            state.height == height
-        ) {
+        // 指纹取封面位图实例；栅格化出来的临时位图则退化为按 Drawable 实例判定。
+        val fingerprint = if (owned.created) {
+            System.identityHashCode(artwork).toLong()
+        } else {
+            System.identityHashCode(cover).toLong()
+        }
+        if (state.fingerprint == fingerprint && state.width == width && state.height == height) {
+            if (owned.created) cover.recycle()
             return
         }
-        state.fingerprint = artworkFingerprint
+        state.fingerprint = fingerprint
         state.width = width
         state.height = height
 
-        val context = backgroundView.context
         executor.execute {
-            val rendered = runCatching {
-                renderIslandBackground(context, artwork, artworkBitmap, packageName, width, height)
-            }.onFailure { error ->
-                HookLogger.e(TAG, "渲染摘要态线性渐变背景失败", error)
-            }.getOrNull() ?: return@execute
+            val rendered = runCatching { renderCoverBackground(cover, width, height) }
+                .onFailure { error -> HookLogger.e(TAG, "渲染封面背景失败", error) }
+                .getOrNull()
+            if (owned.created) cover.recycle()
+            if (rendered == null) return@execute
 
             backgroundView.post {
                 if (states[backgroundView] !== state) {
                     rendered.recycle()
                     return@post
                 }
-                val drawable = BitmapDrawable(backgroundView.resources, rendered)
-                state.drawable = drawable
-                backgroundView.background = drawable
-                // 绘制兜底：其它模块可能在本帧之后改写背景，兜底保证本模块样式最终可见。
-                IslandModuleIsolation.ensureDrawOverHook(backgroundView.javaClass)
-                attachReassert(state)
-                HookLogger.i(
+                backgroundView.background = RoundedCoverBackgroundDrawable(
+                    bitmap = rendered,
+                    cornerRadius = height / 2f,
+                )
+                HookLogger.d(
                     TAG,
-                    "摘要态线性渐变背景已应用: size=${rendered.width}x${rendered.height}, " +
-                        "package=$packageName",
+                    "封面背景已应用: size=${rendered.width}x${rendered.height}, package=$packageName",
                 )
             }
         }
-    }
-
-    /**
-     * 绘制兜底：若岛背景视图的当前背景已被其它模块替换，则在它绘制完成后补画本模块渐变。
-     * 由 [IslandModuleIsolation] 的 draw 后置 hook 调用。
-     */
-    fun drawOverIfOverridden(view: View, canvas: Canvas) {
-        val state = synchronized(states) { states[view] } ?: return
-        val drawable = state.drawable ?: return
-        val bitmap = drawable.bitmap ?: return
-        if (bitmap.isRecycled || view.width <= 0 || view.height <= 0) return
-        if (view.background === drawable) return
-        canvas.save()
-        canvas.drawBitmap(bitmap, 0f, 0f, overlayPaint)
-        canvas.restore()
     }
 
     /** 恢复指定岛的原生背景（样式切换/关闭时调用）。 */
@@ -181,175 +129,63 @@ internal object IslandLinearGradientBackgroundApplier {
 
     private fun restoreBackground(view: View) {
         val state = states.remove(view) ?: return
-        detachReassert(state)
-        view.post {
-            view.background = state.original
-        }
+        view.post { view.background = state.original }
     }
 
-    /**
-     * 前置绘制校验：其它模块（或系统）把背景改写后，把本模块背景写回。
-     * 与绘制兜底互补——draw 兜底处理「绕过所有 setter 直接换 drawable」的情况，
-     * 这里处理「背景字段被直接改写」且当前类没有可挂 draw 的情况。
-     */
-    private fun attachReassert(state: State) {
-        if (state.reassertListener != null) return
-        val view = state.view
-        val listener = android.view.ViewTreeObserver.OnPreDrawListener {
-            if (synchronized(states) { states[view] } !== state) {
-                detachReassert(state)
-                return@OnPreDrawListener true
+    private class CoverBitmap(val bitmap: Bitmap, val created: Boolean)
+
+    /** 取封面位图：BitmapDrawable 直接复用其位图，其余情况栅格化一份（created=true 由调用方释放）。 */
+    private fun resolveCoverBitmap(artwork: Drawable?): CoverBitmap? {
+        val drawable = artwork ?: return null
+        (drawable as? BitmapDrawable)?.bitmap?.let { return CoverBitmap(it, created = false) }
+        val width = drawable.intrinsicWidth.takeIf { it > 0 } ?: return null
+        val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: return null
+        val bitmap = runCatching {
+            val target = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val originalBounds = drawable.copyBounds()
+            try {
+                drawable.setBounds(0, 0, width, height)
+                drawable.draw(Canvas(target))
+            } finally {
+                drawable.bounds = originalBounds
             }
-            val drawable = state.drawable
-            if (drawable != null && view.background !== drawable) {
-                view.background = drawable
-            }
-            true
-        }
-        state.reassertListener = listener
-        runCatching {
-            view.viewTreeObserver.takeIf { it.isAlive }?.addOnPreDrawListener(listener)
-        }
+            target
+        }.getOrNull() ?: return null
+        return CoverBitmap(bitmap, created = true)
     }
 
-    private fun detachReassert(state: State) {
-        val listener = state.reassertListener ?: return
-        state.reassertListener = null
-        runCatching {
-            state.view.viewTreeObserver.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
-        }
-    }
-
-    /**
-     * 渲染岛背景：封面 centerCrop 铺满 → 暗色线性渐变压边 → 封面平均色低透明度提色。
-     */
-    private fun renderIslandBackground(
-        context: Context,
-        artwork: Drawable?,
-        artworkBitmap: Bitmap?,
-        packageName: String?,
-        width: Int,
-        height: Int,
-    ): Bitmap? {
-        val source = artworkBitmap?.takeIf { !it.isRecycled }
-            ?: resolveArtworkBitmap(context, artwork, packageName)
-            ?: return null
-        val result = createBitmap(width, height)
+    /** 封面等比铺满 + 横向渐变压暗，输出岛尺寸位图。 */
+    private fun renderCoverBackground(source: Bitmap, width: Int, height: Int): Bitmap? {
+        if (source.width <= 0 || source.height <= 0) return null
+        val scale = max(width / source.width.toFloat(), height / source.height.toFloat())
+        val scaledWidth = (source.width * scale).roundToInt().coerceAtLeast(width)
+        val scaledHeight = (source.height * scale).roundToInt().coerceAtLeast(height)
+        val scaled = Bitmap.createScaledBitmap(source, scaledWidth, scaledHeight, true)
+        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
-        val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
-        canvas.drawBitmap(
-            source,
-            centerCropRect(source, width, height),
-            Rect(0, 0, width, height),
-            bitmapPaint,
-        )
-
-        if (APPLY_SCRIM) {
-            val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val left = ((scaledWidth - width) / 2f).roundToInt().coerceIn(0, scaledWidth - width)
+        val top = ((scaledHeight - height) * CROP_FOCUS_Y).roundToInt()
+            .coerceIn(0, scaledHeight - height)
+        canvas.drawBitmap(scaled, -left.toFloat(), -top.toFloat(), null)
+        if (scaled !== source) scaled.recycle()
+        canvas.drawRect(
+            0f,
+            0f,
+            width.toFloat(),
+            height.toFloat(),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
                     0f,
                     0f,
                     width.toFloat(),
                     0f,
-                    SCRIM_ALPHAS.map { alpha -> Color.argb(alpha, 0, 0, 0) }.toIntArray(),
+                    SCRIM_COLORS,
                     SCRIM_STOPS,
                     Shader.TileMode.CLAMP,
                 )
-            }
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
-        }
-
-        if (APPLY_SCRIM && APPLY_TINT) {
-            // 与封面同色调的低透明度提色：让暗部与封面配色融合而非纯黑。
-            val tint = averageColor(source)
-            runCatching {
-                val tintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color =
-                        Color.argb(TINT_ALPHA, Color.red(tint), Color.green(tint), Color.blue(tint))
-                    blendMode = BlendMode.SOFT_LIGHT
-                }
-                canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), tintPaint)
-            }
-        }
+            },
+        )
         return result
-    }
-
-    private fun resolveArtworkBitmap(
-        context: Context,
-        artwork: Drawable?,
-        packageName: String?,
-    ): Bitmap? {
-        val drawable = artwork ?: packageName?.takeIf { it.isNotBlank() }?.let { pkg ->
-            runCatching { context.packageManager.getApplicationIcon(pkg) }.getOrNull()
-        } ?: return null
-        (drawable as? BitmapDrawable)?.bitmap?.takeIf { !it.isRecycled }?.let { return it }
-        val width = drawable.intrinsicWidth.takeIf { it > 0 } ?: 512
-        val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 512
-        return runCatching {
-            val bitmap = createBitmap(width, height)
-            val previousBounds = Rect(drawable.bounds)
-            drawable.setBounds(0, 0, width, height)
-            drawable.draw(Canvas(bitmap))
-            drawable.bounds = previousBounds
-            bitmap
-        }.getOrNull()
-    }
-
-    /** 以目标宽高比做 centerCrop，返回源位图上的裁剪矩形。 */
-    private fun centerCropRect(source: Bitmap, width: Int, height: Int): Rect {
-        if (source.width <= 0 || source.height <= 0) return Rect(0, 0, 1, 1)
-        val targetAspect = width.toFloat() / height.toFloat()
-        val sourceAspect = source.width.toFloat() / source.height.toFloat()
-        val srcWidth: Int
-        val srcHeight: Int
-        if (sourceAspect > targetAspect) {
-            srcHeight = source.height
-            srcWidth = (srcHeight * targetAspect).toInt().coerceAtLeast(1)
-        } else {
-            srcWidth = source.width
-            srcHeight = (srcWidth / targetAspect).toInt().coerceAtLeast(1)
-        }
-        val left = (source.width - srcWidth) / 2
-        val top = (source.height - srcHeight) / 2
-        return Rect(left, top, left + srcWidth, top + srcHeight)
-    }
-
-    /** 封面平均色：稀疏采样，避免整图遍历。 */
-    private fun averageColor(source: Bitmap): Int = runCatching {
-        var red = 0L
-        var green = 0L
-        var blue = 0L
-        var count = 0
-        val stepX = (source.width / 16).coerceAtLeast(1)
-        val stepY = (source.height / 16).coerceAtLeast(1)
-        var x = 0
-        while (x < source.width) {
-            var y = 0
-            while (y < source.height) {
-                val color = source.getPixel(x, y)
-                red += Color.red(color)
-                green += Color.green(color)
-                blue += Color.blue(color)
-                count++
-                y += stepY
-            }
-            x += stepX
-        }
-        if (count == 0) {
-            Color.GRAY
-        } else {
-            Color.rgb((red / count).toInt(), (green / count).toInt(), (blue / count).toInt())
-        }
-    }.getOrDefault(Color.GRAY)
-
-    /** 封面指纹：优先按位图实例，避免同一 Drawable 对象换歌时漏刷新。 */
-    private fun artworkFingerprint(artwork: Drawable?): Long {
-        val bitmap = (artwork as? BitmapDrawable)?.bitmap
-        return if (bitmap != null) {
-            System.identityHashCode(bitmap).toLong()
-        } else {
-            System.identityHashCode(artwork).toLong()
-        }
     }
 
     /** 沿父链定位超级岛背景视图（与原生命名一致的 DynamicIslandBackgroundView / getBackgroundView）。 */
@@ -366,5 +202,53 @@ internal object IslandLinearGradientBackgroundApplier {
             current = current.parent as? View
         }
         return null
+    }
+
+    /** 按胶囊圆角裁剪的封面背景，避免方角从岛边缘露出。 */
+    private class RoundedCoverBackgroundDrawable(
+        private val bitmap: Bitmap,
+        private val cornerRadius: Float,
+    ) : Drawable() {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        private val clipPath = Path()
+        private val clipRect = RectF()
+
+        override fun onBoundsChange(bounds: android.graphics.Rect) {
+            super.onBoundsChange(bounds)
+            clipRect.set(0f, 0f, bounds.width().toFloat(), bounds.height().toFloat())
+            clipPath.reset()
+            clipPath.addRoundRect(clipRect, cornerRadius, cornerRadius, Path.Direction.CW)
+        }
+
+        override fun draw(canvas: Canvas) {
+            if (bounds.isEmpty || bitmap.isRecycled) return
+            val save = canvas.save()
+            canvas.clipPath(clipPath)
+            canvas.drawBitmap(
+                bitmap,
+                null,
+                RectF(
+                    bounds.left.toFloat(),
+                    bounds.top.toFloat(),
+                    bounds.right.toFloat(),
+                    bounds.bottom.toFloat(),
+                ),
+                paint,
+            )
+            canvas.restoreToCount(save)
+        }
+
+        override fun setAlpha(alpha: Int) {
+            paint.alpha = alpha
+            invalidateSelf()
+        }
+
+        override fun setColorFilter(colorFilter: ColorFilter?) {
+            paint.colorFilter = colorFilter
+            invalidateSelf()
+        }
+
+        @Suppress("OVERRIDE_DEPRECATION")
+        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
     }
 }

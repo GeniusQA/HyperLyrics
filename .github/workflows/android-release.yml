@@ -89,11 +89,10 @@ jobs:
             echo "| --- | --- |"
             echo "| 渠道 | $CHANNEL |"
             echo "| 版本 | v$FULL_NAME ($CODE) |"
+            echo "| 提交 | [`$short_sha`]($commit_url) |"
             echo "| 触发者 | ${{ github.actor }} |"
             echo
-            # 表格不再重复“提交”行：本次构建的提交说明见下方小节，
-            # 构建提交的短 SHA 链接挂在标题上，仍然可点开对应 commit。
-            echo "### 本次提交说明 ([$short_sha]($commit_url))"
+            echo "### 本次提交说明"
             echo
             echo '```text'
             git log -1 --pretty=format:'%B' HEAD

@@ -8,9 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -25,7 +23,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -770,31 +767,20 @@ private fun CleanupFileDetailDialog(
  * 全部未安装或拉起失败时返回 false，由调用方提示安装。
  */
 private fun openPathInFileManager(context: Context, path: String): Boolean {
-    val pm = context.packageManager
-    // 用 getPackageInfo 判定安装：resolveActivity 对自定义 scheme 的解析在部分
-    // ROM（如 HyperOS）或目标未声明精确 intent-filter 时会误报“未安装”，
-    // 导致装了 MT 仍提示需要安装文件管理器。
-    fun isInstalled(pkg: String): Boolean =
-        runCatching { pm.getPackageInfo(pkg, 0) }.isSuccess
-
-    // MT：优先深链定位到具体路径；深链不被响应时退回普通拉起（用户手动定位）
-    for (pkg in listOf("bin.mt.plus.canary", "bin.mt.plus")) {
-        if (!isInstalled(pkg)) continue
-        val uri = Uri.parse("mtplus://bin.mt.plus/open").buildUpon()
-            .appendQueryParameter("path", path)
-            .build()
-        val deeplink = Intent(Intent.ACTION_VIEW, uri)
+    val mtPackages = listOf("bin.mt.plus.canary", "bin.mt.plus")
+    val uri = Uri.parse("mtplus://bin.mt.plus/open").buildUpon()
+        .appendQueryParameter("path", path)
+        .build()
+    for (pkg in mtPackages) {
+        val intent = Intent(Intent.ACTION_VIEW, uri)
             .setPackage(pkg)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (runCatching { context.startActivity(deeplink) }.isSuccess) return true
-        val launch = pm.getLaunchIntentForPackage(pkg) ?: continue
-        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (runCatching { context.startActivity(launch) }.isSuccess) return true
+        if (intent.resolveActivity(context.packageManager) == null) continue
+        if (runCatching { context.startActivity(intent) }.isSuccess) return true
     }
     // NP/ES：无公开定位 scheme，仅拉起应用
     for (pkg in listOf("com.wn.app.np", "com.estrongs.android.pop")) {
-        if (!isInstalled(pkg)) continue
-        val launch = pm.getLaunchIntentForPackage(pkg) ?: continue
+        val launch = context.packageManager.getLaunchIntentForPackage(pkg) ?: continue
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (runCatching { context.startActivity(launch) }.isSuccess) return true
     }
