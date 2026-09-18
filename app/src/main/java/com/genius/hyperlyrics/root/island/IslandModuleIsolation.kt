@@ -53,8 +53,6 @@ internal object IslandModuleIsolation {
     private val initializedLoaders = Collections.synchronizedSet(
         Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>())
     )
-    private val lastForeignWriteSignature =
-        Collections.synchronizedMap(WeakHashMap<Class<*>, String>())
 
     private var prefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
@@ -171,17 +169,17 @@ internal object IslandModuleIsolation {
         HookLogger.w(TAG, "未找到可挂载的 draw 方法，改用背景重assert兜底: ${viewClass.name}")
     }
 
-    private fun isIslandBackgroundField(field: Field): Boolean {
+    fun isIslandBackgroundField(field: Field): Boolean {
         val declaringName = field.declaringClass.name
         if (!declaringName.contains("dynamicisland", ignoreCase = true)) return false
         return field.name.contains("background", ignoreCase = true)
     }
 
-    private fun isIslandBackgroundView(view: View): Boolean =
+    fun isIslandBackgroundView(view: View): Boolean =
         view.javaClass.name.contains("dynamicisland", ignoreCase = true)
 
     /** 从调用栈解析写入方模块前缀；返回 null 表示是系统/框架/本模块自身。 */
-    private fun resolveCallerModule(): String? {
+    fun resolveCallerModule(): String? {
         val stack = runCatching { Thread.currentThread().stackTrace }.getOrNull() ?: return null
         for (element in stack) {
             val className = element.className
@@ -195,7 +193,7 @@ internal object IslandModuleIsolation {
     /**
      * @return true 表示这次写入应被屏蔽（命中用户勾选的模块）。
      */
-    private fun shouldBlock(caller: String?, resource: String): Boolean {
+    fun shouldBlock(caller: String?, resource: String): Boolean {
         if (caller == null) return false
         val blocked = blockedModules()
         val hit = blocked.any { caller.startsWith(it) }

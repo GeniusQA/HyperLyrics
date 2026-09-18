@@ -219,24 +219,24 @@ fun SuperIslandSettingsPage() {
         )
     }
     var blockedModules by remember {
-        mutableStateOf(
-            prefs.getStringSet(RootConstants.KEY_HOOK_ISLAND_BLOCKED_MODULES, null)
-                ?.toMutableSet() ?: mutableSetOf()
+        mutableStateOf<Set<String>>(
+            prefs.getStringSet(RootConstants.KEY_HOOK_ISLAND_BLOCKED_MODULES, null)?.toSet()
+                ?: emptySet()
         )
     }
     var modulePrefixInput by remember { mutableStateOf("") }
     // 已知会接管超级岛背景的模块；用户手动添加的前缀也会并入列表。
-    val knownInterferingModules = remember {
+    val knownInterferingModules: List<Pair<String, String?>> = remember {
         listOf(
             "io.github.hyperisland" to "HyperIsland",
             "com.kiminonawa.HyperLight" to "HyperLight",
         )
     }
-    val candidateModules = remember(blockedModules) {
+    val candidateModules: List<Pair<String, String?>> = remember(blockedModules) {
         knownInterferingModules + blockedModules
             .filterNot { prefix -> knownInterferingModules.any { it.first == prefix } }
             .sorted()
-            .map { it to null }
+            .map { prefix -> prefix to null }
     }
 
     fun saveConfig(key: String, value: Any) {
@@ -487,12 +487,14 @@ fun SuperIslandSettingsPage() {
                                     },
                                     checked = prefix in blockedModules,
                                     onCheckedChange = { checked ->
-                                        blockedModules = blockedModules.toMutableSet().apply {
-                                            if (checked) add(prefix) else remove(prefix)
+                                        blockedModules = if (checked) {
+                                            blockedModules + prefix
+                                        } else {
+                                            blockedModules - prefix
                                         }
                                         saveConfig(
                                             RootConstants.KEY_HOOK_ISLAND_BLOCKED_MODULES,
-                                            blockedModules.toSet()
+                                            blockedModules
                                         )
                                     }
                                 )
@@ -515,11 +517,10 @@ fun SuperIslandSettingsPage() {
                                     onClick = {
                                         val prefix = modulePrefixInput.trim()
                                         if (prefix.isNotEmpty()) {
-                                            blockedModules = blockedModules.toMutableSet()
-                                                .apply { add(prefix) }
+                                            blockedModules = blockedModules + prefix
                                             saveConfig(
                                                 RootConstants.KEY_HOOK_ISLAND_BLOCKED_MODULES,
-                                                blockedModules.toSet()
+                                                blockedModules
                                             )
                                             modulePrefixInput = ""
                                         }
