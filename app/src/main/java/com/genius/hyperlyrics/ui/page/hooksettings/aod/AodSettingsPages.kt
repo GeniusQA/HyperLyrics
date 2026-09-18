@@ -347,8 +347,11 @@ private fun AodSettingsPage(spec: AodSettingsSpec) {
     }
     var lyricMaxLines by remember {
         mutableIntStateOf(
-            (prefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
-                ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
+            ((prefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
+                ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES).coerceIn(
+                RootConstants.MIN_LYRIC_MAX_LINES,
+                RootConstants.MAX_LYRIC_MAX_LINES
+            )
         )
     }
     var duetLyrics by remember(spec.duetLyricsKey) {

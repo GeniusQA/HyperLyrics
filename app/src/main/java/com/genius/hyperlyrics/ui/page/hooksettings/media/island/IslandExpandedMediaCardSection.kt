@@ -68,8 +68,11 @@ fun LazyListScope.islandExpandedMediaCardSection(
         }
         var lyricMaxLines by remember {
             mutableIntStateOf(
-                (sectionPrefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
-                    ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES
+                ((sectionPrefs.all[RootConstants.KEY_HOOK_LYRIC_MAX_LINES] as? Int)
+                    ?: RootConstants.DEFAULT_HOOK_LYRIC_MAX_LINES).coerceIn(
+                    RootConstants.MIN_LYRIC_MAX_LINES,
+                    RootConstants.MAX_LYRIC_MAX_LINES
+                )
             )
         }
 
