@@ -106,6 +106,10 @@ internal object IslandAlbumCoverStyleHooker {
         module = xposedModule
         if (!hookedClassLoaders.add(classLoader)) return
 
+        // 模块隔离：屏蔽其它 Xposed 模块对岛背景的写入（含绘制兜底 hook 的注册）。
+        runCatching { IslandModuleIsolation.initialize(xposedModule, classLoader) }
+            .onFailure { HookLogger.e(TAG, "模块隔离初始化失败", it) }
+
         try {
             val holderClass = classLoader.loadClass(ICON_HOLDER_CLASS)
             val fixMethod = holderClass.declaredMethods.firstOrNull {

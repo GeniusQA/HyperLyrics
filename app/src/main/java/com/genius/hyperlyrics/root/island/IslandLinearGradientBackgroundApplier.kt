@@ -1,13 +1,18 @@
 package com.genius.hyperlyrics.root.island
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BlendMode
 import android.graphics.Canvas
-import android.graphics.Matrix
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.View
-import com.genius.hyperlyrics.common.RootConstants
-import com.genius.hyperlyrics.root.mediacard.notification.background.MediaBackgroundRendererPool
+import androidx.core.graphics.createBitmap
 import com.genius.hyperlyrics.root.utils.HookLogger
 import java.util.Collections
 import java.util.WeakHashMap
@@ -16,13 +21,22 @@ import java.util.concurrent.Executors
 /**
  * 摘要态超级岛「线性渐变」背景（音频封面样式 = 线性渐变）。
  *
- * 复用通知中心/焦点通知卡片的线性渐变渲染（封面整幅融入 + 封面取色渐变压暗，
- * 即 [RootConstants.NOTIFICATION_MEDIA_BACKGROUND_STYLE_LINEAR_GRADIENT]），渲染成岛尺寸位图后
- * 水平镜像，以适配超级岛「封面缩略图在左、歌词文字在右」的布局：封面纹理落在左侧缩略图附近，
- * 右侧过渡为封面取色底色，保证文字可读且与当前音频封面配色融合。
+ * 渲染方式对齐焦点通知卡片的线性渐变观感：**专辑封面铺满整条胶囊**（centerCrop），
+ * 再叠一层「左重-中轻-右中」的暗色线性渐变压边，最后按封面平均色做一次低透明度提色。
+ * 这样封面本身清晰可辨，同时保证歌词文字可读、配色与封面同源。
+ *
+ * 注意：不复用通知卡片的线性渐变渲染器——那套几何按「高卡片」设计（封面只占 1.25×高度
+ * 的一小条并被底色覆盖），放到 4.5:1 的胶囊上会只剩底色渐变，看不出封面。
  */
 internal object IslandLinearGradientBackgroundApplier {
     private const val TAG = "IslandLinearGradientBg"
+
+    /** 暗色压边各档透明度（左→右），中间最轻以便露出封面。 */
+    private val SCRIM_ALPHAS = intArrayOf(184, 96, 36, 140)
+    private val SCRIM_STOPS = floatArrayOf(0f, 0.35f, 0.62f, 1f)
+
+    /** 封面平均色提色的透明度（越低越保留封面原貌）。 */
+    private const val TINT_ALPHA = 56
 
     private val states = Collections.synchronizedMap(WeakHashMap<View, State>())
     private val executor = Executors.newSingleThreadExecutor { runnable ->
@@ -36,6 +50,17 @@ internal object IslandLinearGradientBackgroundApplier {
         var fingerprint: Long = 0L
         var width: Int = 0
         var height: Int = 0
+
+        /** 本模块写入的渐变背景，用于绘制兜底时判断背景是否被其它模块替换。 */
+        var drawable: BitmapDrawable? = null
+
+        /** 背景重 assert 观察者（其它模块改写背景后把本模块背景写回）。 */
+        var reassertListener: android.view.ViewTreeObserver.OnPreDrawListener? = null
+    }
+
+    private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        isFilterBitmap = true
+        alpha = 255
     }
 
     /**
@@ -65,45 +90,45 @@ internal object IslandLinearGradientBackgroundApplier {
 
         val context = backgroundView.context
         executor.execute {
-            val renderer = runCatching { MediaBackgroundRendererPool.get(context.classLoader) }
-                .onFailure { error ->
-                    HookLogger.e(TAG, "初始化线性渐变背景渲染器失败", error)
-                }
-                .getOrNull() ?: return@execute
             val rendered = runCatching {
-                renderer.renderDrawable(
-                    context = context,
-                    artworkDrawable = artwork,
-                    packageName = packageName.orEmpty(),
-                    style = RootConstants.NOTIFICATION_MEDIA_BACKGROUND_STYLE_LINEAR_GRADIENT,
-                    blurAmount = 0,
-                    autoInvert = false,
-                    softCoverTone = RootConstants.MEDIA_SOFT_COVER_TONE_DARK,
-                    width = width,
-                    height = height,
-                )
+                renderIslandBackground(context, artwork, packageName, width, height)
             }.onFailure { error ->
                 HookLogger.e(TAG, "渲染摘要态线性渐变背景失败", error)
             }.getOrNull() ?: return@execute
 
-            val source = rendered.bitmap
-            val mirrored = mirrorHorizontally(source)
-            source.recycle()
-            if (mirrored == null) return@execute
-
             backgroundView.post {
                 if (states[backgroundView] !== state) {
-                    mirrored.recycle()
+                    rendered.recycle()
                     return@post
                 }
-                backgroundView.background = BitmapDrawable(backgroundView.resources, mirrored)
+                val drawable = BitmapDrawable(backgroundView.resources, rendered)
+                state.drawable = drawable
+                backgroundView.background = drawable
+                // 绘制兜底：其它模块可能在本帧之后改写背景，兜底保证本模块样式最终可见。
+                IslandModuleIsolation.ensureDrawOverHook(backgroundView.javaClass)
+                attachReassert(state)
                 HookLogger.d(
                     TAG,
-                    "摘要态线性渐变背景已应用: size=${mirrored.width}x${mirrored.height}, " +
+                    "摘要态线性渐变背景已应用: size=${rendered.width}x${rendered.height}, " +
                         "package=$packageName",
                 )
             }
         }
+    }
+
+    /**
+     * 绘制兜底：若岛背景视图的当前背景已被其它模块替换，则在它绘制完成后补画本模块渐变。
+     * 由 [IslandModuleIsolation] 的 draw 后置 hook 调用。
+     */
+    fun drawOverIfOverridden(view: View, canvas: Canvas) {
+        val state = synchronized(states) { states[view] } ?: return
+        val drawable = state.drawable ?: return
+        val bitmap = drawable.bitmap ?: return
+        if (bitmap.isRecycled || view.width <= 0 || view.height <= 0) return
+        if (view.background === drawable) return
+        canvas.save()
+        canvas.drawBitmap(bitmap, 0f, 0f, overlayPaint)
+        canvas.restore()
     }
 
     /** 恢复指定岛的原生背景（样式切换/关闭时调用）。 */
@@ -120,10 +145,158 @@ internal object IslandLinearGradientBackgroundApplier {
 
     private fun restoreBackground(view: View) {
         val state = states.remove(view) ?: return
+        detachReassert(state)
         view.post {
             view.background = state.original
         }
     }
+
+    /**
+     * 前置绘制校验：其它模块（或系统）把背景改写后，把本模块背景写回。
+     * 与绘制兜底互补——draw 兜底处理「绕过所有 setter 直接换 drawable」的情况，
+     * 这里处理「背景字段被直接改写」且当前类没有可挂 draw 的情况。
+     */
+    private fun attachReassert(state: State) {
+        if (state.reassertListener != null) return
+        val view = state.view
+        val listener = android.view.ViewTreeObserver.OnPreDrawListener {
+            if (synchronized(states) { states[view] } !== state) {
+                detachReassert(state)
+                return@OnPreDrawListener true
+            }
+            val drawable = state.drawable
+            if (drawable != null && view.background !== drawable) {
+                view.background = drawable
+            }
+            true
+        }
+        state.reassertListener = listener
+        runCatching {
+            view.viewTreeObserver.takeIf { it.isAlive }?.addOnPreDrawListener(listener)
+        }
+    }
+
+    private fun detachReassert(state: State) {
+        val listener = state.reassertListener ?: return
+        state.reassertListener = null
+        runCatching {
+            state.view.viewTreeObserver.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
+        }
+    }
+
+    /**
+     * 渲染岛背景：封面 centerCrop 铺满 → 暗色线性渐变压边 → 封面平均色低透明度提色。
+     */
+    private fun renderIslandBackground(
+        context: Context,
+        artwork: Drawable?,
+        packageName: String?,
+        width: Int,
+        height: Int,
+    ): Bitmap? {
+        val source = resolveArtworkBitmap(context, artwork, packageName) ?: return null
+        val result = createBitmap(width, height)
+        val canvas = Canvas(result)
+        val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        canvas.drawBitmap(
+            source,
+            centerCropRect(source, width, height),
+            Rect(0, 0, width, height),
+            bitmapPaint,
+        )
+
+        val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f,
+                0f,
+                width.toFloat(),
+                0f,
+                SCRIM_ALPHAS.map { alpha -> Color.argb(alpha, 0, 0, 0) }.toIntArray(),
+                SCRIM_STOPS,
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
+
+        // 与封面同色调的低透明度提色：让暗部与封面配色融合而非纯黑。
+        val tint = averageColor(source)
+        runCatching {
+            val tintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb(TINT_ALPHA, Color.red(tint), Color.green(tint), Color.blue(tint))
+                blendMode = BlendMode.SOFT_LIGHT
+            }
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), tintPaint)
+        }
+        return result
+    }
+
+    private fun resolveArtworkBitmap(
+        context: Context,
+        artwork: Drawable?,
+        packageName: String?,
+    ): Bitmap? {
+        val drawable = artwork ?: packageName?.takeIf { it.isNotBlank() }?.let { pkg ->
+            runCatching { context.packageManager.getApplicationIcon(pkg) }.getOrNull()
+        } ?: return null
+        (drawable as? BitmapDrawable)?.bitmap?.takeIf { !it.isRecycled }?.let { return it }
+        val width = drawable.intrinsicWidth.takeIf { it > 0 } ?: 512
+        val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 512
+        return runCatching {
+            val bitmap = createBitmap(width, height)
+            val previousBounds = Rect(drawable.bounds)
+            drawable.setBounds(0, 0, width, height)
+            drawable.draw(Canvas(bitmap))
+            drawable.bounds = previousBounds
+            bitmap
+        }.getOrNull()
+    }
+
+    /** 以目标宽高比做 centerCrop，返回源位图上的裁剪矩形。 */
+    private fun centerCropRect(source: Bitmap, width: Int, height: Int): Rect {
+        if (source.width <= 0 || source.height <= 0) return Rect(0, 0, 1, 1)
+        val targetAspect = width.toFloat() / height.toFloat()
+        val sourceAspect = source.width.toFloat() / source.height.toFloat()
+        val srcWidth: Int
+        val srcHeight: Int
+        if (sourceAspect > targetAspect) {
+            srcHeight = source.height
+            srcWidth = (srcHeight * targetAspect).toInt().coerceAtLeast(1)
+        } else {
+            srcWidth = source.width
+            srcHeight = (srcWidth / targetAspect).toInt().coerceAtLeast(1)
+        }
+        val left = (source.width - srcWidth) / 2
+        val top = (source.height - srcHeight) / 2
+        return Rect(left, top, left + srcWidth, top + srcHeight)
+    }
+
+    /** 封面平均色：稀疏采样，避免整图遍历。 */
+    private fun averageColor(source: Bitmap): Int = runCatching {
+        var red = 0L
+        var green = 0L
+        var blue = 0L
+        var count = 0
+        val stepX = (source.width / 16).coerceAtLeast(1)
+        val stepY = (source.height / 16).coerceAtLeast(1)
+        var x = 0
+        while (x < source.width) {
+            var y = 0
+            while (y < source.height) {
+                val color = source.getPixel(x, y)
+                red += Color.red(color)
+                green += Color.green(color)
+                blue += Color.blue(color)
+                count++
+                y += stepY
+            }
+            x += stepX
+        }
+        if (count == 0) {
+            Color.GRAY
+        } else {
+            Color.rgb((red / count).toInt(), (green / count).toInt(), (blue / count).toInt())
+        }
+    }.getOrDefault(Color.GRAY)
 
     /** 封面指纹：优先按位图实例，避免同一 Drawable 对象换歌时漏刷新。 */
     private fun artworkFingerprint(artwork: Drawable?): Long {
@@ -133,18 +306,6 @@ internal object IslandLinearGradientBackgroundApplier {
         } else {
             System.identityHashCode(artwork).toLong()
         }
-    }
-
-    private fun mirrorHorizontally(source: Bitmap): Bitmap? {
-        if (source.width <= 0 || source.height <= 0) return null
-        return runCatching {
-            val mirrored = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
-            val matrix = Matrix().apply { setScale(-1f, 1f, source.width / 2f, source.height / 2f) }
-            Canvas(mirrored).drawBitmap(source, matrix, null)
-            mirrored
-        }.onFailure { error ->
-            HookLogger.e(TAG, "镜像线性渐变背景失败", error)
-        }.getOrNull()
     }
 
     /** 沿父链定位超级岛背景视图（与原生命名一致的 DynamicIslandBackgroundView / getBackgroundView）。 */
