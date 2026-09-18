@@ -63,16 +63,37 @@ internal object IslandLinearGradientBackgroundApplier {
         alpha = 255
     }
 
+    private val loggedReasons = Collections.synchronizedSet(mutableSetOf<String>())
+
+    /** 去重日志：release 版也能从 logcat 判断本模块样式是否被应用以及未应用的原因。 */
+    private fun logOnce(reason: String) {
+        val isNew = synchronized(loggedReasons) {
+            if (loggedReasons.size > 32) loggedReasons.clear()
+            loggedReasons.add(reason)
+        }
+        if (isNew) HookLogger.i(TAG, "线性渐变背景未应用: $reason")
+    }
+
     /**
      * 应用线性渐变背景。
      * @param owner 岛的封面 ImageView（用于定位所属岛的背景视图）
      * @param artwork 当前封面 Drawable，为空时回退到播放器应用图标
      */
     fun apply(owner: View, artwork: Drawable?, packageName: String?) {
-        val backgroundView = resolveIslandBackgroundView(owner) ?: return
+        val backgroundView = resolveIslandBackgroundView(owner) ?: run {
+            logOnce("未找到岛背景视图 owner=${owner.javaClass.simpleName}")
+            return
+        }
         val width = backgroundView.width.takeIf { it > 0 } ?: backgroundView.measuredWidth
         val height = backgroundView.height.takeIf { it > 0 } ?: backgroundView.measuredHeight
-        if (width <= 0 || height <= 0 || !backgroundView.isAttachedToWindow) return
+        if (width <= 0 || height <= 0) {
+            logOnce("岛背景尺寸无效: ${width}x$height")
+            return
+        }
+        if (!backgroundView.isAttachedToWindow) {
+            logOnce("岛背景视图未 attach")
+            return
+        }
 
         val state = states.getOrPut(backgroundView) {
             State(backgroundView, backgroundView.background)
@@ -107,7 +128,7 @@ internal object IslandLinearGradientBackgroundApplier {
                 // 绘制兜底：其它模块可能在本帧之后改写背景，兜底保证本模块样式最终可见。
                 IslandModuleIsolation.ensureDrawOverHook(backgroundView.javaClass)
                 attachReassert(state)
-                HookLogger.d(
+                HookLogger.i(
                     TAG,
                     "摘要态线性渐变背景已应用: size=${rendered.width}x${rendered.height}, " +
                         "package=$packageName",

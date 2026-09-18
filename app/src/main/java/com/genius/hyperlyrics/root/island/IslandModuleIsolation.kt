@@ -53,6 +53,7 @@ internal object IslandModuleIsolation {
     private val initializedLoaders = Collections.synchronizedSet(
         Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>())
     )
+    private val loggedForeignWrites = Collections.synchronizedSet(mutableSetOf<String>())
 
     private var prefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
@@ -117,6 +118,19 @@ internal object IslandModuleIsolation {
         }
 
         runCatching {
+            @Suppress("DEPRECATION")
+            val setBackgroundDrawable = View::class.java.getDeclaredMethod(
+                "setBackgroundDrawable",
+                Drawable::class.java,
+            )
+            xposedModule.deoptimize(setBackgroundDrawable)
+            writeGuardHandles += xposedModule.hook(setBackgroundDrawable)
+                .intercept(IslandBackgroundSetterHooker("setBackgroundDrawable"))
+        }.onFailure { error ->
+            HookLogger.w(TAG, "安装 setBackgroundDrawable 过滤失败: reason=${error.message}")
+        }
+
+        runCatching {
             val setBackgroundColor = View::class.java.getDeclaredMethod(
                 "setBackgroundColor",
                 Int::class.javaPrimitiveType,
@@ -169,10 +183,22 @@ internal object IslandModuleIsolation {
         HookLogger.w(TAG, "未找到可挂载的 draw 方法，改用背景重assert兜底: ${viewClass.name}")
     }
 
-    fun isIslandBackgroundField(field: Field): Boolean {
-        val declaringName = field.declaringClass.name
-        if (!declaringName.contains("dynamicisland", ignoreCase = true)) return false
-        return field.name.contains("background", ignoreCase = true)
+    /**
+     * 是否为「超级岛背景字段」的写入。
+     *
+     * 注意：`background` 字段实际声明在 `android.view.View`（`mBackground`）上，
+     * 因此**不能**用字段的 declaringClass 判断，必须看写入目标实例是不是岛背景视图。
+     */
+    fun isIslandBackgroundFieldWrite(field: Field, target: Any?): Boolean {
+        if (field.isSynthetic) return false
+        val name = field.name
+        if (!name.equals("background", ignoreCase = true) &&
+            !name.equals("mBackground", ignoreCase = true)
+        ) {
+            return false
+        }
+        val targetName = target?.javaClass?.name ?: return false
+        return targetName.contains("dynamicisland", ignoreCase = true)
     }
 
     fun isIslandBackgroundView(view: View): Boolean =
@@ -202,11 +228,16 @@ internal object IslandModuleIsolation {
     }
 
     private fun logForeignWrite(caller: String, resource: String, blocked: Boolean) {
+        val signature = "$blocked|$caller|$resource"
+        val isNew = synchronized(loggedForeignWrites) {
+            if (loggedForeignWrites.size > 64) loggedForeignWrites.clear()
+            loggedForeignWrites.add(signature)
+        }
+        // 首次出现一定要报（release 也报），便于用户直接从 logcat 拿到模块前缀；之后仅在 debug 重复报。
+        if (!isNew && !BuildConfig.DEBUG) return
         if (blocked) {
             HookLogger.i(TAG, "已屏蔽第三方模块的岛背景写入: module=$caller, resource=$resource")
-            return
-        }
-        if (BuildConfig.DEBUG) {
+        } else {
             HookLogger.i(
                 TAG,
                 "检测到第三方模块写入岛背景（未屏蔽，可在「模块隔离」勾选 $caller）: resource=$resource",
@@ -218,11 +249,11 @@ internal object IslandModuleIsolation {
     private class IslandBackgroundFieldSetHooker : Hooker {
         override fun intercept(chain: Chain): Any? {
             val field = chain.thisObject as? Field ?: return chain.proceed()
-            if (!isIslandBackgroundField(field)) return chain.proceed()
+            val target = chain.args.firstOrNull()
+            if (!isIslandBackgroundFieldWrite(field, target)) return chain.proceed()
             val caller = resolveCallerModule()
-            if (!shouldBlock(caller, "field:${field.declaringClass.simpleName}#${field.name}")) {
-                return chain.proceed()
-            }
+            val resource = "field:${field.declaringClass.simpleName}#${field.name}"
+            if (!shouldBlock(caller, resource)) return chain.proceed()
             return null
         }
     }
