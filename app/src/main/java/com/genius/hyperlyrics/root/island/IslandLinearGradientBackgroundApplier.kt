@@ -57,16 +57,11 @@ internal object IslandLinearGradientBackgroundApplier {
         var width: Int = 0
         var height: Int = 0
 
-        /** 本模块写入的渐变背景，用于绘制兜底时判断背景是否被其它模块替换。 */
+        /** 本模块写入的渐变背景，用于判断背景是否被其它模块替换后写回。 */
         var drawable: BitmapDrawable? = null
 
         /** 背景重 assert 观察者（其它模块改写背景后把本模块背景写回）。 */
         var reassertListener: android.view.ViewTreeObserver.OnPreDrawListener? = null
-    }
-
-    private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFilterBitmap = true
-        alpha = 255
     }
 
     private val loggedReasons = Collections.synchronizedSet(mutableSetOf<String>())
@@ -140,8 +135,6 @@ internal object IslandLinearGradientBackgroundApplier {
                 val drawable = BitmapDrawable(backgroundView.resources, rendered)
                 state.drawable = drawable
                 backgroundView.background = drawable
-                // 绘制兜底：其它模块可能在本帧之后改写背景，兜底保证本模块样式最终可见。
-                IslandModuleIsolation.ensureDrawOverHook(backgroundView.javaClass)
                 attachReassert(state)
                 HookLogger.i(
                     TAG,
@@ -150,21 +143,6 @@ internal object IslandLinearGradientBackgroundApplier {
                 )
             }
         }
-    }
-
-    /**
-     * 绘制兜底：若岛背景视图的当前背景已被其它模块替换，则在它绘制完成后补画本模块渐变。
-     * 由 [IslandModuleIsolation] 的 draw 后置 hook 调用。
-     */
-    fun drawOverIfOverridden(view: View, canvas: Canvas) {
-        val state = synchronized(states) { states[view] } ?: return
-        val drawable = state.drawable ?: return
-        val bitmap = drawable.bitmap ?: return
-        if (bitmap.isRecycled || view.width <= 0 || view.height <= 0) return
-        if (view.background === drawable) return
-        canvas.save()
-        canvas.drawBitmap(bitmap, 0f, 0f, overlayPaint)
-        canvas.restore()
     }
 
     /** 恢复指定岛的原生背景（样式切换/关闭时调用）。 */
