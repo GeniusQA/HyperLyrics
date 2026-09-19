@@ -40,6 +40,9 @@ internal object IslandLinearGradientBackgroundApplier {
     /** 视图树搜索上限，避免异常层级导致遍历失控。 */
     private const val MAX_SEARCH_NODES = 512
 
+    /** 岛重建/过渡期间目标暂不可用时的最大重试次数（间隔 250ms 递增）。 */
+    private const val MAX_APPLY_RETRIES = 6
+
     /**
      * 封面露出区域占岛宽的比例。
      *
@@ -80,6 +83,9 @@ internal object IslandLinearGradientBackgroundApplier {
 
     private val loggedReasons = Collections.synchronizedSet(mutableSetOf<String>())
 
+    /** 岛重建/过渡期间目标暂不可用时的延迟重试计数（按封面视图记录）。 */
+    private val applyRetryCounts = Collections.synchronizedMap(WeakHashMap<View, Int>())
+
     /** 封面视图 → 实际写入的岛分段视图，供样式切换时精确恢复。 */
     private val targetsByOwner = Collections.synchronizedMap(WeakHashMap<View, List<View>>())
 
@@ -90,6 +96,29 @@ internal object IslandLinearGradientBackgroundApplier {
             loggedReasons.add(reason)
         }
         if (isNew) HookLogger.i(TAG, "线性渐变背景未应用: $reason")
+    }
+
+    /**
+     * 目标暂不可用（容器重建/过渡中未 attach）时的延迟重试：
+     * 切歌会触发岛重建，此刻直接放弃会导致背景持续缺失，直到用户手动刷新。
+     */
+    private fun scheduleApplyRetry(
+        owner: View,
+        artwork: Drawable?,
+        packageName: String?,
+        artworkBitmap: Bitmap?,
+        host: View?,
+    ) {
+        val attempts = applyRetryCounts[owner] ?: 0
+        if (attempts >= MAX_APPLY_RETRIES) return
+        applyRetryCounts[owner] = attempts + 1
+        owner.postDelayed(
+            {
+                applyRetryCounts.remove(owner)
+                apply(owner, artwork, packageName, artworkBitmap, host)
+            },
+            250L * (attempts + 1),
+        )
     }
 
     /**
@@ -106,7 +135,9 @@ internal object IslandLinearGradientBackgroundApplier {
         host: View? = null,
     ) {
         val scope = (host as? ViewGroup) ?: (owner.rootView as? ViewGroup) ?: run {
-            logOnce("未找到岛容器 owner=${owner.javaClass.simpleName}")
+            // 切歌时岛会经历重建/过渡，此刻可能暂时找不到容器：延迟重试而不是放弃，
+            // 否则过渡结束后没有任何触发点，背景会一直缺失（表现为黑胶囊）。
+            scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
             return
         }
         // 折叠态胶囊由多个分段视图拼成（area_left / area_right 等），只写其中一个只会覆盖一段，
@@ -114,7 +145,7 @@ internal object IslandLinearGradientBackgroundApplier {
         val targets = resolvePillTargets(scope).ifEmpty { listOf(scope) }
             .filter { it.isAttachedToWindow }
         if (targets.isEmpty()) {
-            logOnce("岛视图未 attach, scope=${scope.javaClass.simpleName}")
+            scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
             return
         }
         // 摘要态可能是「左右两个独立胶囊」（媒体胶囊 + 歌词胶囊，中间有间隙）。此时必须以
