@@ -95,7 +95,7 @@ fun SuperIslandSettingsPage() {
                 RootConstants.DEFAULT_HOOK_ISLAND_ALBUM_COVER_STYLE
             ).coerceIn(
                 RootConstants.ISLAND_ALBUM_COVER_STYLE_DEFAULT,
-                RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT
+                RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT
             )
         )
     }
@@ -265,7 +265,6 @@ fun SuperIslandSettingsPage() {
             RootConstants.ISLAND_ALBUM_COVER_STYLE_CIRCLE,
             RootConstants.ISLAND_ALBUM_COVER_STYLE_ROTATING_CIRCLE,
             RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT,
-            RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT,
             RootConstants.ISLAND_ALBUM_COVER_STYLE_APP_ICON
         )
     }
@@ -275,7 +274,6 @@ fun SuperIslandSettingsPage() {
             R.string.option_audio_cover_style_circle,
             R.string.option_audio_cover_style_rotating_circle,
             R.string.option_audio_cover_style_gradient,
-            R.string.option_audio_cover_style_linear_gradient,
             R.string.option_audio_cover_style_app_icon
         )
     }.map { stringResource(id = it) }
