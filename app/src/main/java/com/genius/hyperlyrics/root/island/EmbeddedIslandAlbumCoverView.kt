@@ -410,18 +410,21 @@ private class EmbeddedIslandAlbumCoverDrawable(
      * imperceptible.
      */
     /**
-     * 整宽铺满：封面 centerCrop 填满 drawable 的整个 bounds（即原生胶囊长度），
-     * 按胶囊圆角裁剪，并叠一层左重右轻的轻度压暗保证歌词可读；不画渐隐尾巴与尾部黑条。
+     * 整宽铺满：封面 centerCrop 填满「原生胶囊的真实边界」（getActual*，与渐变封面几何同源），
+     * 按胶囊圆角裁剪并叠轻度压暗；bounds 其余部分保持透明，**绝不改变胶囊大小**。
      */
     private fun drawCoverFill(canvas: Canvas, source: Bitmap, bounds: Rect) {
-        val width = bounds.width()
-        val height = bounds.height()
+        val view = callback as? View
+        val capsule = view?.let(::capsuleRectInView) ?: RectF(
+            bounds.left.toFloat(),
+            bounds.top.toFloat(),
+            bounds.right.toFloat(),
+            bounds.bottom.toFloat(),
+        )
+        val width = capsule.width().toInt()
+        val height = capsule.height().toInt()
         if (width <= 0 || height <= 0) return
-        val left = bounds.left.toFloat()
-        val top = bounds.top.toFloat()
-        val right = bounds.right.toFloat()
-        val bottom = bounds.bottom.toFloat()
-        val radius = height / 2f
+        val radius = capsule.height() / 2f
         val crop = IslandGradientCoverLayout.centerCropWindow(
             sourceWidth = source.width,
             sourceHeight = source.height,
@@ -435,31 +438,55 @@ private class EmbeddedIslandAlbumCoverDrawable(
 
         canvas.save()
         clipPath.reset()
-        clipPath.addRoundRect(RectF(left, top, right, bottom), radius, radius, Path.Direction.CW)
+        clipPath.addRoundRect(capsule, radius, radius, Path.Direction.CW)
         canvas.clipPath(clipPath)
         canvas.drawBitmap(
             source,
             Rect(cropLeft, cropTop, cropRight, cropBottom),
-            RectF(left, top, right, bottom),
+            capsule,
             bitmapPaint,
         )
         val shader = LinearGradient(
-            left,
-            top,
-            right,
-            top,
+            capsule.left,
+            capsule.top,
+            capsule.right,
+            capsule.top,
             COVER_FILL_SCRIM_COLORS,
             COVER_FILL_SCRIM_STOPS,
             Shader.TileMode.CLAMP,
         )
         canvas.drawRect(
-            left,
-            top,
-            right,
-            bottom,
+            capsule.left,
+            capsule.top,
+            capsule.right,
+            capsule.bottom,
             Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = shader },
         )
         canvas.restore()
+    }
+
+    /** 目标视图坐标系下的胶囊真实边界；getActualWidth/Height 兼容「右/下边」与「宽/高」两种语义。 */
+    private fun capsuleRectInView(view: View): RectF? {
+        fun intValue(name: String): Int? = runCatching {
+            view.javaClass.methods.firstOrNull {
+                it.name == name && it.parameterTypes.isEmpty()
+            }?.invoke(view).let { (it as? Number)?.toInt() }
+        }.getOrNull()
+        val left = intValue("getActualLeft") ?: return null
+        val top = intValue("getActualTop") ?: return null
+        val widthOrRight = intValue("getActualWidth") ?: return null
+        val heightOrBottom = intValue("getActualHeight") ?: return null
+        val right = if (widthOrRight > left) widthOrRight else left + widthOrRight
+        val bottom = if (heightOrBottom > top) heightOrBottom else top + heightOrBottom
+        if (right - left <= 0 || bottom - top <= 0) return null
+        val location = IntArray(2)
+        view.getLocationInWindow(location)
+        return RectF(
+            (left - location[0]).toFloat(),
+            (top - location[1]).toFloat(),
+            (right - location[0]).toFloat(),
+            (bottom - location[1]).toFloat(),
+        )
     }
 
     private fun drawTerminalBlackMask(canvas: Canvas) {
