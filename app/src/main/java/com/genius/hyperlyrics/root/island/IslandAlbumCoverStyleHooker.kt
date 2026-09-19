@@ -733,22 +733,34 @@ internal object IslandAlbumCoverStyleHooker {
         fixIcon: ImageView,
         dynamicIslandData: Any,
     ) {
-        val host = resolveIslandHostContainer(holder, fixIcon) ?: return
-        // 与「渐变封面」同源的内嵌链路：同一目标、同一 z 序，渲染结果确定可见；
-        // 封面画法为「整宽铺满」（centerCrop 填满胶囊 + 轻度压暗），不再走自绘兜底。
-        val smallIsland = (callViewGetter(holder, "getSmallContainer") as? ViewGroup) === host
-        if (EmbeddedIslandAlbumCoverController.apply(host, fixIcon, smallIsland, coverFill = true)) {
-            artworkRetryCounts.remove(fixIcon)
-            return
-        }
-        // 首帧封面 Drawable 可能尚未就绪（原生封面采集延迟执行），有限次重试。
-        val attempts = artworkRetryCounts[fixIcon] ?: 0
-        if (attempts < MAX_ARTWORK_RETRIES) {
-            artworkRetryCounts[fixIcon] = attempts + 1
-            fixIcon.postDelayed(
-                { applyLinearGradientBackground(holder, fixIcon, dynamicIslandData) },
-                400L * (attempts + 1),
+        // 实测（dumpsys window）：岛窗口全屏宽（1080x124），可见胶囊仅 x 274..806。
+        // area_left 等视图 bounds 远宽于胶囊，整宽铺满必然溢出；
+        // 因此采用「分段视图 + 并集映射」：各分段只画映射到自己的那块封面，拼合为整条。
+        val identity = resolveArtworkIdentity(fixIcon, dynamicIslandData)
+        val artworkBitmap = identity?.let { artwork ->
+            MediaMetadataHelper.currentCachedArtwork(
+                context = fixIcon.context,
+                packageName = artwork.packageName,
+                expectedTitle = artwork.title,
             )
+        }
+        IslandLinearGradientBackgroundApplier.apply(
+            owner = fixIcon,
+            artwork = fixIcon.drawable,
+            packageName = IslandProbeUtils.extractMediaIslandInfo(dynamicIslandData)?.packageName,
+            artworkBitmap = artworkBitmap,
+            host = resolveIslandHostContainer(holder, fixIcon),
+        )
+        if (artworkBitmap == null) {
+            // 首帧可能还没抓到封面（原生封面采集延迟执行），有限次重试直到拿到原始位图。
+            val attempts = artworkRetryCounts[fixIcon] ?: 0
+            if (attempts < MAX_ARTWORK_RETRIES) {
+                artworkRetryCounts[fixIcon] = attempts + 1
+                fixIcon.postDelayed(
+                    { applyLinearGradientBackground(holder, fixIcon, dynamicIslandData) },
+                    400L * (attempts + 1),
+                )
+            }
         } else {
             artworkRetryCounts.remove(fixIcon)
         }
