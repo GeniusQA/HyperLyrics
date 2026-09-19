@@ -418,6 +418,7 @@ internal object IslandAlbumCoverStyleHooker {
 
             RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT -> {
                 applyLinearGradientBackground(
+                    holder = holder,
                     fixIcon = fixIcon,
                     dynamicIslandData = dynamicIslandData,
                 )
@@ -704,7 +705,30 @@ internal object IslandAlbumCoverStyleHooker {
      * 「线性渐变」样式：把按封面取色渲染出的线性渐变位图铺到岛背景视图上，
      * 封面缩略图与歌词文字布局保持原生，只替换岛背景以贴近焦点通知卡片观感。
      */
+    /**
+     * 选出真正包含该封面视图的岛容器（优先大岛，其次小岛）。
+     *
+     * 与渐变封面样式一致地在容器内定位背景，避免在整棵 rootView 里盲搜到过渡/展开层级的同名视图。
+     */
+    private fun resolveIslandHostContainer(holder: Any, fixIcon: ImageView): ViewGroup? {
+        val candidates = listOf("getBigContainer", "getSmallContainer")
+            .mapNotNull { callViewGetter(holder, it) as? ViewGroup }
+        return candidates.firstOrNull { candidate ->
+            candidate.isAttachedToWindow && isAncestorOf(candidate, fixIcon)
+        } ?: candidates.firstOrNull { it.isAttachedToWindow && it.width > 0 && it.height > 0 }
+    }
+
+    private fun isAncestorOf(candidate: View, view: View): Boolean {
+        var current: View? = view
+        while (current != null) {
+            if (current === candidate) return true
+            current = current.parent as? View
+        }
+        return false
+    }
+
     private fun applyLinearGradientBackground(
+        holder: Any,
         fixIcon: ImageView,
         dynamicIslandData: Any,
     ) {
@@ -723,6 +747,7 @@ internal object IslandAlbumCoverStyleHooker {
             artwork = fixIcon.drawable,
             packageName = IslandProbeUtils.extractMediaIslandInfo(dynamicIslandData)?.packageName,
             artworkBitmap = artworkBitmap,
+            host = resolveIslandHostContainer(holder, fixIcon),
         )
         if (artworkBitmap == null) {
             // 首帧可能还没抓到封面（原生封面采集是延迟执行的），有限次重试直到拿到原始位图。

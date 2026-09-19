@@ -74,6 +74,9 @@ internal object IslandLinearGradientBackgroundApplier {
 
     private val loggedReasons = Collections.synchronizedSet(mutableSetOf<String>())
 
+    /** 封面视图 → 实际写入的岛背景视图，供样式切换时精确恢复。 */
+    private val targetsByOwner = Collections.synchronizedMap(WeakHashMap<View, View>())
+
     /** 去重日志：release 版也能从 logcat 判断本模块样式是否被应用以及未应用的原因。 */
     private fun logOnce(reason: String) {
         val isNew = synchronized(loggedReasons) {
@@ -94,9 +97,10 @@ internal object IslandLinearGradientBackgroundApplier {
         artwork: Drawable?,
         packageName: String?,
         artworkBitmap: Bitmap? = null,
+        host: View? = null,
     ) {
-        val backgroundView = resolveIslandBackgroundView(owner) ?: run {
-            logOnce("未找到岛背景视图 owner=${owner.javaClass.simpleName}")
+        val backgroundView = resolveIslandBackgroundView(owner, host) ?: run {
+            logOnce("未找到岛背景视图 owner=${owner.javaClass.simpleName}, host=${host?.javaClass?.simpleName}")
             return
         }
         val width = backgroundView.width.takeIf { it > 0 } ?: backgroundView.measuredWidth
@@ -113,6 +117,7 @@ internal object IslandLinearGradientBackgroundApplier {
         val state = states.getOrPut(backgroundView) {
             State(backgroundView, backgroundView.background)
         }
+        synchronized(targetsByOwner) { targetsByOwner[owner] = backgroundView }
         val artworkFingerprint = artworkBitmap
             ?.takeIf { !it.isRecycled }
             ?.let { System.identityHashCode(it).toLong() }
@@ -158,7 +163,8 @@ internal object IslandLinearGradientBackgroundApplier {
 
     /** 恢复指定岛的原生背景（样式切换/关闭时调用）。 */
     fun restoreFor(owner: View) {
-        val backgroundView = resolveIslandBackgroundView(owner) ?: return
+        // 按记录的目标视图恢复：定位策略可能随状态变化，重新解析未必命中写入过的那个视图。
+        val backgroundView = synchronized(targetsByOwner) { targetsByOwner.remove(owner) } ?: return
         restoreBackground(backgroundView)
     }
 
@@ -393,12 +399,15 @@ internal object IslandLinearGradientBackgroundApplier {
      * 优先系统真实命名的 `area_left`（大岛内容区，也是原生大岛封面的写入目标，尺寸即胶囊区域），
      * 避免写到整块岛容器上导致封面铺满更大范围而溢出。
      */
-    private fun resolveIslandBackgroundView(owner: View): View? {
-        val root = owner.rootView as? ViewGroup
-        if (root != null) {
-            IslandViewHelper.findViewByName(root, "area_left")?.let { return it }
-            IslandViewHelper.findViewByName(root, "fake_area_left")?.let { return it }
+    private fun resolveIslandBackgroundView(owner: View, host: View?): View? {
+        // 优先在「真实岛容器」内定位，与渐变封面样式的写入目标保持一致：
+        // rootView 里可能存在多个同名 area_left（含过渡/展开层级），盲搜会写到不可见的那个。
+        val scope = (host as? ViewGroup) ?: (owner.rootView as? ViewGroup)
+        if (scope != null) {
+            IslandViewHelper.findViewByName(scope, "area_left")?.let { return it }
+            IslandViewHelper.findViewByName(scope, "fake_area_left")?.let { return it }
         }
+        if (host is ViewGroup && host.width > 0 && host.height > 0) return host
         var current: View? = owner
         while (current != null) {
             val className = current.javaClass.name
