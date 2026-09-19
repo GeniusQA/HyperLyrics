@@ -385,7 +385,10 @@ internal object IslandAlbumCoverStyleHooker {
             restoreGradientCover(fixIcon)
         }
         if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT) {
-            // 线性渐变复用内嵌封面控制器渲染，切换样式时一并恢复它接管的背景。
+            // 恢复本模块写入的岛背景：切样式时绑定的是新的 ImageView，按 owner 查不到记录，
+            // 因此这里直接恢复全部已接管的背景（同时解除背景重 assert）。
+            IslandLinearGradientBackgroundApplier.restoreAll()
+            // 线性渐变可能复用内嵌封面控制器渲染，一并恢复它接管的背景。
             EmbeddedIslandAlbumCoverController.restoreForSource(fixIcon)
         }
 
