@@ -17,6 +17,7 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.graphics.createBitmap
+import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.root.mediacard.notification.background.MediaBackgroundRendererPool
 import com.genius.hyperlyrics.root.utils.HookLogger
@@ -86,6 +87,9 @@ internal object IslandLinearGradientBackgroundApplier {
     /** 岛重建/过渡期间目标暂不可用时的延迟重试计数（按封面视图记录）。 */
     private val applyRetryCounts = Collections.synchronizedMap(WeakHashMap<View, Int>())
 
+    /** 已输出过层级探针的范围（避免重复刷屏）。 */
+    private val probedScopes = Collections.synchronizedSet(mutableSetOf<String>())
+
     /** 封面视图 → 实际写入的岛分段视图，供样式切换时精确恢复。 */
     private val targetsByOwner = Collections.synchronizedMap(WeakHashMap<View, List<View>>())
 
@@ -153,6 +157,7 @@ internal object IslandLinearGradientBackgroundApplier {
         // 若按单个胶囊映射，每个胶囊都会被塞进一份完整封面，看起来像被拆成好几个。
         val capsuleWindow = unionWindowRect(targets)
             ?: resolveCapsuleWindowRect(scope, owner)
+        logIslandHierarchyProbe(scope)
         val first = targets.first()
         val firstCapsule = capsuleWindow?.let { toLocalRect(it, first) }
         val width = firstCapsule?.width()?.toInt()?.takeIf { it > 0 }
@@ -448,6 +453,35 @@ internal object IslandLinearGradientBackgroundApplier {
         } else {
             System.identityHashCode(artwork).toLong()
         }
+    }
+
+    /**
+     * 岛子树层级探针（仅 debug 构建）：输出范围内每个视图的资源名/类名/尺寸/窗口位置，
+     * 用于确认歌词态大胶囊实际由哪些视图构成，从而选对绘制目标。
+     */
+    private fun logIslandHierarchyProbe(scope: View) {
+        if (!BuildConfig.DEBUG) return
+        val signature = "${scope.javaClass.name}@${scope.width}x${scope.height}"
+        if (probedScopes.contains(signature)) return
+        probedScopes.add(signature)
+        val parts = ArrayList<String>()
+        val queue = ArrayDeque<View>()
+        queue.addLast(scope)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < MAX_SEARCH_NODES) {
+            val current = queue.removeFirst()
+            visited += 1
+            val location = IntArray(2)
+            current.getLocationInWindow(location)
+            parts += "[${resourceName(current) ?: "-"}|${current.javaClass.simpleName}|" +
+                "${current.width}x${current.height}@${location[0]},${location[1]}]"
+            if (current is ViewGroup) {
+                for (index in 0 until current.childCount) {
+                    queue.addLast(current.getChildAt(index))
+                }
+            }
+        }
+        HookLogger.i(TAG, "岛层级探针: ${parts.joinToString(" ")}")
     }
 
     /**
