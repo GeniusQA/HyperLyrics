@@ -157,7 +157,8 @@ internal object IslandLinearGradientBackgroundApplier {
         // 若按单个胶囊映射，每个胶囊都会被塞进一份完整封面，看起来像被拆成好几个。
         val capsuleWindow = unionWindowRect(targets)
             ?: resolveCapsuleWindowRect(scope, owner)
-        logIslandHierarchyProbe(scope)
+        // 探针范围取整棵岛窗口视图树：真实胶囊（532x116）不一定在 scope（容器）之内。
+        logIslandHierarchyProbe(scope.rootView ?: scope)
         val first = targets.first()
         val firstCapsule = capsuleWindow?.let { toLocalRect(it, first) }
         val width = firstCapsule?.width()?.toInt()?.takeIf { it > 0 }
@@ -481,7 +482,15 @@ internal object IslandLinearGradientBackgroundApplier {
                 }
             }
         }
-        HookLogger.i(TAG, "岛层级探针: ${parts.joinToString(" ")}")
+        // 分片输出：单条日志超过 logcat 上限（约 4KB）会被静默丢弃，因此每片只放少量节点。
+        val chunkSize = 8
+        parts.chunked(chunkSize).forEachIndexed { index, chunk ->
+            HookLogger.i(
+                TAG,
+                "岛层级探针[${index + 1}/${(parts.size + chunkSize - 1) / chunkSize}]: " +
+                    chunk.joinToString(" "),
+            )
+        }
     }
 
     /**
