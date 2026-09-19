@@ -2,7 +2,6 @@ package com.genius.hyperlyrics.root.island
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BlendMode
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
@@ -18,6 +17,8 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.graphics.createBitmap
+import com.genius.hyperlyrics.common.RootConstants
+import com.genius.hyperlyrics.root.mediacard.notification.background.MediaBackgroundRendererPool
 import com.genius.hyperlyrics.root.utils.HookLogger
 import java.util.Collections
 import java.util.WeakHashMap
@@ -36,18 +37,20 @@ import java.util.concurrent.Executors
 internal object IslandLinearGradientBackgroundApplier {
     private const val TAG = "IslandLinearGradientBg"
 
-    /** 是否叠加暗色压边（false = 纯封面直出，不做任何处理）。 */
-    private const val APPLY_SCRIM = false
+    /**
+     * 封面露出区域占岛宽的比例。
+     *
+     * 焦点通知卡片是 2:1 的高卡片，封面按 1.25×高度取样就占了大半张卡；超级岛是约 4.5:1 的
+     * 胶囊，同样算法只会剩一条细边，因此按比例放大封面占比，其余逻辑（底色 + 三段渐变融合）保持一致。
+     */
+    private const val COVER_WIDTH_FRACTION = 0.55f
 
-    /** 是否叠加封面平均色提色（APPLY_SCRIM 为 false 时无效）。 */
-    private const val APPLY_TINT = false
+    /** 封面最小宽度：与卡片一致，不低于 1.25×高度，避免封面被压得太窄。 */
+    private const val MIN_COVER_WIDTH_IN_HEIGHTS = 1.25f
 
-    /** 暗色压边各档透明度（左→右），中间最轻以便露出封面。 */
-    private val SCRIM_ALPHAS = intArrayOf(184, 96, 36, 140)
-    private val SCRIM_STOPS = floatArrayOf(0f, 0.35f, 0.62f, 1f)
-
-    /** 封面平均色提色的透明度（越低越保留封面原貌）。 */
-    private const val TINT_ALPHA = 56
+    /** 卡片同款三段渐变：底色不透明 → 半透明 → 近乎透明（露出封面）。 */
+    private val GRADIENT_ALPHAS = intArrayOf(255, 144, 24)
+    private val GRADIENT_STOPS = floatArrayOf(0f, 0.45f, 1f)
 
     private val states = Collections.synchronizedMap(WeakHashMap<View, State>())
     private val executor = Executors.newSingleThreadExecutor { runnable ->
@@ -207,7 +210,9 @@ internal object IslandLinearGradientBackgroundApplier {
     }
 
     /**
-     * 渲染岛背景：封面 centerCrop 铺满 → 暗色线性渐变压边 → 封面平均色低透明度提色。
+     * 渲染岛背景：完全对齐焦点通知卡片「线性渐变」的设计逻辑——
+     * 整块先铺封面取色底色，封面在右侧 centerCrop 露出，
+     * 再用「底色不透明 → 半透明 → 近乎透明」的横向渐变把封面边缘融合进底色。
      */
     private fun renderIslandBackground(
         context: Context,
@@ -220,44 +225,88 @@ internal object IslandLinearGradientBackgroundApplier {
         val source = artworkBitmap?.takeIf { !it.isRecycled }
             ?: resolveArtworkBitmap(context, artwork, packageName)
             ?: return null
+        val baseColor = resolveBaseColor(context, artwork, source, packageName, width, height)
         val result = createBitmap(width, height)
         val canvas = Canvas(result)
         val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        canvas.drawColor(baseColor)
+
+        val coverWidth = (width * COVER_WIDTH_FRACTION).toInt()
+            .coerceIn((height * MIN_COVER_WIDTH_IN_HEIGHTS).toInt(), width)
+            .coerceAtLeast(1)
+        val coverLeft = width - coverWidth
         canvas.drawBitmap(
             source,
-            centerCropRect(source, width, height),
-            Rect(0, 0, width, height),
+            centerCropRect(source, coverWidth, height),
+            Rect(coverLeft, 0, width, height),
             bitmapPaint,
         )
 
-        if (APPLY_SCRIM) {
-            val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                shader = LinearGradient(
-                    0f,
-                    0f,
-                    width.toFloat(),
-                    0f,
-                    SCRIM_ALPHAS.map { alpha -> Color.argb(alpha, 0, 0, 0) }.toIntArray(),
-                    SCRIM_STOPS,
-                    Shader.TileMode.CLAMP,
-                )
-            }
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
-        }
-
-        if (APPLY_SCRIM && APPLY_TINT) {
-            // 与封面同色调的低透明度提色：让暗部与封面配色融合而非纯黑。
-            val tint = averageColor(source)
-            runCatching {
-                val tintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color =
-                        Color.argb(TINT_ALPHA, Color.red(tint), Color.green(tint), Color.blue(tint))
-                    blendMode = BlendMode.SOFT_LIGHT
-                }
-                canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), tintPaint)
-            }
-        }
+        // 卡片同款渐变：从封面左缘起始，底色不透明 → 半透明 → 近乎透明，封面在右端自然露出。
+        val opaque = Color.argb(
+            GRADIENT_ALPHAS[0],
+            Color.red(baseColor),
+            Color.green(baseColor),
+            Color.blue(baseColor),
+        )
+        val shader = LinearGradient(
+            coverLeft.toFloat(),
+            0f,
+            width.toFloat(),
+            0f,
+            intArrayOf(
+                opaque,
+                opaque.withAlpha(GRADIENT_ALPHAS[1]),
+                opaque.withAlpha(GRADIENT_ALPHAS[2]),
+            ),
+            GRADIENT_STOPS,
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRect(
+            coverLeft.toFloat(),
+            0f,
+            width.toFloat(),
+            height.toFloat(),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = shader },
+        )
         return result
+    }
+
+    /** 整数 alpha 版本（Color 没有 withAlpha 扩展时使用）。 */
+    private fun Int.withAlpha(alpha: Int): Int =
+        (this and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
+
+    /**
+     * 底色取色：复用焦点通知卡片的调色逻辑（Monet/封面取色 + 对比度处理），
+     * 取不到时退回封面平均色，保证任何封面下都有可读的底色。
+     */
+    private fun resolveBaseColor(
+        context: Context,
+        artwork: Drawable?,
+        source: Bitmap,
+        packageName: String?,
+        width: Int,
+        height: Int,
+    ): Int {
+        val fromRenderer = runCatching {
+            val renderer = MediaBackgroundRendererPool.get(context.classLoader)
+            val rendered = renderer.renderDrawable(
+                context = context,
+                artworkDrawable = artwork,
+                packageName = packageName.orEmpty(),
+                style = RootConstants.NOTIFICATION_MEDIA_BACKGROUND_STYLE_LINEAR_GRADIENT,
+                blurAmount = 0,
+                autoInvert = false,
+                softCoverTone = RootConstants.MEDIA_SOFT_COVER_TONE_DARK,
+                width = width.coerceAtLeast(1),
+                height = height.coerceAtLeast(1),
+            )
+            rendered?.let { value ->
+                value.bitmap.recycle()
+                value.colors.backgroundStart
+            }
+        }.getOrNull()
+        return fromRenderer ?: averageColor(source)
     }
 
     private fun resolveArtworkBitmap(
