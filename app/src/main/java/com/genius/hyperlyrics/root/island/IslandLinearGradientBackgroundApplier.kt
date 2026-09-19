@@ -529,6 +529,11 @@ internal object IslandLinearGradientBackgroundApplier {
                 }
             }
         }
+        // host 容器本身（big_container，横排内容区）就是整条内容区，优先作为绘制目标；
+        // area_* 只是中段的占位区（实测仅 177~273 宽），单独用它们封面只会铺中间一截。
+        if (scope.width > 0 && scope.height > 0) {
+            result.add(0, scope)
+        }
         return result
     }
 
