@@ -755,7 +755,7 @@ internal object IslandAlbumCoverStyleHooker {
             if (attempts < MAX_ARTWORK_RETRIES) {
                 artworkRetryCounts[fixIcon] = attempts + 1
                 fixIcon.postDelayed(
-                    { applyLinearGradientBackground(fixIcon, dynamicIslandData) },
+                    { applyLinearGradientBackground(holder, fixIcon, dynamicIslandData) },
                     400L * (attempts + 1),
                 )
             }
