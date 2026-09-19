@@ -68,6 +68,9 @@ internal object IslandLinearGradientBackgroundApplier {
         var width: Int = 0
         var height: Int = 0
 
+        /** 胶囊真实绘制区域（视图本地坐标），为空表示按视图自身 bounds 绘制。 */
+        var capsule: RectF? = null
+
         /** 本模块写入的封面背景，用于判断背景是否被其它模块替换后写回。 */
         var drawable: Drawable? = null
 
@@ -106,14 +109,19 @@ internal object IslandLinearGradientBackgroundApplier {
             logOnce("未找到岛背景视图 owner=${owner.javaClass.simpleName}, host=${host?.javaClass?.simpleName}")
             return
         }
-        val width = backgroundView.width.takeIf { it > 0 } ?: backgroundView.measuredWidth
-        val height = backgroundView.height.takeIf { it > 0 } ?: backgroundView.measuredHeight
-        if (width <= 0 || height <= 0) {
-            logOnce("岛背景尺寸无效: ${width}x$height")
-            return
-        }
         if (!backgroundView.isAttachedToWindow) {
             logOnce("岛背景视图未 attach")
+            return
+        }
+        // 岛背景视图通常比可见胶囊大（含展开/预留区域），按视图尺寸绘制会溢出到状态栏，
+        // 因此优先用系统给出的胶囊真实边界（getActual*）确定绘制区域，只在该区域内画封面。
+        val capsule = resolveCapsuleRect(backgroundView)
+        val width = capsule?.width()?.toInt()?.takeIf { it > 0 }
+            ?: backgroundView.width.takeIf { it > 0 } ?: backgroundView.measuredWidth
+        val height = capsule?.height()?.toInt()?.takeIf { it > 0 }
+            ?: backgroundView.height.takeIf { it > 0 } ?: backgroundView.measuredHeight
+        if (width <= 0 || height <= 0) {
+            logOnce("岛背景尺寸无效: ${width}x$height")
             return
         }
 
@@ -127,13 +135,15 @@ internal object IslandLinearGradientBackgroundApplier {
             ?: artworkFingerprint(artwork)
         if (state.fingerprint == artworkFingerprint &&
             state.width == width &&
-            state.height == height
+            state.height == height &&
+            state.capsule == capsule
         ) {
             return
         }
         state.fingerprint = artworkFingerprint
         state.width = width
         state.height = height
+        state.capsule = capsule
 
         val context = backgroundView.context
         executor.execute {
@@ -151,6 +161,7 @@ internal object IslandLinearGradientBackgroundApplier {
                 val drawable = CapsuleCoverBackgroundDrawable(
                     bitmap = rendered,
                     cornerRadius = height / 2f,
+                    targetRect = capsule,
                 )
                 state.drawable = drawable
                 backgroundView.background = drawable
@@ -158,7 +169,9 @@ internal object IslandLinearGradientBackgroundApplier {
                 HookLogger.i(
                     TAG,
                     "摘要态线性渐变背景已应用: target=${backgroundView.javaClass.simpleName}, " +
-                        "size=${rendered.width}x${rendered.height}, package=$packageName",
+                        "size=${rendered.width}x${rendered.height}, " +
+                        "capsule=${capsule?.toShortString() ?: "view-bounds"}, " +
+                        "package=$packageName",
                 )
             }
         }
@@ -431,6 +444,36 @@ internal object IslandLinearGradientBackgroundApplier {
     }
 
     /**
+     * 解析胶囊真实边界（系统 getActual* 给出的是窗口坐标，这里换算成视图本地坐标）。
+     *
+     * getActualWidth/Height 在不同系统版本上可能是「右/下边」也可能是「宽/高」，两种都兼容。
+     * 解析失败返回 null，调用方退回视图 bounds。
+     */
+    private fun resolveCapsuleRect(backgroundView: View): RectF? {
+        val left = getViewInt(backgroundView, "getActualLeft") ?: return null
+        val top = getViewInt(backgroundView, "getActualTop") ?: return null
+        val widthOrRight = getViewInt(backgroundView, "getActualWidth") ?: return null
+        val heightOrBottom = getViewInt(backgroundView, "getActualHeight") ?: return null
+        val right = if (widthOrRight > left) widthOrRight else left + widthOrRight
+        val bottom = if (heightOrBottom > top) heightOrBottom else top + heightOrBottom
+        if (right - left <= 0 || bottom - top <= 0) return null
+        val location = IntArray(2)
+        backgroundView.getLocationInWindow(location)
+        return RectF(
+            (left - location[0]).toFloat(),
+            (top - location[1]).toFloat(),
+            (right - location[0]).toFloat(),
+            (bottom - location[1]).toFloat(),
+        )
+    }
+
+    private fun getViewInt(view: View, getterName: String): Int? = runCatching {
+        view.javaClass.methods.firstOrNull {
+            it.name == getterName && it.parameterTypes.isEmpty()
+        }?.invoke(view).let { (it as? Number)?.toInt() }
+    }.getOrNull()
+
+    /**
      * 在给定范围内查找岛背景视图（类名同时含 dynamicisland 与 background）。
      * 命中多个时取最宽的那个，尽量覆盖整条胶囊。
      */
@@ -470,6 +513,8 @@ internal object IslandLinearGradientBackgroundApplier {
 private class CapsuleCoverBackgroundDrawable(
     private val bitmap: Bitmap,
     private val cornerRadius: Float,
+    /** 胶囊真实绘制区域（视图本地坐标）；为空时按 Drawable bounds 绘制。 */
+    private val targetRect: RectF? = null,
 ) : Drawable() {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val clipPath = Path()
@@ -477,12 +522,17 @@ private class CapsuleCoverBackgroundDrawable(
 
     override fun onBoundsChange(bounds: Rect) {
         super.onBoundsChange(bounds)
-        target.set(
-            bounds.left.toFloat(),
-            bounds.top.toFloat(),
-            bounds.right.toFloat(),
-            bounds.bottom.toFloat(),
-        )
+        val rect = targetRect
+        if (rect != null) {
+            target.set(rect)
+        } else {
+            target.set(
+                bounds.left.toFloat(),
+                bounds.top.toFloat(),
+                bounds.right.toFloat(),
+                bounds.bottom.toFloat(),
+            )
+        }
         clipPath.reset()
         clipPath.addRoundRect(target, cornerRadius, cornerRadius, Path.Direction.CW)
     }
