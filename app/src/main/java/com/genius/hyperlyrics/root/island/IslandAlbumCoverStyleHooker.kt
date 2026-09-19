@@ -2185,7 +2185,8 @@ internal object IslandAlbumCoverStyleHooker {
             RootConstants.DEFAULT_HOOK_ISLAND_ALBUM_COVER_STYLE
         ).coerceIn(
             RootConstants.ISLAND_ALBUM_COVER_STYLE_DEFAULT,
-            RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT
+            // 上限必须跟上最新样式值，否则「线性渐变」(5) 会被钳成「渐变封面」(4)。
+            RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT
         )
         if (configuredStyle == RootConstants.ISLAND_ALBUM_COVER_STYLE_DEFAULT) {
             return configuredStyle
