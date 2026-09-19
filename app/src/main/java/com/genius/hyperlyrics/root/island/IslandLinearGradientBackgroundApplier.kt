@@ -334,7 +334,13 @@ internal object IslandLinearGradientBackgroundApplier {
     private fun resolveIslandBackgroundView(owner: View): View? {
         var current: View? = owner
         while (current != null) {
-            if (current.javaClass.simpleName == "DynamicIslandBackgroundView") return current
+            val className = current.javaClass.name
+            // 与系统实际命名对齐：DynamicIslandBackgroundView（同时含 dynamicisland 与 background）。
+            if (className.contains("dynamicisland", ignoreCase = true) &&
+                className.contains("background", ignoreCase = true)
+            ) {
+                return current
+            }
             val background = runCatching {
                 current.javaClass.methods.firstOrNull {
                     it.name == "getBackgroundView" && it.parameterTypes.isEmpty()
