@@ -195,7 +195,10 @@ object LyricStyleHelper {
                     prefs,
                     RootConstants.KEY_HOOK_ISLAND_ALBUM_COVER_STYLE,
                     RootConstants.DEFAULT_HOOK_ISLAND_ALBUM_COVER_STYLE,
-                ) == RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT
+                ).let { style ->
+                    style == RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT ||
+                        style == RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT
+                }
 
         val primaryColors: IntArray
         val bgColors: IntArray
