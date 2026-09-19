@@ -188,8 +188,15 @@ internal object IslandLinearGradientBackgroundApplier {
             logOnce("并集过宽疑似含整窗视图: ${capsuleWindow.toShortString()}")
             return
         }
-        // 展开态：big_container 变成大卡片那一行（又宽又高），若照它绘制会把顶部摘要胶囊"画长"。
-        // 此时恢复原生背景、不绘制，等收起回摘要态再正常应用。
+        // 展开态：探测到大卡片自身的背景视图（media_bg_view / MusicBgView，实测 1001x462）即判定展开，
+        // 此时恢复原生背景、不绘制，保证顶部摘要胶囊保持原生长度；收起后下次绑定自动恢复封面。
+        val expandedCard = findViewByResourceName(scope, "media_bg_view")
+        if (expandedCard != null && expandedCard.width > 0 && expandedCard.height > 0) {
+            logOnce("展开态跳过绘制: card=${expandedCard.width}x${expandedCard.height}")
+            restoreAll()
+            return
+        }
+        // 兜底：胶囊矩形异常高时同样视为展开态。
         if (capsuleWindow != null && capsuleWindow.height() > MAX_CAPSULE_HEIGHT_PX) {
             logOnce("展开态跳过绘制: ${capsuleWindow.toShortString()}")
             restoreAll()
