@@ -417,10 +417,16 @@ internal object IslandLinearGradientBackgroundApplier {
      */
     private fun resolveIslandBackgroundView(owner: View, host: View?): View? {
         // 需要覆盖「整条胶囊」，因此不能写 area_left（那只是岛左侧内容区，写了会出现
-        // 左边有封面、右边仍是原生黑胶囊）。优先在真实容器内找岛背景视图，其次用容器本身。
-        val scope = (host as? ViewGroup) ?: (owner.rootView as? ViewGroup)
-        if (scope != null) {
-            findIslandBackgroundViewIn(scope)?.let { return it }
+        // 左边有封面、右边仍是原生黑胶囊）。
+        // 关键：从封面缩略图向上找「最近」的岛背景层——它必然属于当前状态；
+        // 按最宽视图找会命中展开态那一层，表现为摘要态不生效、封面却溢到状态栏。
+        var current: View? = owner
+        while (current != null) {
+            if (isIslandBackgroundClass(current)) return current
+            current = current.parent as? View
+        }
+        (host as? ViewGroup)?.let { container ->
+            findNearestIslandBackgroundView(container)?.let { return it }
         }
         if (host is ViewGroup && host.width > 0 && host.height > 0) return host
         var current: View? = owner
@@ -473,34 +479,32 @@ internal object IslandLinearGradientBackgroundApplier {
         }?.invoke(view).let { (it as? Number)?.toInt() }
     }.getOrNull()
 
+    /** 类名同时含 dynamicisland 与 background 视为岛背景层。 */
+    private fun isIslandBackgroundClass(view: View): Boolean {
+        val className = view.javaClass.name
+        return className.contains("dynamicisland", ignoreCase = true) &&
+            className.contains("background", ignoreCase = true)
+    }
+
     /**
-     * 在给定范围内查找岛背景视图（类名同时含 dynamicisland 与 background）。
-     * 命中多个时取最宽的那个，尽量覆盖整条胶囊。
+     * 在给定范围内按「层数最浅优先」查找岛背景视图（BFS 顺序即最近优先）。
+     * 取最宽视图会命中展开态那一层，导致摘要态写不中。
      */
-    private fun findIslandBackgroundViewIn(scope: View): View? {
-        var best: View? = null
+    private fun findNearestIslandBackgroundView(scope: View): View? {
         val queue = ArrayDeque<View>()
         queue.addLast(scope)
         var visited = 0
         while (queue.isNotEmpty() && visited < MAX_SEARCH_NODES) {
             val current = queue.removeFirst()
             visited += 1
-            val className = current.javaClass.name
-            if (className.contains("dynamicisland", ignoreCase = true) &&
-                className.contains("background", ignoreCase = true)
-            ) {
-                val currentBest = best
-                if (currentBest == null || current.width > currentBest.width) {
-                    best = current
-                }
-            }
+            if (isIslandBackgroundClass(current)) return current
             if (current is ViewGroup) {
                 for (index in 0 until current.childCount) {
                     queue.addLast(current.getChildAt(index))
                 }
             }
         }
-        return best
+        return null
     }
 }
 
