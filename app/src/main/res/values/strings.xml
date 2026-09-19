@@ -26,8 +26,8 @@
     <string name="confirm">确认</string>
     <string name="title_one_tap_refresh">一键刷新</string>
     <string name="summary_one_tap_refresh_root_required">需要root权限</string>
-    <string name="option_refresh_system_ui">系统界面</string>
-    <string name="option_refresh_all_music_apps">所有音乐App</string>
+    <string name="option_refresh_system_ui">重启作用域</string>
+    <string name="option_refresh_all_music_apps">所有播放器</string>
     <string name="toast_one_tap_refresh_no_root">无root权限无法一键刷新</string>
     <string name="title_basic_features">基础功能</string>
     <string name="title_lyric_settings">歌词设置</string>
