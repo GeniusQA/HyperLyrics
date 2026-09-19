@@ -5,13 +5,18 @@ import android.graphics.Bitmap
 import android.graphics.BlendMode
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorFilter
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.View
+import android.view.ViewGroup
 import androidx.core.graphics.createBitmap
 import com.genius.hyperlyrics.root.utils.HookLogger
 import java.util.Collections
@@ -57,8 +62,8 @@ internal object IslandLinearGradientBackgroundApplier {
         var width: Int = 0
         var height: Int = 0
 
-        /** 本模块写入的渐变背景，用于判断背景是否被其它模块替换后写回。 */
-        var drawable: BitmapDrawable? = null
+        /** 本模块写入的封面背景，用于判断背景是否被其它模块替换后写回。 */
+        var drawable: Drawable? = null
 
         /** 背景重 assert 观察者（其它模块改写背景后把本模块背景写回）。 */
         var reassertListener: android.view.ViewTreeObserver.OnPreDrawListener? = null
@@ -132,14 +137,17 @@ internal object IslandLinearGradientBackgroundApplier {
                     rendered.recycle()
                     return@post
                 }
-                val drawable = BitmapDrawable(backgroundView.resources, rendered)
+                val drawable = CapsuleCoverBackgroundDrawable(
+                    bitmap = rendered,
+                    cornerRadius = height / 2f,
+                )
                 state.drawable = drawable
                 backgroundView.background = drawable
                 attachReassert(state)
                 HookLogger.i(
                     TAG,
-                    "摘要态线性渐变背景已应用: size=${rendered.width}x${rendered.height}, " +
-                        "package=$packageName",
+                    "摘要态线性渐变背景已应用: target=${backgroundView.javaClass.simpleName}, " +
+                        "size=${rendered.width}x${rendered.height}, package=$packageName",
                 )
             }
         }
@@ -330,8 +338,18 @@ internal object IslandLinearGradientBackgroundApplier {
         }
     }
 
-    /** 沿父链定位超级岛背景视图（与原生命名一致的 DynamicIslandBackgroundView / getBackgroundView）。 */
+    /**
+     * 定位承载「岛内背景」的视图。
+     *
+     * 优先系统真实命名的 `area_left`（大岛内容区，也是原生大岛封面的写入目标，尺寸即胶囊区域），
+     * 避免写到整块岛容器上导致封面铺满更大范围而溢出。
+     */
     private fun resolveIslandBackgroundView(owner: View): View? {
+        val root = owner.rootView as? ViewGroup
+        if (root != null) {
+            IslandViewHelper.findViewByName(root, "area_left")?.let { return it }
+            IslandViewHelper.findViewByName(root, "fake_area_left")?.let { return it }
+        }
         var current: View? = owner
         while (current != null) {
             val className = current.javaClass.name
@@ -351,4 +369,52 @@ internal object IslandLinearGradientBackgroundApplier {
         }
         return null
     }
+}
+
+/**
+ * 把预渲染好的封面背景按胶囊圆角裁剪绘制。
+ *
+ * 背景视图的 bounds 有时比可见胶囊略大（含系统预留空间），直接铺位图会溢出胶囊外，
+ * 因此这里统一按圆角裁剪，保证只在胶囊内可见。
+ */
+private class CapsuleCoverBackgroundDrawable(
+    private val bitmap: Bitmap,
+    private val cornerRadius: Float,
+) : Drawable() {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val clipPath = Path()
+    private val target = RectF()
+
+    override fun onBoundsChange(bounds: Rect) {
+        super.onBoundsChange(bounds)
+        target.set(
+            bounds.left.toFloat(),
+            bounds.top.toFloat(),
+            bounds.right.toFloat(),
+            bounds.bottom.toFloat(),
+        )
+        clipPath.reset()
+        clipPath.addRoundRect(target, cornerRadius, cornerRadius, Path.Direction.CW)
+    }
+
+    override fun draw(canvas: Canvas) {
+        if (bounds.isEmpty || bitmap.isRecycled) return
+        val save = canvas.save()
+        canvas.clipPath(clipPath)
+        canvas.drawBitmap(bitmap, null, target, paint)
+        canvas.restoreToCount(save)
+    }
+
+    override fun setAlpha(alpha: Int) {
+        paint.alpha = alpha
+        invalidateSelf()
+    }
+
+    override fun setColorFilter(colorFilter: ColorFilter?) {
+        paint.colorFilter = colorFilter
+        invalidateSelf()
+    }
+
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }
