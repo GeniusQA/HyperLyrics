@@ -80,8 +80,8 @@ internal object IslandLinearGradientBackgroundApplier {
 
     private val loggedReasons = Collections.synchronizedSet(mutableSetOf<String>())
 
-    /** 封面视图 → 实际写入的岛背景视图，供样式切换时精确恢复。 */
-    private val targetsByOwner = Collections.synchronizedMap(WeakHashMap<View, View>())
+    /** 封面视图 → 实际写入的岛分段视图，供样式切换时精确恢复。 */
+    private val targetsByOwner = Collections.synchronizedMap(WeakHashMap<View, List<View>>())
 
     /** 去重日志：release 版也能从 logcat 判断本模块样式是否被应用以及未应用的原因。 */
     private fun logOnce(reason: String) {
@@ -105,47 +105,45 @@ internal object IslandLinearGradientBackgroundApplier {
         artworkBitmap: Bitmap? = null,
         host: View? = null,
     ) {
-        val backgroundView = resolveIslandBackgroundView(owner, host) ?: run {
-            logOnce("未找到岛背景视图 owner=${owner.javaClass.simpleName}, host=${host?.javaClass?.simpleName}")
+        val scope = (host as? ViewGroup) ?: (owner.rootView as? ViewGroup) ?: run {
+            logOnce("未找到岛容器 owner=${owner.javaClass.simpleName}")
             return
         }
-        if (!backgroundView.isAttachedToWindow) {
-            logOnce("岛背景视图未 attach")
+        // 折叠态胶囊由多个分段视图拼成（area_left / area_right 等），只写其中一个只会覆盖一段，
+        // 因此这里把所有分段视图都作为绘制目标，每段只画「按胶囊坐标映射后的那一块」封面。
+        val targets = resolvePillTargets(scope).ifEmpty { listOf(scope) }
+            .filter { it.isAttachedToWindow }
+        if (targets.isEmpty()) {
+            logOnce("岛视图未 attach, scope=${scope.javaClass.simpleName}")
             return
         }
-        // 岛背景视图通常比可见胶囊大（含展开/预留区域），按视图尺寸绘制会溢出到状态栏，
-        // 因此优先用系统给出的胶囊真实边界（getActual*）确定绘制区域，只在该区域内画封面。
-        val capsule = resolveCapsuleRect(backgroundView)
-        val width = capsule?.width()?.toInt()?.takeIf { it > 0 }
-            ?: backgroundView.width.takeIf { it > 0 } ?: backgroundView.measuredWidth
-        val height = capsule?.height()?.toInt()?.takeIf { it > 0 }
-            ?: backgroundView.height.takeIf { it > 0 } ?: backgroundView.measuredHeight
+        val capsuleWindow = resolveCapsuleWindowRect(scope, owner)
+        val first = targets.first()
+        val firstCapsule = capsuleWindow?.let { toLocalRect(it, first) }
+        val width = firstCapsule?.width()?.toInt()?.takeIf { it > 0 }
+            ?: first.width.takeIf { it > 0 } ?: first.measuredWidth
+        val height = firstCapsule?.height()?.toInt()?.takeIf { it > 0 }
+            ?: first.height.takeIf { it > 0 } ?: first.measuredHeight
         if (width <= 0 || height <= 0) {
-            logOnce("岛背景尺寸无效: ${width}x$height")
+            logOnce("岛尺寸无效: ${width}x$height")
             return
         }
 
-        val state = states.getOrPut(backgroundView) {
-            State(backgroundView, backgroundView.background)
-        }
-        synchronized(targetsByOwner) { targetsByOwner[owner] = backgroundView }
         val artworkFingerprint = artworkBitmap
             ?.takeIf { !it.isRecycled }
             ?.let { System.identityHashCode(it).toLong() }
             ?: artworkFingerprint(artwork)
-        if (state.fingerprint == artworkFingerprint &&
-            state.width == width &&
-            state.height == height &&
-            state.capsule == capsule
-        ) {
-            return
+        val capsuleKey = capsuleWindow?.toShortString().orEmpty()
+        val upToDate = targets.all { view ->
+            val state = states[view] ?: return@all false
+            state.fingerprint == artworkFingerprint &&
+                state.width == width &&
+                state.height == height &&
+                state.capsule?.toShortString().orEmpty() == capsuleKey
         }
-        state.fingerprint = artworkFingerprint
-        state.width = width
-        state.height = height
-        state.capsule = capsule
+        if (upToDate) return
 
-        val context = backgroundView.context
+        val context = first.context
         executor.execute {
             val rendered = runCatching {
                 renderIslandBackground(context, artwork, artworkBitmap, packageName, width, height)
@@ -153,24 +151,32 @@ internal object IslandLinearGradientBackgroundApplier {
                 HookLogger.e(TAG, "渲染摘要态线性渐变背景失败", error)
             }.getOrNull() ?: return@execute
 
-            backgroundView.post {
-                if (states[backgroundView] !== state) {
-                    rendered.recycle()
-                    return@post
+            first.post {
+                var applied = 0
+                targets.forEach { view ->
+                    if (!view.isAttachedToWindow) return@forEach
+                    val state = states.getOrPut(view) { State(view, view.background) }
+                    state.fingerprint = artworkFingerprint
+                    state.width = width
+                    state.height = height
+                    val local = capsuleWindow?.let { toLocalRect(it, view) }
+                    state.capsule = local
+                    val drawable = CapsuleCoverBackgroundDrawable(
+                        bitmap = rendered,
+                        cornerRadius = height / 2f,
+                        targetRect = local,
+                    )
+                    state.drawable = drawable
+                    view.background = drawable
+                    attachReassert(state)
+                    applied += 1
                 }
-                val drawable = CapsuleCoverBackgroundDrawable(
-                    bitmap = rendered,
-                    cornerRadius = height / 2f,
-                    targetRect = capsule,
-                )
-                state.drawable = drawable
-                backgroundView.background = drawable
-                attachReassert(state)
+                synchronized(targetsByOwner) { targetsByOwner[owner] = targets }
                 HookLogger.i(
                     TAG,
-                    "摘要态线性渐变背景已应用: target=${backgroundView.javaClass.simpleName}, " +
+                    "摘要态线性渐变背景已应用: targets=$applied/${targets.size}, " +
                         "size=${rendered.width}x${rendered.height}, " +
-                        "capsule=${capsule?.toShortString() ?: "view-bounds"}, " +
+                        "capsule=${capsuleWindow?.toShortString() ?: "view-bounds"}, " +
                         "package=$packageName",
                 )
             }
@@ -179,9 +185,9 @@ internal object IslandLinearGradientBackgroundApplier {
 
     /** 恢复指定岛的原生背景（样式切换/关闭时调用）。 */
     fun restoreFor(owner: View) {
-        // 按记录的目标视图恢复：定位策略可能随状态变化，重新解析未必命中写入过的那个视图。
-        val backgroundView = synchronized(targetsByOwner) { targetsByOwner.remove(owner) } ?: return
-        restoreBackground(backgroundView)
+        // 按记录的目标视图恢复：定位策略可能随状态变化，重新解析未必命中写入过的那些视图。
+        val views = synchronized(targetsByOwner) { targetsByOwner.remove(owner) } ?: return
+        views.forEach(::restoreBackground)
     }
 
     /** 恢复全部已接管背景（清理/释放时调用）。 */
@@ -410,67 +416,75 @@ internal object IslandLinearGradientBackgroundApplier {
     }
 
     /**
-     * 定位承载「岛内背景」的视图。
-     *
-     * 优先系统真实命名的 `area_left`（大岛内容区，也是原生大岛封面的写入目标，尺寸即胶囊区域），
-     * 避免写到整块岛容器上导致封面铺满更大范围而溢出。
+     * 收集胶囊内需要绘制的分段视图：资源名以 area 开头的子视图（area_left / area_right 等）
+     * 与岛背景视图（类名同时含 dynamicisland 与 background）。
      */
-    private fun resolveIslandBackgroundView(owner: View, host: View?): View? {
-        // 需要覆盖「整条胶囊」，因此不能写 area_left（那只是岛左侧内容区，写了会出现
-        // 左边有封面、右边仍是原生黑胶囊）。
-        // 关键：从封面缩略图向上找「最近」的岛背景层——它必然属于当前状态；
-        // 按最宽视图找会命中展开态那一层，表现为摘要态不生效、封面却溢到状态栏。
-        var current: View? = owner
-        while (current != null) {
-            if (isIslandBackgroundClass(current)) return current
-            current = current.parent as? View
-        }
-        (host as? ViewGroup)?.let { container ->
-            findNearestIslandBackgroundView(container)?.let { return it }
-        }
-        if (host is ViewGroup && host.width > 0 && host.height > 0) return host
-        var current: View? = owner
-        while (current != null) {
+    private fun resolvePillTargets(scope: ViewGroup): List<View> {
+        val result = ArrayList<View>()
+        val queue = ArrayDeque<View>()
+        queue.addLast(scope)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < MAX_SEARCH_NODES) {
+            val current = queue.removeFirst()
+            visited += 1
+            val name = resourceName(current)
             val className = current.javaClass.name
-            // 与系统实际命名对齐：DynamicIslandBackgroundView（同时含 dynamicisland 与 background）。
-            if (className.contains("dynamicisland", ignoreCase = true) &&
+            val isAreaSegment = name?.startsWith("area") == true
+            val isBackground = className.contains("dynamicisland", ignoreCase = true) &&
                 className.contains("background", ignoreCase = true)
-            ) {
-                return current
+            if (current !== scope && (isAreaSegment || isBackground)) result += current
+            if (current is ViewGroup) {
+                for (index in 0 until current.childCount) {
+                    queue.addLast(current.getChildAt(index))
+                }
             }
-            val background = runCatching {
-                current.javaClass.methods.firstOrNull {
-                    it.name == "getBackgroundView" && it.parameterTypes.isEmpty()
-                }?.invoke(current) as? View
-            }.getOrNull()
-            if (background != null) return background
+        }
+        return result
+    }
+
+    /**
+     * 胶囊真实边界（窗口坐标）：优先取岛背景视图的 getActual* 边界，其次沿封面视图父链回溯。
+     * 解析不到则返回 null，调用方退回各视图自身 bounds。
+     */
+    private fun resolveCapsuleWindowRect(scope: ViewGroup, owner: View): RectF? {
+        findIslandBackgroundViewIn(scope)?.let { background ->
+            actualWindowRect(background)?.let { return it }
+        }
+        var current: View? = owner
+        while (current != null) {
+            actualWindowRect(current)?.let { return it }
             current = current.parent as? View
         }
         return null
     }
 
-    /**
-     * 解析胶囊真实边界（系统 getActual* 给出的是窗口坐标，这里换算成视图本地坐标）。
-     *
-     * getActualWidth/Height 在不同系统版本上可能是「右/下边」也可能是「宽/高」，两种都兼容。
-     * 解析失败返回 null，调用方退回视图 bounds。
-     */
-    private fun resolveCapsuleRect(backgroundView: View): RectF? {
-        val left = getViewInt(backgroundView, "getActualLeft") ?: return null
-        val top = getViewInt(backgroundView, "getActualTop") ?: return null
-        val widthOrRight = getViewInt(backgroundView, "getActualWidth") ?: return null
-        val heightOrBottom = getViewInt(backgroundView, "getActualHeight") ?: return null
+    /** 系统 getActual* 给出的窗口坐标矩形；宽高字段兼容「右/下边」与「宽/高」两种语义。 */
+    private fun actualWindowRect(view: View): RectF? {
+        val left = getViewInt(view, "getActualLeft") ?: return null
+        val top = getViewInt(view, "getActualTop") ?: return null
+        val widthOrRight = getViewInt(view, "getActualWidth") ?: return null
+        val heightOrBottom = getViewInt(view, "getActualHeight") ?: return null
         val right = if (widthOrRight > left) widthOrRight else left + widthOrRight
         val bottom = if (heightOrBottom > top) heightOrBottom else top + heightOrBottom
         if (right - left <= 0 || bottom - top <= 0) return null
+        return RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat())
+    }
+
+    /** 窗口坐标矩形换算成指定视图的本地坐标。 */
+    private fun toLocalRect(windowRect: RectF, view: View): RectF {
         val location = IntArray(2)
-        backgroundView.getLocationInWindow(location)
+        view.getLocationInWindow(location)
         return RectF(
-            (left - location[0]).toFloat(),
-            (top - location[1]).toFloat(),
-            (right - location[0]).toFloat(),
-            (bottom - location[1]).toFloat(),
+            windowRect.left - location[0],
+            windowRect.top - location[1],
+            windowRect.right - location[0],
+            windowRect.bottom - location[1],
         )
+    }
+
+    private fun resourceName(view: View): String? {
+        if (view.id == View.NO_ID) return null
+        return runCatching { view.resources.getResourceEntryName(view.id) }.getOrNull()
     }
 
     private fun getViewInt(view: View, getterName: String): Int? = runCatching {
@@ -479,32 +493,34 @@ internal object IslandLinearGradientBackgroundApplier {
         }?.invoke(view).let { (it as? Number)?.toInt() }
     }.getOrNull()
 
-    /** 类名同时含 dynamicisland 与 background 视为岛背景层。 */
-    private fun isIslandBackgroundClass(view: View): Boolean {
-        val className = view.javaClass.name
-        return className.contains("dynamicisland", ignoreCase = true) &&
-            className.contains("background", ignoreCase = true)
-    }
-
     /**
-     * 在给定范围内按「层数最浅优先」查找岛背景视图（BFS 顺序即最近优先）。
-     * 取最宽视图会命中展开态那一层，导致摘要态写不中。
+     * 在给定范围内查找岛背景视图（类名同时含 dynamicisland 与 background）。
+     * 命中多个时取最宽的那个，尽量覆盖整条胶囊。
      */
-    private fun findNearestIslandBackgroundView(scope: View): View? {
+    private fun findIslandBackgroundViewIn(scope: View): View? {
+        var best: View? = null
         val queue = ArrayDeque<View>()
         queue.addLast(scope)
         var visited = 0
         while (queue.isNotEmpty() && visited < MAX_SEARCH_NODES) {
             val current = queue.removeFirst()
             visited += 1
-            if (isIslandBackgroundClass(current)) return current
+            val className = current.javaClass.name
+            if (className.contains("dynamicisland", ignoreCase = true) &&
+                className.contains("background", ignoreCase = true)
+            ) {
+                val currentBest = best
+                if (currentBest == null || current.width > currentBest.width) {
+                    best = current
+                }
+            }
             if (current is ViewGroup) {
                 for (index in 0 until current.childCount) {
                     queue.addLast(current.getChildAt(index))
                 }
             }
         }
-        return null
+        return best
     }
 }
 
