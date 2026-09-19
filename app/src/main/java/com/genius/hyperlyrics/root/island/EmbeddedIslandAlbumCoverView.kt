@@ -34,15 +34,6 @@ import kotlin.math.roundToInt
 /** Width of the unconditional terminal black mask, in physical pixels. */
 private const val TERMINAL_BLACK_MASK_WIDTH_PX = 10f
 
-/** 整宽铺满模式的轻度压暗：左端稍重（文字起始处）、右端略压，中间最轻以尽量露出封面。 */
-private val COVER_FILL_SCRIM_COLORS = intArrayOf(
-    0x8C000000.toInt(),
-    0x38000000,
-    0x30000000,
-    0x7A000000.toInt(),
-)
-private val COVER_FILL_SCRIM_STOPS = floatArrayOf(0f, 0.30f, 0.65f, 1f)
-
 /** Small-island artwork child. The host is a FrameLayout, so this child never consumes width. */
 internal class EmbeddedIslandAlbumCoverView(
     context: android.content.Context,
@@ -117,8 +108,6 @@ private class EmbeddedIslandAlbumCoverDrawable(
     private val originalBackground: Drawable?,
     artwork: EmbeddedIslandArtwork,
     private val density: Float,
-    /** true = 整宽铺满封面（不拼接、不画渐隐尾巴，直接填满原生胶囊长度）。 */
-    private val coverFill: Boolean = false,
 ) : Drawable() {
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val transitionPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -191,11 +180,6 @@ private class EmbeddedIslandAlbumCoverDrawable(
         val width = bounds.width()
         val height = bounds.height()
         if (width <= 0 || height <= 0) return
-
-        if (coverFill) {
-            drawCoverFill(canvas, source, bounds)
-            return
-        }
 
         val canvasLeft = bounds.left.toFloat()
         val canvasTop = bounds.top.toFloat()
@@ -409,59 +393,6 @@ private class EmbeddedIslandAlbumCoverDrawable(
      * those sources; the gradient already reaches >=97% black there, so the visual delta is
      * imperceptible.
      */
-    /**
-     * 整宽铺满：封面 centerCrop 填满 drawable 的整个 bounds（即原生胶囊长度），
-     * 按胶囊圆角裁剪，并叠一层左重右轻的轻度压暗保证歌词可读；不画渐隐尾巴与尾部黑条。
-     */
-    private fun drawCoverFill(canvas: Canvas, source: Bitmap, bounds: Rect) {
-        val width = bounds.width()
-        val height = bounds.height()
-        if (width <= 0 || height <= 0) return
-        val left = bounds.left.toFloat()
-        val top = bounds.top.toFloat()
-        val right = bounds.right.toFloat()
-        val bottom = bounds.bottom.toFloat()
-        val radius = height / 2f
-        val crop = IslandGradientCoverLayout.centerCropWindow(
-            sourceWidth = source.width,
-            sourceHeight = source.height,
-            targetWidth = width.toFloat(),
-            targetHeight = height.toFloat(),
-        ) ?: return
-        val cropLeft = kotlin.math.floor(crop.left).toInt().coerceIn(0, source.width - 1)
-        val cropTop = kotlin.math.floor(crop.top).toInt().coerceIn(0, source.height - 1)
-        val cropRight = kotlin.math.ceil(crop.right).toInt().coerceIn(cropLeft + 1, source.width)
-        val cropBottom = kotlin.math.ceil(crop.bottom).toInt().coerceIn(cropTop + 1, source.height)
-
-        canvas.save()
-        clipPath.reset()
-        clipPath.addRoundRect(RectF(left, top, right, bottom), radius, radius, Path.Direction.CW)
-        canvas.clipPath(clipPath)
-        canvas.drawBitmap(
-            source,
-            Rect(cropLeft, cropTop, cropRight, cropBottom),
-            RectF(left, top, right, bottom),
-            bitmapPaint,
-        )
-        val shader = LinearGradient(
-            left,
-            top,
-            right,
-            top,
-            COVER_FILL_SCRIM_COLORS,
-            COVER_FILL_SCRIM_STOPS,
-            Shader.TileMode.CLAMP,
-        )
-        canvas.drawRect(
-            left,
-            top,
-            right,
-            bottom,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = shader },
-        )
-        canvas.restore()
-    }
-
     private fun drawTerminalBlackMask(canvas: Canvas) {
         val width = bounds.width()
         val height = bounds.height()
@@ -1077,8 +1008,6 @@ internal object EmbeddedIslandAlbumCoverController {
         val cover: EmbeddedIslandAlbumCoverDrawable,
         var source: WeakReference<ImageView>? = null,
         var fingerprint: Int,
-        /** 当前是否为整宽铺满模式（模式变化时需要重建 Drawable）。 */
-        var coverFill: Boolean = false,
     )
 
     private val smallStates = WeakHashMap<FrameLayout, SmallState>()
@@ -1101,17 +1030,12 @@ internal object EmbeddedIslandAlbumCoverController {
 
     fun isPlaybackActive(): Boolean = playbackActive
 
-    fun apply(
-        host: ViewGroup,
-        source: ImageView,
-        smallIsland: Boolean,
-        coverFill: Boolean = false,
-    ): Boolean {
+    fun apply(host: ViewGroup, source: ImageView, smallIsland: Boolean): Boolean {
         val artwork = artworkFrom(source) ?: return false
         val applied = if (smallIsland) {
             applySmall(host, source, artwork)
         } else {
-            applyBig(host, source, artwork, coverFill)
+            applyBig(host, source, artwork)
         }
         if (!applied) {
             if (artwork.owned && !artwork.bitmap.isRecycled) artwork.bitmap.recycle()
@@ -1121,10 +1045,7 @@ internal object EmbeddedIslandAlbumCoverController {
         synchronized(originalVisibility) {
             originalVisibility.putIfAbsent(source, source.visibility)
         }
-        // 整宽铺满模式保留原生封面缩略图（背景铺底 + 左侧缩略图）；其它模式沿用隐藏原生封面的既有行为。
-        if (!coverFill) {
-            source.visibility = View.INVISIBLE
-        }
+        source.visibility = View.INVISIBLE
         return true
     }
 
@@ -1227,26 +1148,18 @@ internal object EmbeddedIslandAlbumCoverController {
         host: ViewGroup,
         source: ImageView,
         artwork: EmbeddedIslandArtwork,
-        coverFill: Boolean,
     ): Boolean {
         val target = findAreaLeft(host) ?: return false
         removeOtherStatesForSource(source, keepSmall = null, keepBig = target)
         var created = false
         val state = synchronized(bigStates) {
-            val existing = bigStates[target]
-            if (existing != null && existing.coverFill == coverFill) {
-                existing
-            } else {
+            bigStates[target] ?: run {
                 created = true
-                if (existing != null) {
-                    removeOtherStatesForSource(source, keepSmall = null, keepBig = null)
-                }
-                val original = existing?.originalBackground ?: target.background
+                val original = target.background
                 val cover = EmbeddedIslandAlbumCoverDrawable(
                     originalBackground = original,
                     artwork = artwork,
                     density = target.resources.displayMetrics.density,
-                    coverFill = coverFill,
                 )
                 target.background = cover
                 BigState(
@@ -1254,7 +1167,6 @@ internal object EmbeddedIslandAlbumCoverController {
                     originalBackground = original,
                     cover = cover,
                     fingerprint = artwork.fingerprint,
-                    coverFill = coverFill,
                 ).also { bigStates[target] = it }
             }
         }
