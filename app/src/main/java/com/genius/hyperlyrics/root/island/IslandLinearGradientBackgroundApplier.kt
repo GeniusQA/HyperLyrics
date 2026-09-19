@@ -117,7 +117,11 @@ internal object IslandLinearGradientBackgroundApplier {
             logOnce("岛视图未 attach, scope=${scope.javaClass.simpleName}")
             return
         }
-        val capsuleWindow = resolveCapsuleWindowRect(scope, owner)
+        // 摘要态可能是「左右两个独立胶囊」（媒体胶囊 + 歌词胶囊，中间有间隙）。此时必须以
+        // 所有胶囊的并集作为封面映射基准，各胶囊只画自己那一段，视觉上才是一条连续封面；
+        // 若按单个胶囊映射，每个胶囊都会被塞进一份完整封面，看起来像被拆成好几个。
+        val capsuleWindow = unionWindowRect(targets)
+            ?: resolveCapsuleWindowRect(scope, owner)
         val first = targets.first()
         val firstCapsule = capsuleWindow?.let { toLocalRect(it, first) }
         val width = firstCapsule?.width()?.toInt()?.takeIf { it > 0 }
@@ -440,6 +444,29 @@ internal object IslandLinearGradientBackgroundApplier {
             }
         }
         return result
+    }
+
+    /**
+     * 所有目标胶囊在窗口坐标下的并集，作为封面映射基准。
+     * 返回 null 表示目标都没有效尺寸，调用方退回其它边界解析。
+     */
+    private fun unionWindowRect(views: List<View>): RectF? {
+        var left = Float.MAX_VALUE
+        var top = Float.MAX_VALUE
+        var right = -Float.MAX_VALUE
+        var bottom = -Float.MAX_VALUE
+        views.forEach { view ->
+            val width = view.width.takeIf { it > 0 } ?: return@forEach
+            val height = view.height.takeIf { it > 0 } ?: return@forEach
+            val location = IntArray(2)
+            view.getLocationInWindow(location)
+            left = minOf(left, location[0].toFloat())
+            top = minOf(top, location[1].toFloat())
+            right = maxOf(right, (location[0] + width).toFloat())
+            bottom = maxOf(bottom, (location[1] + height).toFloat())
+        }
+        if (right <= left || bottom <= top) return null
+        return RectF(left, top, right, bottom)
     }
 
     /**
