@@ -67,6 +67,9 @@ internal object IslandAlbumCoverStyleHooker {
     private val trackedHolders = WeakHashMap<Any, TrackedHolder>()
     private val captureGenerationByView = WeakHashMap<ImageView, Int>()
     private val gradientStates = WeakHashMap<ImageView, GradientCoverState>()
+
+    /** 已输出过探针的视图树签名（避免重复刷屏）。 */
+    private val probedTreeSignatures = mutableSetOf<String>()
     private val fakeTransitionLogSignatures = WeakHashMap<ViewGroup, String>()
     private const val MAX_ARTWORK_RETRIES = 3
     private val artworkRetryCounts = WeakHashMap<ImageView, Int>()
@@ -374,6 +377,9 @@ internal object IslandAlbumCoverStyleHooker {
             ensureArtworkContinuity(fixIcon, "after $targetMethodName")
         }
         logArtworkBindingState(fixIcon, targetMethodName, style)
+        // 与样式无关的岛子树探针：任何样式/任何播放器（含视频小窗）都会输出一次，
+        // 用于确认各状态下胶囊由哪些视图构成（按尺寸去重，避免刷屏）。
+        logIslandTreeProbe(fixIcon)
         val fakeContentView = findFakeContentView(fixIcon)
         if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT || fakeContentView == null) {
             scheduleNativeArtworkCapture(fixIcon, dynamicIslandData)
@@ -435,6 +441,44 @@ internal object IslandAlbumCoverStyleHooker {
                 "封面样式入口命中: method=$targetMethodName, style=$style, " +
                     "target=${fixIcon.javaClass.simpleName}@${System.identityHashCode(fixIcon)}, " +
                     "fake=${fakeContentView != null}, observing=${state?.preDrawListener != null}",
+            )
+        }
+    }
+
+    /** 岛子树探针（debug 构建，与样式无关）：输出资源名/类名/尺寸/窗口位置，分片避免超长被丢弃。 */
+    private fun logIslandTreeProbe(anchor: View) {
+        if (!BuildConfig.DEBUG) return
+        val root = anchor.rootView ?: return
+        val signature = "${root.javaClass.name}@${root.width}x${root.height}"
+        synchronized(probedTreeSignatures) {
+            if (!probedTreeSignatures.add(signature)) return
+        }
+        val parts = ArrayList<String>()
+        val queue = ArrayDeque<View>()
+        queue.addLast(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 600) {
+            val current = queue.removeFirst()
+            visited += 1
+            val location = IntArray(2)
+            current.getLocationInWindow(location)
+            val name = if (current.id == View.NO_ID) {
+                "-"
+            } else {
+                runCatching { current.resources.getResourceEntryName(current.id) }.getOrNull() ?: "-"
+            }
+            parts += "[$name|${current.javaClass.simpleName}|${current.width}x${current.height}" +
+                "@${location[0]},${location[1]}|shown=${current.isShown}]"
+            if (current is ViewGroup) {
+                for (index in 0 until current.childCount) {
+                    queue.addLast(current.getChildAt(index))
+                }
+            }
+        }
+        parts.chunked(8).forEachIndexed { index, chunk ->
+            HookLogger.i(
+                TAG,
+                "岛视图探针[${index + 1}/${(parts.size + 7) / 8}]: ${chunk.joinToString(" ")}",
             )
         }
     }
