@@ -47,6 +47,9 @@ internal object IslandLinearGradientBackgroundApplier {
     /** 胶囊高度上限（px）：超过即认为是展开态大卡片，此时不绘制。 */
     private const val MAX_CAPSULE_HEIGHT_PX = 160f
 
+    /** 绘制后的几何自愈校验延迟（系统界面重启或首帧布局未定时使用）。 */
+    private val VERIFY_DELAYS_MS = longArrayOf(600L, 2_000L)
+
     /**
      * 封面露出区域占岛宽的比例。
      *
@@ -125,7 +128,7 @@ internal object IslandLinearGradientBackgroundApplier {
         owner.postDelayed(
             {
                 applyRetryCounts.remove(owner)
-                apply(owner, artwork, packageName, artworkBitmap, host)
+                apply(owner, artwork, packageName, artworkBitmap, host, scheduleVerify = false)
             },
             250L * (attempts + 1),
         )
@@ -143,6 +146,8 @@ internal object IslandLinearGradientBackgroundApplier {
         packageName: String?,
         artworkBitmap: Bitmap? = null,
         host: View? = null,
+        /** 仅绑定触发的首次应用才安排几何自愈校验，避免校验回调再排校验导致无限循环。 */
+        scheduleVerify: Boolean = true,
     ) {
         val scope = (host as? ViewGroup) ?: (owner.rootView as? ViewGroup) ?: run {
             // 切歌时岛会经历重建/过渡，此刻可能暂时找不到容器：延迟重试而不是放弃，
@@ -263,6 +268,28 @@ internal object IslandLinearGradientBackgroundApplier {
                         "capsule=${capsuleWindow?.toShortString() ?: "view-bounds"}, " +
                         "package=$packageName",
                 )
+                // 自愈校验：系统界面重启/首帧布局往往还没最终定型，此刻画完会被缓存，
+                // 表现为封面偏移；绘制后按 0.6s / 2s 各校验一次，几何变化则自动重绘。
+                if (scheduleVerify) {
+                    VERIFY_DELAYS_MS.forEach { delay ->
+                        owner.postDelayed(
+                            {
+                                synchronized(states) {
+                                    states.values.forEach { it.fingerprint = 0L }
+                                }
+                                apply(
+                                    owner,
+                                    artwork,
+                                    packageName,
+                                    artworkBitmap,
+                                    host,
+                                    scheduleVerify = false,
+                                )
+                            },
+                            delay,
+                        )
+                    }
+                }
             }
         }
     }
