@@ -734,17 +734,9 @@ internal object IslandAlbumCoverStyleHooker {
         fixIcon: ImageView,
         dynamicIslandData: Any,
     ) {
-        // 首选已验证可见的链路：与「渐变封面」完全同源（内嵌控制器写入 area_left 背景），
-        // 仅把封面画法换成卡片式铺底，彻底避开自绘背景写错视图/被覆盖的问题。
+        // 注意：不能复用内嵌控制器的 area_left 目标——area_left 只是岛的左侧内容区，
+        // 写它会出现「左边有封面、右边仍是原生黑胶囊」。这里写的是岛背景视图（整条胶囊）。
         val host = resolveIslandHostContainer(holder, fixIcon)
-        val smallIsland = host != null &&
-            (callViewGetter(holder, "getSmallContainer") as? ViewGroup) === host
-        if (host != null &&
-            EmbeddedIslandAlbumCoverController.apply(host, fixIcon, smallIsland, cardFill = true)
-        ) {
-            artworkRetryCounts.remove(fixIcon)
-            return
-        }
 
         // 优先拿本模块缓存的原始封面位图：fixIcon.drawable 可能是过渡/组合 Drawable，
         // 直接绘制会得到半张图或混色结果。

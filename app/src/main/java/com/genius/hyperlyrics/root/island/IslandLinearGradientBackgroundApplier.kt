@@ -37,6 +37,9 @@ import java.util.concurrent.Executors
 internal object IslandLinearGradientBackgroundApplier {
     private const val TAG = "IslandLinearGradientBg"
 
+    /** 视图树搜索上限，避免异常层级导致遍历失控。 */
+    private const val MAX_SEARCH_NODES = 512
+
     /**
      * 封面露出区域占岛宽的比例。
      *
@@ -400,12 +403,11 @@ internal object IslandLinearGradientBackgroundApplier {
      * 避免写到整块岛容器上导致封面铺满更大范围而溢出。
      */
     private fun resolveIslandBackgroundView(owner: View, host: View?): View? {
-        // 优先在「真实岛容器」内定位，与渐变封面样式的写入目标保持一致：
-        // rootView 里可能存在多个同名 area_left（含过渡/展开层级），盲搜会写到不可见的那个。
+        // 需要覆盖「整条胶囊」，因此不能写 area_left（那只是岛左侧内容区，写了会出现
+        // 左边有封面、右边仍是原生黑胶囊）。优先在真实容器内找岛背景视图，其次用容器本身。
         val scope = (host as? ViewGroup) ?: (owner.rootView as? ViewGroup)
         if (scope != null) {
-            IslandViewHelper.findViewByName(scope, "area_left")?.let { return it }
-            IslandViewHelper.findViewByName(scope, "fake_area_left")?.let { return it }
+            findIslandBackgroundViewIn(scope)?.let { return it }
         }
         if (host is ViewGroup && host.width > 0 && host.height > 0) return host
         var current: View? = owner
@@ -426,6 +428,36 @@ internal object IslandLinearGradientBackgroundApplier {
             current = current.parent as? View
         }
         return null
+    }
+
+    /**
+     * 在给定范围内查找岛背景视图（类名同时含 dynamicisland 与 background）。
+     * 命中多个时取最宽的那个，尽量覆盖整条胶囊。
+     */
+    private fun findIslandBackgroundViewIn(scope: View): View? {
+        var best: View? = null
+        val queue = ArrayDeque<View>()
+        queue.addLast(scope)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < MAX_SEARCH_NODES) {
+            val current = queue.removeFirst()
+            visited += 1
+            val className = current.javaClass.name
+            if (className.contains("dynamicisland", ignoreCase = true) &&
+                className.contains("background", ignoreCase = true)
+            ) {
+                val currentBest = best
+                if (currentBest == null || current.width > currentBest.width) {
+                    best = current
+                }
+            }
+            if (current is ViewGroup) {
+                for (index in 0 until current.childCount) {
+                    queue.addLast(current.getChildAt(index))
+                }
+            }
+        }
+        return best
     }
 }
 
