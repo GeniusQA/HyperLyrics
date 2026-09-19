@@ -144,25 +144,27 @@ internal object IslandLinearGradientBackgroundApplier {
             scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
             return
         }
-        // 折叠态胶囊由多个分段视图拼成（area_left / area_right 等），只写其中一个只会覆盖一段，
-        // 因此这里把所有分段视图都作为绘制目标，每段只画「按胶囊坐标映射后的那一块」封面。
-        val targets = resolvePillTargets(scope).ifEmpty { listOf(scope) }
+        // 折叠态胶囊由多个分段视图拼成（area_left / area_cutout / area_right）。
+        val segments = resolvePillTargets(scope).ifEmpty { listOf(scope) }
             .filter { it.isAttachedToWindow }
-        if (targets.isEmpty()) {
+        if (segments.isEmpty()) {
             scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
             return
         }
-        // 摘要态可能是「左右两个独立胶囊」（媒体胶囊 + 歌词胶囊，中间有间隙）。此时必须以
-        // 所有胶囊的并集作为封面映射基准，各胶囊只画自己那一段，视觉上才是一条连续封面；
-        // 若按单个胶囊映射，每个胶囊都会被塞进一份完整封面，看起来像被拆成好几个。
         // 布局未完成时（探针实测过渡期各分段为 0x0、坐标在屏幕外），并集会被算成残缺的一块，
         // 且缓存命中后再也不重算，导致封面一直只铺一小块。此时不绘制，等布局完成再重试。
-        if (targets.any { it.width <= 0 || it.height <= 0 }) {
+        if (segments.any { it.width <= 0 || it.height <= 0 }) {
             scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
             return
         }
-        val capsuleWindow = unionWindowRect(targets)
-            ?: resolveCapsuleWindowRect(scope, owner)
+        // 优先写「系统自己的岛背景层」（island_container / DynamicIslandBackgroundView）：
+        // 探针实测它才是胶囊的可见填充层；area_* 只是内部内容区，画上去会被上层（LightBgView 等）覆盖。
+        val backgroundLayer = findIslandBackgroundViewIn(scope)
+        val targets = backgroundLayer?.let { listOf(it) } ?: segments
+        // 胶囊矩形取「横排分段所在那一行」（big_container / big_island_view）的 bounds：
+        // 分段并集会偏窄，getActual* 实测不可靠。
+        val capsuleWindow = resolveCapsuleWindowRect(scope, owner)
+            ?: unionWindowRect(segments)
         // 保险：并集若接近整窗宽，说明误收了整窗宽视图（历史上会造成整条顶部溢出），直接放弃绘制。
         val rootWidth = scope.rootView?.width ?: 0
         if (rootWidth > 0 && capsuleWindow != null && capsuleWindow.width() > rootWidth * 0.9f) {
@@ -529,11 +531,6 @@ internal object IslandLinearGradientBackgroundApplier {
                 }
             }
         }
-        // host 容器本身（big_container，横排内容区）就是整条内容区，优先作为绘制目标；
-        // area_* 只是中段的占位区（实测仅 177~273 宽），单独用它们封面只会铺中间一截。
-        if (scope.width > 0 && scope.height > 0) {
-            result.add(0, scope)
-        }
         return result
     }
 
@@ -565,6 +562,21 @@ internal object IslandLinearGradientBackgroundApplier {
      * 解析不到则返回 null，调用方退回各视图自身 bounds。
      */
     private fun resolveCapsuleWindowRect(scope: ViewGroup, owner: View): RectF? {
+        // 优先取「横排分段所在那一行」的 bounds：探针实测 big_container / big_island_view
+        // 就是胶囊本体（宽约 540），而分段并集会偏窄、getActual* 则不可靠。
+        val named = findViewByResourceName(scope, "big_container")
+            ?: findViewByResourceName(scope, "big_island_view")
+            ?: findViewByResourceName(scope, "small_island_view")
+        if (named != null && named.width > 0 && named.height > 0) {
+            val location = IntArray(2)
+            named.getLocationInWindow(location)
+            return RectF(
+                location[0].toFloat(),
+                location[1].toFloat(),
+                (location[0] + named.width).toFloat(),
+                (location[1] + named.height).toFloat(),
+            )
+        }
         findIslandBackgroundViewIn(scope)?.let { background ->
             actualWindowRect(background)?.let { return it }
         }
@@ -598,6 +610,25 @@ internal object IslandLinearGradientBackgroundApplier {
             windowRect.right - location[0],
             windowRect.bottom - location[1],
         )
+    }
+
+    /** 按资源名在子树内查找视图（广度优先，命中即返回）。 */
+    private fun findViewByResourceName(scope: View, name: String): View? {
+        if (resourceName(scope) == name) return scope
+        val queue = ArrayDeque<View>()
+        queue.addLast(scope)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < MAX_SEARCH_NODES) {
+            val current = queue.removeFirst()
+            visited += 1
+            if (current !== scope && resourceName(current) == name) return current
+            if (current is ViewGroup) {
+                for (index in 0 until current.childCount) {
+                    queue.addLast(current.getChildAt(index))
+                }
+            }
+        }
+        return null
     }
 
     private fun resourceName(view: View): String? {
