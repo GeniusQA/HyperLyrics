@@ -44,6 +44,9 @@ internal object IslandLinearGradientBackgroundApplier {
     /** 岛重建/过渡期间目标暂不可用时的最大重试次数（间隔 250ms 递增，覆盖过渡+布局耗时）。 */
     private const val MAX_APPLY_RETRIES = 24
 
+    /** 胶囊高度上限（px）：超过即认为是展开态大卡片，此时不绘制。 */
+    private const val MAX_CAPSULE_HEIGHT_PX = 160f
+
     /**
      * 封面露出区域占岛宽的比例。
      *
@@ -175,6 +178,13 @@ internal object IslandLinearGradientBackgroundApplier {
         val rootWidth = scope.rootView?.width ?: 0
         if (rootWidth > 0 && capsuleWindow != null && capsuleWindow.width() > rootWidth * 0.9f) {
             logOnce("并集过宽疑似含整窗视图: ${capsuleWindow.toShortString()}")
+            return
+        }
+        // 展开态：big_container 变成大卡片那一行（又宽又高），若照它绘制会把顶部摘要胶囊"画长"。
+        // 此时恢复原生背景、不绘制，等收起回摘要态再正常应用。
+        if (capsuleWindow != null && capsuleWindow.height() > MAX_CAPSULE_HEIGHT_PX) {
+            logOnce("展开态跳过绘制: ${capsuleWindow.toShortString()}")
+            restoreAll()
             return
         }
         // 探针范围取整棵岛窗口视图树：真实胶囊（532x116）不一定在 scope（容器）之内。
