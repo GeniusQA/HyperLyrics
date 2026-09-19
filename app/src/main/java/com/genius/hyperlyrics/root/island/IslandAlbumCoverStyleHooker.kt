@@ -733,6 +733,10 @@ internal object IslandAlbumCoverStyleHooker {
         fixIcon: ImageView,
         dynamicIslandData: Any,
     ) {
+        // 实测：假视图（过渡模板）只是临时占位，其内容区是默认小岛模板（日志实测 177x94），
+        // 在它上面绘制会画到错误层级；真正的岛在 fake=false 的那次绑定里应用。
+        if (findFakeContentView(fixIcon) != null) return
+
         // 实测（dumpsys window）：岛窗口全屏宽（1080x124），可见胶囊仅 x 274..806。
         // area_left 等视图 bounds 远宽于胶囊，整宽铺满必然溢出；
         // 因此采用「分段视图 + 并集映射」：各分段只画映射到自己的那块封面，拼合为整条。
