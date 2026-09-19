@@ -639,6 +639,9 @@ object RootConstants {
     const val ISLAND_ALBUM_COVER_STYLE_APP_ICON = 2
     const val ISLAND_ALBUM_COVER_STYLE_ROTATING_CIRCLE = 3
     const val ISLAND_ALBUM_COVER_STYLE_GRADIENT = 4
+
+    /** 摘要态岛背景：封面整幅融入 + 封面取色线性渐变压暗（对齐焦点通知卡片线性渐变样式）。 */
+    const val ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT = 5
     const val DEFAULT_HOOK_ISLAND_ALBUM_COVER_STYLE = ISLAND_ALBUM_COVER_STYLE_DEFAULT
     const val DEFAULT_HOOK_MAX_LEFT_WIDTH = 100
     const val DEFAULT_HOOK_REMOVE_FOCUS_WHITELIST = false

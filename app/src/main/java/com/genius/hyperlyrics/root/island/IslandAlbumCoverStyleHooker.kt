@@ -68,6 +68,8 @@ internal object IslandAlbumCoverStyleHooker {
     private val captureGenerationByView = WeakHashMap<ImageView, Int>()
     private val gradientStates = WeakHashMap<ImageView, GradientCoverState>()
     private val fakeTransitionLogSignatures = WeakHashMap<ViewGroup, String>()
+    private const val MAX_ARTWORK_RETRIES = 3
+    private val artworkRetryCounts = WeakHashMap<ImageView, Int>()
     private val artworkDiagnosticStates = WeakHashMap<ImageView, String>()
     private val artworkIdentityByView = WeakHashMap<ImageView, ArtworkIdentity>()
     private val restoringNative = ThreadLocal<Boolean>()
@@ -382,6 +384,12 @@ internal object IslandAlbumCoverStyleHooker {
         if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT) {
             restoreGradientCover(fixIcon)
         }
+        if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT) {
+            IslandLinearGradientBackgroundApplier.restoreFor(fixIcon)
+            // 线性渐变复用内嵌封面控制器渲染，切换样式时一并恢复它接管的背景。
+            EmbeddedIslandAlbumCoverController.restoreForSource(fixIcon)
+        }
+
         when (style) {
             RootConstants.ISLAND_ALBUM_COVER_STYLE_CIRCLE -> {
                 applyCircleOutline(fixIcon)
@@ -410,6 +418,13 @@ internal object IslandAlbumCoverStyleHooker {
                 )
             }
 
+            RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT -> {
+                applyLinearGradientBackground(
+                    holder = holder,
+                    fixIcon = fixIcon,
+                    dynamicIslandData = dynamicIslandData,
+                )
+            }
         }
         if (BuildConfig.DEBUG) {
             val state = gradientStates[fixIcon]
@@ -688,6 +703,81 @@ internal object IslandAlbumCoverStyleHooker {
         }
     }
 
+    /**
+     * 「线性渐变」样式：把按封面取色渲染出的线性渐变位图铺到岛背景视图上，
+     * 封面缩略图与歌词文字布局保持原生，只替换岛背景以贴近焦点通知卡片观感。
+     */
+    /**
+     * 选出真正包含该封面视图的岛容器（优先大岛，其次小岛）。
+     *
+     * 与渐变封面样式一致地在容器内定位背景，避免在整棵 rootView 里盲搜到过渡/展开层级的同名视图。
+     */
+    private fun resolveIslandHostContainer(holder: Any, fixIcon: ImageView): ViewGroup? {
+        val candidates = listOf("getBigContainer", "getSmallContainer")
+            .mapNotNull { callViewGetter(holder, it) as? ViewGroup }
+        return candidates.firstOrNull { candidate ->
+            candidate.isAttachedToWindow && isAncestorOf(candidate, fixIcon)
+        } ?: candidates.firstOrNull { it.isAttachedToWindow && it.width > 0 && it.height > 0 }
+    }
+
+    private fun isAncestorOf(candidate: View, view: View): Boolean {
+        var current: View? = view
+        while (current != null) {
+            if (current === candidate) return true
+            current = current.parent as? View
+        }
+        return false
+    }
+
+    private fun applyLinearGradientBackground(
+        holder: Any,
+        fixIcon: ImageView,
+        dynamicIslandData: Any,
+    ) {
+        val host = resolveIslandHostContainer(holder, fixIcon)
+        // 首选与「渐变封面」同源的内嵌链路：同一目标、同一 z 序，渲染结果确定可见；
+        // 只把封面画法换成「整宽铺满」，既不做分段拼接、也不需要自己找视图写 background。
+        val smallIsland = host != null &&
+            (callViewGetter(holder, "getSmallContainer") as? ViewGroup) === host
+        if (host != null &&
+            EmbeddedIslandAlbumCoverController.apply(host, fixIcon, smallIsland, coverFill = true)
+        ) {
+            artworkRetryCounts.remove(fixIcon)
+            return
+        }
+
+        // 优先拿本模块缓存的原始封面位图：fixIcon.drawable 可能是过渡/组合 Drawable，
+        // 直接绘制会得到半张图或混色结果。
+        val identity = resolveArtworkIdentity(fixIcon, dynamicIslandData)
+        val artworkBitmap = identity?.let { artwork ->
+            MediaMetadataHelper.currentCachedArtwork(
+                context = fixIcon.context,
+                packageName = artwork.packageName,
+                expectedTitle = artwork.title,
+            )
+        }
+        IslandLinearGradientBackgroundApplier.apply(
+            owner = fixIcon,
+            artwork = fixIcon.drawable,
+            packageName = IslandProbeUtils.extractMediaIslandInfo(dynamicIslandData)?.packageName,
+            artworkBitmap = artworkBitmap,
+            host = resolveIslandHostContainer(holder, fixIcon),
+        )
+        if (artworkBitmap == null) {
+            // 首帧可能还没抓到封面（原生封面采集是延迟执行的），有限次重试直到拿到原始位图。
+            val attempts = artworkRetryCounts[fixIcon] ?: 0
+            if (attempts < MAX_ARTWORK_RETRIES) {
+                artworkRetryCounts[fixIcon] = attempts + 1
+                fixIcon.postDelayed(
+                    { applyLinearGradientBackground(holder, fixIcon, dynamicIslandData) },
+                    400L * (attempts + 1),
+                )
+            }
+        } else {
+            artworkRetryCounts.remove(fixIcon)
+        }
+    }
+
     private fun restoreGradientCover(fixIcon: ImageView) {
         val state = gradientStates.remove(fixIcon) ?: return
         restoreGradientState(state)
@@ -696,6 +786,7 @@ internal object IslandAlbumCoverStyleHooker {
     private fun restoreAllGradientCovers() {
         gradientStates.values.toList().forEach { restoreGradientState(it) }
         gradientStates.clear()
+        IslandLinearGradientBackgroundApplier.restoreAll()
     }
 
     private fun restoreGradientState(state: GradientCoverState) {
@@ -2133,7 +2224,8 @@ internal object IslandAlbumCoverStyleHooker {
             RootConstants.DEFAULT_HOOK_ISLAND_ALBUM_COVER_STYLE
         ).coerceIn(
             RootConstants.ISLAND_ALBUM_COVER_STYLE_DEFAULT,
-            RootConstants.ISLAND_ALBUM_COVER_STYLE_GRADIENT
+            // 上限必须跟上最新样式值，否则「线性渐变」(5) 会被钳成「渐变封面」(4)。
+            RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT
         )
         if (configuredStyle == RootConstants.ISLAND_ALBUM_COVER_STYLE_DEFAULT) {
             return configuredStyle
