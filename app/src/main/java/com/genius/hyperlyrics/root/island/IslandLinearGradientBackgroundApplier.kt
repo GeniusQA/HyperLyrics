@@ -163,6 +163,12 @@ internal object IslandLinearGradientBackgroundApplier {
         }
         val capsuleWindow = unionWindowRect(targets)
             ?: resolveCapsuleWindowRect(scope, owner)
+        // 保险：并集若接近整窗宽，说明误收了整窗宽视图（历史上会造成整条顶部溢出），直接放弃绘制。
+        val rootWidth = scope.rootView?.width ?: 0
+        if (rootWidth > 0 && capsuleWindow != null && capsuleWindow.width() > rootWidth * 0.9f) {
+            logOnce("并集过宽疑似含整窗视图: ${capsuleWindow.toShortString()}")
+            return
+        }
         // 探针范围取整棵岛窗口视图树：真实胶囊（532x116）不一定在 scope（容器）之内。
         logIslandHierarchyProbe(scope.rootView ?: scope)
         val first = targets.first()
@@ -512,11 +518,11 @@ internal object IslandLinearGradientBackgroundApplier {
             val current = queue.removeFirst()
             visited += 1
             val name = resourceName(current)
-            val className = current.javaClass.name
+            // 只收集 area_* 分段视图（实测：area_left / area_cutout / area_right 横排拼成胶囊）。
+            // 不能把 island_container(DynamicIslandBackgroundView) 等整窗宽背景层纳入：
+            // 它宽 1080（整窗），会让并集变成 1080x124 从而把封面铺满整条顶部（溢出）。
             val isAreaSegment = name?.startsWith("area") == true
-            val isBackground = className.contains("dynamicisland", ignoreCase = true) &&
-                className.contains("background", ignoreCase = true)
-            if (current !== scope && (isAreaSegment || isBackground)) result += current
+            if (current !== scope && isAreaSegment) result += current
             if (current is ViewGroup) {
                 for (index in 0 until current.childCount) {
                     queue.addLast(current.getChildAt(index))
