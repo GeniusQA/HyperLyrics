@@ -160,7 +160,13 @@ internal object IslandLinearGradientBackgroundApplier {
         // 优先写「系统自己的岛背景层」（island_container / DynamicIslandBackgroundView）：
         // 探针实测它才是胶囊的可见填充层；area_* 只是内部内容区，画上去会被上层（LightBgView 等）覆盖。
         val backgroundLayer = findIslandBackgroundViewIn(scope)
-        val targets = backgroundLayer?.let { listOf(it) } ?: segments
+        // 折叠态真正可见的可能是 big_island_view（岛本体），系统会在岛背景层之上再画一层，
+        // 因此两个目标都写：谁在最上层，封面就由谁显示出来。
+        val islandBody = findViewByResourceName(scope, "big_island_view")
+        val targets = buildList {
+            backgroundLayer?.let(::add)
+            islandBody?.takeIf { it !== backgroundLayer }?.let(::add)
+        }.ifEmpty { segments }
         // 胶囊矩形取「横排分段所在那一行」（big_container / big_island_view）的 bounds：
         // 分段并集会偏窄，getActual* 实测不可靠。
         val capsuleWindow = resolveCapsuleWindowRect(scope, owner)
