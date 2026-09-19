@@ -385,7 +385,6 @@ internal object IslandAlbumCoverStyleHooker {
             restoreGradientCover(fixIcon)
         }
         if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT) {
-            IslandLinearGradientBackgroundApplier.restoreFor(fixIcon)
             // 线性渐变复用内嵌封面控制器渲染，切换样式时一并恢复它接管的背景。
             EmbeddedIslandAlbumCoverController.restoreForSource(fixIcon)
         }
@@ -734,45 +733,22 @@ internal object IslandAlbumCoverStyleHooker {
         fixIcon: ImageView,
         dynamicIslandData: Any,
     ) {
-        val host = resolveIslandHostContainer(holder, fixIcon)
-        // 首选与「渐变封面」同源的内嵌链路：同一目标、同一 z 序，渲染结果确定可见；
-        // 只把封面画法换成「整宽铺满」，既不做分段拼接、也不需要自己找视图写 background。
-        val smallIsland = host != null &&
-            (callViewGetter(holder, "getSmallContainer") as? ViewGroup) === host
-        if (host != null &&
-            EmbeddedIslandAlbumCoverController.apply(host, fixIcon, smallIsland, coverFill = true)
-        ) {
+        val host = resolveIslandHostContainer(holder, fixIcon) ?: return
+        // 与「渐变封面」同源的内嵌链路：同一目标、同一 z 序，渲染结果确定可见；
+        // 封面画法为「整宽铺满」（centerCrop 填满胶囊 + 轻度压暗），不再走自绘兜底。
+        val smallIsland = (callViewGetter(holder, "getSmallContainer") as? ViewGroup) === host
+        if (EmbeddedIslandAlbumCoverController.apply(host, fixIcon, smallIsland, coverFill = true)) {
             artworkRetryCounts.remove(fixIcon)
             return
         }
-
-        // 优先拿本模块缓存的原始封面位图：fixIcon.drawable 可能是过渡/组合 Drawable，
-        // 直接绘制会得到半张图或混色结果。
-        val identity = resolveArtworkIdentity(fixIcon, dynamicIslandData)
-        val artworkBitmap = identity?.let { artwork ->
-            MediaMetadataHelper.currentCachedArtwork(
-                context = fixIcon.context,
-                packageName = artwork.packageName,
-                expectedTitle = artwork.title,
+        // 首帧封面 Drawable 可能尚未就绪（原生封面采集延迟执行），有限次重试。
+        val attempts = artworkRetryCounts[fixIcon] ?: 0
+        if (attempts < MAX_ARTWORK_RETRIES) {
+            artworkRetryCounts[fixIcon] = attempts + 1
+            fixIcon.postDelayed(
+                { applyLinearGradientBackground(holder, fixIcon, dynamicIslandData) },
+                400L * (attempts + 1),
             )
-        }
-        IslandLinearGradientBackgroundApplier.apply(
-            owner = fixIcon,
-            artwork = fixIcon.drawable,
-            packageName = IslandProbeUtils.extractMediaIslandInfo(dynamicIslandData)?.packageName,
-            artworkBitmap = artworkBitmap,
-            host = resolveIslandHostContainer(holder, fixIcon),
-        )
-        if (artworkBitmap == null) {
-            // 首帧可能还没抓到封面（原生封面采集是延迟执行的），有限次重试直到拿到原始位图。
-            val attempts = artworkRetryCounts[fixIcon] ?: 0
-            if (attempts < MAX_ARTWORK_RETRIES) {
-                artworkRetryCounts[fixIcon] = attempts + 1
-                fixIcon.postDelayed(
-                    { applyLinearGradientBackground(holder, fixIcon, dynamicIslandData) },
-                    400L * (attempts + 1),
-                )
-            }
         } else {
             artworkRetryCounts.remove(fixIcon)
         }
@@ -786,7 +762,6 @@ internal object IslandAlbumCoverStyleHooker {
     private fun restoreAllGradientCovers() {
         gradientStates.values.toList().forEach { restoreGradientState(it) }
         gradientStates.clear()
-        IslandLinearGradientBackgroundApplier.restoreAll()
     }
 
     private fun restoreGradientState(state: GradientCoverState) {
