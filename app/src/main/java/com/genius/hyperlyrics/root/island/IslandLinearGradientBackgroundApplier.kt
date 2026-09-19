@@ -93,6 +93,9 @@ internal object IslandLinearGradientBackgroundApplier {
     /** 已输出过层级探针的范围（避免重复刷屏）。 */
     private val probedScopes = Collections.synchronizedSet(mutableSetOf<String>())
 
+    /** 每个封面视图上次见到的胶囊宽度，用于判定宽度是否已稳定（动态长度动画期间不落笔）。 */
+    private val lastCapsuleWidths = Collections.synchronizedMap(WeakHashMap<View, Int>())
+
     /** 封面视图 → 实际写入的岛分段视图，供样式切换时精确恢复。 */
     private val targetsByOwner = Collections.synchronizedMap(WeakHashMap<View, List<View>>())
 
@@ -187,6 +190,16 @@ internal object IslandLinearGradientBackgroundApplier {
             restoreAll()
             return
         }
+        // 岛是动态长度：宽度动画期间取到的 bounds 会偏移/未定，按它绘制会出现「封面往左跑」。
+        // 宽度变化时先记下并延迟一拍，只有连续两次拿到同一宽度（稳定）才落笔。
+        val currentWidth = capsuleWindow?.width()?.toInt() ?: 0
+        val previousWidth = synchronized(lastCapsuleWidths) { lastCapsuleWidths[owner] }
+        if (previousWidth != null && previousWidth != currentWidth && currentWidth > 0) {
+            synchronized(lastCapsuleWidths) { lastCapsuleWidths[owner] = currentWidth }
+            scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
+            return
+        }
+        synchronized(lastCapsuleWidths) { lastCapsuleWidths[owner] = currentWidth }
         // 探针范围取整棵岛窗口视图树：真实胶囊（532x116）不一定在 scope（容器）之内。
         logIslandHierarchyProbe(scope.rootView ?: scope)
         val first = targets.first()
