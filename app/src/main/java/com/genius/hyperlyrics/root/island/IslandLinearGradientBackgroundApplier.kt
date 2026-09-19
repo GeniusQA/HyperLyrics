@@ -50,6 +50,10 @@ internal object IslandLinearGradientBackgroundApplier {
     /** 绘制后的几何自愈校验延迟（系统界面重启或首帧布局未定时使用）。 */
     private val VERIFY_DELAYS_MS = longArrayOf(600L, 2_000L)
 
+    /** 可见胶囊的纵向范围（px，窗口坐标）：正常约 8~102，暂存位约 -2332，用于判定是否已归位。 */
+    private const val MIN_VISIBLE_TOP_PX = -120f
+    private const val MAX_VISIBLE_TOP_PX = 400f
+
     /**
      * 封面露出区域占岛宽的比例。
      *
@@ -127,7 +131,7 @@ internal object IslandLinearGradientBackgroundApplier {
         applyRetryCounts[owner] = attempts + 1
         owner.postDelayed(
             {
-                applyRetryCounts.remove(owner)
+                // 计数不清零：由成功绘制后统一清零，否则会退化成每 250ms 无限重试。
                 apply(owner, artwork, packageName, artworkBitmap, host, scheduleVerify = false)
             },
             250L * (attempts + 1),
@@ -186,6 +190,18 @@ internal object IslandLinearGradientBackgroundApplier {
         val rootWidth = scope.rootView?.width ?: 0
         if (rootWidth > 0 && capsuleWindow != null && capsuleWindow.width() > rootWidth * 0.9f) {
             logOnce("并集过宽疑似含整窗视图: ${capsuleWindow.toShortString()}")
+            return
+        }
+        // 岛重建/过渡期间视图会被临时挪到屏幕外暂存（实测 x≈973~1186、y≈-2332），
+        // 此时尺寸仍是正数会骗过布局检查，但绘制点落在屏幕外 → 看不见（表现为黑底）。
+        // 判定为布局未就绪，延迟重试到岛归位。
+        // 注意：暂存位 top 为负（≈-2332），归位后 top≈8~102；因此「未归位」= top < 下限(-120)，
+        // 写成 -MIN_VISIBLE_TOP_PX（=120）会把所有正常坐标也误判成离屏而无限重试，必须直接用 MIN_VISIBLE_TOP_PX。
+        if (capsuleWindow != null &&
+            (capsuleWindow.top < MIN_VISIBLE_TOP_PX || capsuleWindow.top > MAX_VISIBLE_TOP_PX)
+        ) {
+            logOnce("坐标在屏幕外，等待归位: ${capsuleWindow.toShortString()}")
+            scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
             return
         }
         // 展开态：探测到大卡片自身的背景视图（media_bg_view / MusicBgView，实测 1001x462）即判定展开，
@@ -279,6 +295,8 @@ internal object IslandLinearGradientBackgroundApplier {
                         "capsule=${capsuleWindow?.toShortString() ?: "view-bounds"}, " +
                         "package=$packageName",
                 )
+                // 绘制成功：清零重试计数，避免后续误判为仍在重试阶段。
+                applyRetryCounts.remove(owner)
                 // 自愈校验：系统界面重启/首帧布局往往还没最终定型，此刻画完会被缓存，
                 // 表现为封面偏移；绘制后按 0.6s / 2s 各校验一次，几何变化则自动重绘。
                 if (scheduleVerify) {
