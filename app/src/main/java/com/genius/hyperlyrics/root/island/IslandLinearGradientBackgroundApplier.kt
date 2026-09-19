@@ -194,12 +194,16 @@ internal object IslandLinearGradientBackgroundApplier {
         if (expandedCard != null && expandedCard.width > 0 && expandedCard.height > 0) {
             logOnce("展开态跳过绘制: card=${expandedCard.width}x${expandedCard.height}")
             restoreAll()
+            // 展开/过渡（切歌、播放器重启）时恢复原生背景后必须有补绘触发点，
+            // 否则岛收起后不会再绑定，封面会一直缺席（表现为只剩黑底，需重启系统界面才恢复）。
+            scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
             return
         }
         // 兜底：胶囊矩形异常高时同样视为展开态。
         if (capsuleWindow != null && capsuleWindow.height() > MAX_CAPSULE_HEIGHT_PX) {
             logOnce("展开态跳过绘制: ${capsuleWindow.toShortString()}")
             restoreAll()
+            scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
             return
         }
         // 岛是动态长度：宽度动画期间取到的 bounds 会偏移/未定，按它绘制会出现「封面往左跑」。
