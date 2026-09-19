@@ -386,8 +386,6 @@ internal object IslandAlbumCoverStyleHooker {
         }
         if (style != RootConstants.ISLAND_ALBUM_COVER_STYLE_LINEAR_GRADIENT) {
             IslandLinearGradientBackgroundApplier.restoreFor(fixIcon)
-            // 线性渐变复用内嵌封面控制器渲染，切换样式时一并恢复它接管的背景。
-            EmbeddedIslandAlbumCoverController.restoreForSource(fixIcon)
         }
 
         when (style) {

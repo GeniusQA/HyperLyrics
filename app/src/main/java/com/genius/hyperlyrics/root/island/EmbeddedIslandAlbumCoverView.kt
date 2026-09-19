@@ -5,7 +5,6 @@ import android.graphics.BlendMode
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
@@ -33,13 +32,6 @@ import kotlin.math.roundToInt
 
 /** Width of the unconditional terminal black mask, in physical pixels. */
 private const val TERMINAL_BLACK_MASK_WIDTH_PX = 10f
-
-/** 卡片式铺底：封面露出宽度占岛宽比例（胶囊比例下比焦点卡片更宽，否则只剩一条细边）。 */
-private const val CARD_COVER_WIDTH_FRACTION = 0.55f
-
-/** 卡片式铺底：底色亮于此亮度阈值时按 [CARD_LIGHT_DARKEN_FACTOR] 压暗，保证白字可读。 */
-private const val CARD_LIGHT_LUMINANCE_THRESHOLD = 140
-private const val CARD_LIGHT_DARKEN_FACTOR = 0.42f
 
 /** Small-island artwork child. The host is a FrameLayout, so this child never consumes width. */
 internal class EmbeddedIslandAlbumCoverView(
@@ -115,8 +107,6 @@ private class EmbeddedIslandAlbumCoverDrawable(
     private val originalBackground: Drawable?,
     artwork: EmbeddedIslandArtwork,
     private val density: Float,
-    /** true = 卡片式铺底（焦点通知同款：封面取色底色 + 封面右侧露出 + 三段渐变）。 */
-    private val cardFill: Boolean = false,
 ) : Drawable() {
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val transitionPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -189,11 +179,6 @@ private class EmbeddedIslandAlbumCoverDrawable(
         val width = bounds.width()
         val height = bounds.height()
         if (width <= 0 || height <= 0) return
-
-        if (cardFill) {
-            drawCardFill(canvas, source, bounds)
-            return
-        }
 
         val canvasLeft = bounds.left.toFloat()
         val canvasTop = bounds.top.toFloat()
@@ -407,105 +392,6 @@ private class EmbeddedIslandAlbumCoverDrawable(
      * those sources; the gradient already reaches >=97% black there, so the visual delta is
      * imperceptible.
      */
-    /**
-     * 卡片式封面铺底（对齐焦点通知「线性渐变」卡片）：
-     * 先铺封面取色底色，再让封面按比例从右侧露出，最后用「底色不透明 → 半透明 → 近乎透明」
-     * 的横向渐变融合封面边缘；整体按胶囊圆角裁剪，保证只在胶囊内可见。
-     */
-    private fun drawCardFill(canvas: Canvas, source: Bitmap, bounds: Rect) {
-        val width = bounds.width()
-        val height = bounds.height()
-        if (width <= 0 || height <= 0) return
-        val base = cardBaseColor(source)
-        val radius = height / 2f
-        val left = bounds.left.toFloat()
-        val top = bounds.top.toFloat()
-        val right = bounds.right.toFloat()
-        val bottom = bounds.bottom.toFloat()
-        canvas.save()
-        clipPath.reset()
-        clipPath.addRoundRect(RectF(left, top, right, bottom), radius, radius, Path.Direction.CW)
-        canvas.clipPath(clipPath)
-        canvas.drawColor(base)
-
-        val coverWidth = (width * CARD_COVER_WIDTH_FRACTION).toInt()
-            .coerceIn((height * 1.25f).toInt().coerceAtLeast(1), width)
-        val coverLeft = right - coverWidth
-        val crop = IslandGradientCoverLayout.centerCropWindow(
-            sourceWidth = source.width,
-            sourceHeight = source.height,
-            targetWidth = coverWidth.toFloat(),
-            targetHeight = height.toFloat(),
-        )
-        if (crop != null) {
-            val cropLeft = kotlin.math.floor(crop.left).toInt().coerceIn(0, source.width - 1)
-            val cropTop = kotlin.math.floor(crop.top).toInt().coerceIn(0, source.height - 1)
-            val cropRight = kotlin.math.ceil(crop.right).toInt().coerceIn(cropLeft + 1, source.width)
-            val cropBottom =
-                kotlin.math.ceil(crop.bottom).toInt().coerceIn(cropTop + 1, source.height)
-            canvas.drawBitmap(
-                source,
-                Rect(cropLeft, cropTop, cropRight, cropBottom),
-                RectF(coverLeft, top, right, bottom),
-                bitmapPaint,
-            )
-        }
-
-        val opaque = Color.argb(255, Color.red(base), Color.green(base), Color.blue(base))
-        val rgb = opaque and 0x00FFFFFF
-        val shader = LinearGradient(
-            coverLeft,
-            top,
-            right,
-            top,
-            intArrayOf(opaque, rgb or (144 shl 24), rgb or (24 shl 24)),
-            floatArrayOf(0f, 0.45f, 1f),
-            Shader.TileMode.CLAMP,
-        )
-        canvas.drawRect(
-            coverLeft,
-            top,
-            right,
-            bottom,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = shader },
-        )
-        canvas.restore()
-    }
-
-    /** 卡片式铺底底色：封面稀疏采样平均色，过亮时压暗，保证白色歌词可读。 */
-    private fun cardBaseColor(source: Bitmap): Int {
-        val stepX = (source.width / 8).coerceAtLeast(1)
-        val stepY = (source.height / 8).coerceAtLeast(1)
-        var red = 0L
-        var green = 0L
-        var blue = 0L
-        var count = 0
-        var y = 0
-        while (y < source.height) {
-            var x = 0
-            while (x < source.width) {
-                val pixel = source.getPixel(x, y)
-                red += Color.red(pixel)
-                green += Color.green(pixel)
-                blue += Color.blue(pixel)
-                count += 1
-                x += stepX
-            }
-            y += stepY
-        }
-        if (count == 0) return Color.BLACK
-        var r = (red / count).toInt()
-        var g = (green / count).toInt()
-        var b = (blue / count).toInt()
-        val luminance = (r * 299 + g * 587 + b * 114) / 1000
-        if (luminance > CARD_LIGHT_LUMINANCE_THRESHOLD) {
-            r = (r * CARD_LIGHT_DARKEN_FACTOR).toInt()
-            g = (g * CARD_LIGHT_DARKEN_FACTOR).toInt()
-            b = (b * CARD_LIGHT_DARKEN_FACTOR).toInt()
-        }
-        return Color.argb(255, r, g, b)
-    }
-
     private fun drawTerminalBlackMask(canvas: Canvas) {
         val width = bounds.width()
         val height = bounds.height()
@@ -1121,8 +1007,6 @@ internal object EmbeddedIslandAlbumCoverController {
         val cover: EmbeddedIslandAlbumCoverDrawable,
         var source: WeakReference<ImageView>? = null,
         var fingerprint: Int,
-        /** 当前封面是否使用卡片式铺底（模式变化时需要重建 Drawable）。 */
-        var cardFill: Boolean = false,
     )
 
     private val smallStates = WeakHashMap<FrameLayout, SmallState>()
@@ -1145,17 +1029,12 @@ internal object EmbeddedIslandAlbumCoverController {
 
     fun isPlaybackActive(): Boolean = playbackActive
 
-    fun apply(
-        host: ViewGroup,
-        source: ImageView,
-        smallIsland: Boolean,
-        cardFill: Boolean = false,
-    ): Boolean {
+    fun apply(host: ViewGroup, source: ImageView, smallIsland: Boolean): Boolean {
         val artwork = artworkFrom(source) ?: return false
         val applied = if (smallIsland) {
             applySmall(host, source, artwork)
         } else {
-            applyBig(host, source, artwork, cardFill)
+            applyBig(host, source, artwork)
         }
         if (!applied) {
             if (artwork.owned && !artwork.bitmap.isRecycled) artwork.bitmap.recycle()
@@ -1165,11 +1044,7 @@ internal object EmbeddedIslandAlbumCoverController {
         synchronized(originalVisibility) {
             originalVisibility.putIfAbsent(source, source.visibility)
         }
-        // 卡片式铺底时保留原生封面缩略图（背景铺底 + 左侧缩略图，与设计稿一致）；
-        // 其它模式沿用「隐藏原生封面、由背景承载封面」的既有行为。
-        if (!cardFill) {
-            source.visibility = View.INVISIBLE
-        }
+        source.visibility = View.INVISIBLE
         return true
     }
 
@@ -1272,24 +1147,18 @@ internal object EmbeddedIslandAlbumCoverController {
         host: ViewGroup,
         source: ImageView,
         artwork: EmbeddedIslandArtwork,
-        cardFill: Boolean,
     ): Boolean {
         val target = findAreaLeft(host) ?: return false
         removeOtherStatesForSource(source, keepSmall = null, keepBig = target)
         var created = false
         val state = synchronized(bigStates) {
-            val existing = bigStates[target]
-            if (existing != null && existing.cardFill == cardFill) {
-                existing
-            } else {
+            bigStates[target] ?: run {
                 created = true
-                if (existing != null) removeOtherStatesForSource(source, keepSmall = null, keepBig = null)
-                val original = existing?.originalBackground ?: target.background
+                val original = target.background
                 val cover = EmbeddedIslandAlbumCoverDrawable(
                     originalBackground = original,
                     artwork = artwork,
                     density = target.resources.displayMetrics.density,
-                    cardFill = cardFill,
                 )
                 target.background = cover
                 BigState(
@@ -1297,7 +1166,6 @@ internal object EmbeddedIslandAlbumCoverController {
                     originalBackground = original,
                     cover = cover,
                     fingerprint = artwork.fingerprint,
-                    cardFill = cardFill,
                 ).also { bigStates[target] = it }
             }
         }
