@@ -41,8 +41,8 @@ internal object IslandLinearGradientBackgroundApplier {
     /** 视图树搜索上限，避免异常层级导致遍历失控。 */
     private const val MAX_SEARCH_NODES = 512
 
-    /** 岛重建/过渡期间目标暂不可用时的最大重试次数（间隔 250ms 递增）。 */
-    private const val MAX_APPLY_RETRIES = 6
+    /** 岛重建/过渡期间目标暂不可用时的最大重试次数（间隔 250ms 递增，覆盖过渡+布局耗时）。 */
+    private const val MAX_APPLY_RETRIES = 24
 
     /**
      * 封面露出区域占岛宽的比例。
@@ -155,6 +155,12 @@ internal object IslandLinearGradientBackgroundApplier {
         // 摘要态可能是「左右两个独立胶囊」（媒体胶囊 + 歌词胶囊，中间有间隙）。此时必须以
         // 所有胶囊的并集作为封面映射基准，各胶囊只画自己那一段，视觉上才是一条连续封面；
         // 若按单个胶囊映射，每个胶囊都会被塞进一份完整封面，看起来像被拆成好几个。
+        // 布局未完成时（探针实测过渡期各分段为 0x0、坐标在屏幕外），并集会被算成残缺的一块，
+        // 且缓存命中后再也不重算，导致封面一直只铺一小块。此时不绘制，等布局完成再重试。
+        if (targets.any { it.width <= 0 || it.height <= 0 }) {
+            scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
+            return
+        }
         val capsuleWindow = unionWindowRect(targets)
             ?: resolveCapsuleWindowRect(scope, owner)
         // 探针范围取整棵岛窗口视图树：真实胶囊（532x116）不一定在 scope（容器）之内。
