@@ -67,6 +67,11 @@ internal data class IslandSlotRuntimeConfig(
     val wordMotionCjkWave: Float,
     val wordMotionLatinLift: Float,
     val wordMotionLatinWave: Float,
+    /**
+     * 「左侧=无内容 + 右侧=歌词」触发的强制分离模式：
+     * 左右槽都注入歌词，且分割点取「左侧区域实测宽度」，让歌词从左侧续接到右侧。
+     */
+    val fullWidthSplit: Boolean = false,
 ) {
     val translationDisplay: Boolean
         get() = translationDisplayMode != RootConstants.TRANSLATION_PRONUNCIATION_DISPLAY_OFF
@@ -102,6 +107,7 @@ internal data class IslandSlotRuntimeConfig(
 
     val styleSignature: String = listOf(
         activeMode,
+        fullWidthSplit,
         textSizeSp,
         dynamicWidthEnabled,
         textSizeRatio,
@@ -321,8 +327,8 @@ internal data class IslandSlotRuntimeConfig(
             // 使用 SpaceGateRichLyricLineView 按「左右虚拟总宽」渲染一条歌词横跨整条胶囊。
             // 这是系统自带的绕挖孔方案（纯绘制层、不改测量），避免此前 translationX
             // 绘制位移方案的抖动与偶发不显示。
-            val activeMode =
-                if (storedLeftContent == 0 && storedRightContent == 7) 1 else storedActiveMode
+            val fullWidthSplit = storedLeftContent == 0 && storedRightContent == 7
+            val activeMode = if (fullWidthSplit) 1 else storedActiveMode
             val nextSongDurationSeconds = prefs.getInt(
                 RootConstants.KEY_HOOK_ISLAND_NEXT_SONG_DURATION,
                 RootConstants.DEFAULT_HOOK_ISLAND_NEXT_SONG_DURATION
@@ -443,7 +449,8 @@ internal data class IslandSlotRuntimeConfig(
                 wordMotionCjkLift = prefs.getFloat(RootConstants.KEY_HOOK_WORD_MOTION_CJK_LIFT, RootConstants.DEFAULT_HOOK_WORD_MOTION_CJK_LIFT),
                 wordMotionCjkWave = prefs.getFloat(RootConstants.KEY_HOOK_WORD_MOTION_CJK_WAVE, RootConstants.DEFAULT_HOOK_WORD_MOTION_CJK_WAVE),
                 wordMotionLatinLift = prefs.getFloat(RootConstants.KEY_HOOK_WORD_MOTION_LATIN_LIFT, RootConstants.DEFAULT_HOOK_WORD_MOTION_LATIN_LIFT),
-                wordMotionLatinWave = prefs.getFloat(RootConstants.KEY_HOOK_WORD_MOTION_LATIN_WAVE, RootConstants.DEFAULT_HOOK_WORD_MOTION_LATIN_WAVE)
+                wordMotionLatinWave = prefs.getFloat(RootConstants.KEY_HOOK_WORD_MOTION_LATIN_WAVE, RootConstants.DEFAULT_HOOK_WORD_MOTION_LATIN_WAVE),
+                fullWidthSplit = fullWidthSplit
             )
         }
 
