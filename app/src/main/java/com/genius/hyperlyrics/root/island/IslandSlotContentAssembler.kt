@@ -502,14 +502,18 @@ internal object IslandSlotContentAssembler {
         if (rawLine.text.isNullOrEmpty()) return rawLine
 
         val density = view.resources.displayMetrics.density
+        val settingLeftMaxPx = config.leftMaxWidthDp * density
         val leftMaxPx = if (config.fullWidthSplit) {
-            // 「左侧=无内容 + 右侧=歌词」强制分离：分割点取「左侧区域真实宽度」，
+            // 「左侧=无内容 + 右侧=歌词」强制分离：分割点取「左侧实际可用宽度」，
             // 让左侧排不下的部分自然接到右侧继续显示，一条歌词横跨整条胶囊。
             // 若取用户的「左侧内容长度」设置（常见为 500dp），几乎不会触发分割，
             // 整行都会留在左侧、右侧为空，看不出续接效果。
-            resolveLeftAreaWidthPx(view) ?: (config.leftMaxWidthDp * density)
+            // 但「左侧内容长度」同时是左槽 wrapper 的宽度上限（IslandLyricTextInjector.updateWrapper），
+            // 分割点超过上限会让左半句在更窄的盒子里被裁切/滚动，因此取两者较小值：
+            // 设为 ≥ 实测可用宽度时即等于「按真机分辨率自适应」，设得更小则是硬性限制。
+            minOf(resolveLeftAvailableWidthPx(view) ?: settingLeftMaxPx, settingLeftMaxPx)
         } else {
-            config.leftMaxWidthDp * density
+            settingLeftMaxPx
         }
         val centerCurrentLine = shouldCenterLine(config, rawLine, isLeft)
         val textPaint = TextPaint().apply {
@@ -531,11 +535,24 @@ internal object IslandSlotContentAssembler {
         return if (isLeft) splitResult.left else splitResult.right
     }
 
-    /** 左侧区域 `area_left` 的实测宽度（px）；取不到或未布局时返回 null。 */
-    private fun resolveLeftAreaWidthPx(view: View): Float? {
+    /**
+     * 左侧「可用于歌词的实测宽度」（px）：`area_left` 实测宽度减去原生专辑 logo 占位。
+     *
+     * 左侧内容为「无内容」时系统仍会展示专辑 logo（`island_container_module_icon`，
+     * 是否显示由「音频封面」开关决定），它与我们的歌词共用 `area_left` 宽度；
+     * 不减掉这部分会让分割点大于实际可用空间，左半句被裁切/滚动。
+     * 取不到或尚未布局时返回 null（调用方回退到用户设置的「左侧内容长度」）。
+     */
+    private fun resolveLeftAvailableWidthPx(view: View): Float? {
         val root = view.rootView as? ViewGroup ?: return null
         val areaLeft = IslandViewHelper.findViewByName(root, "area_left") ?: return null
-        return areaLeft.width.takeIf { it > 0 }?.toFloat()
+        val areaWidth = areaLeft.width.takeIf { it > 0 } ?: return null
+        val leftParent = IslandViewHelper.findViewByName(root, IslandProbeUtils.LEFT_PARENT_NAME) as? ViewGroup
+        val iconWidth = leftParent
+            ?.let { IslandViewHelper.findViewByName(it, "island_container_module_icon") }
+            ?.takeIf { it.isShown && it.width > 0 }
+            ?.width ?: 0
+        return (areaWidth - iconWidth).takeIf { it > 0 }?.toFloat()
     }
 
     fun processedRawLine(
