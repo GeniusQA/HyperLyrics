@@ -26,6 +26,7 @@ import com.genius.hyperlyrics.root.HookEntry
 import com.genius.hyperlyrics.root.SystemUiEnhancementGate
 import com.genius.hyperlyrics.root.island.IslandAlbumCoverStyleHooker
 import com.genius.hyperlyrics.root.island.IslandProbeUtils
+import com.genius.hyperlyrics.root.island.IslandViewHelper
 import com.genius.hyperlyrics.root.mediacard.MediaAmbientFlowPalette
 import com.genius.hyperlyrics.root.mediacard.MediaAmbientFlowPaletteExtractor
 import com.genius.hyperlyrics.root.mediacard.buildMediaAmbientFlowPalette
@@ -449,7 +450,9 @@ object IslandExpandedMediaAmbientFlowHooker {
             val view = chain.thisObject as? View
             // 展开与收起都同步一次摘要胶囊宽度：展开态恢复系统原生短胶囊、收起态恢复歌词长胶囊。
             // 放在增强开关判定之前，保证只开「超级岛歌词」而未开增强时同样生效。
-            view?.let(IslandViewHelper::scheduleSummaryWidthSync)
+            if (view != null) {
+                IslandViewHelper.scheduleSummaryWidthSync(view)
+            }
             if (!SystemUiEnhancementGate.isEnabled()) return result
             val visibility = (chain.args.getOrNull(1) as? Number)?.toInt()
             if (visibility == View.VISIBLE && view?.isShown == true) {
