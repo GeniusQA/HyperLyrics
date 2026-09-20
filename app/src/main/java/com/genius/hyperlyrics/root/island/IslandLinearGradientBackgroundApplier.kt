@@ -204,10 +204,12 @@ internal object IslandLinearGradientBackgroundApplier {
             scheduleApplyRetry(owner, artwork, packageName, artworkBitmap, host)
             return
         }
-        // 展开态：探测到大卡片自身的背景视图（media_bg_view / MusicBgView，实测 1001x462）即判定展开，
-        // 此时恢复原生背景、不绘制，保证顶部摘要胶囊保持原生长度；收起后下次绑定自动恢复封面。
-        val expandedCard = findViewByResourceName(scope, "media_bg_view")
-        if (expandedCard != null && expandedCard.width > 0 && expandedCard.height > 0) {
+        // 展开态：探测到大卡片自身的背景视图（media_bg_view / MusicBgView）**确实铺在屏幕上**才判定展开。
+        // 关键根因：该视图在折叠态下仍保留测量尺寸（系统日志实测恒为 1001x462，仅 visibility 在 0/4 间切换、
+        // isShown 随之翻转），仅凭 width/height>0 会把折叠态误判成展开 → restoreAll() 恢复原生背景 →
+        // 岛一直显示原生/黑底、封面渐变永不出现（本机实测）。因此追加 isShown + 屏幕可见性判定。
+        val expandedCard = findShownExpandedCard(scope)
+        if (expandedCard != null) {
             logOnce("展开态跳过绘制: card=${expandedCard.width}x${expandedCard.height}")
             restoreAll()
             // 展开/过渡（切歌、播放器重启）时恢复原生背景后必须有补绘触发点，
@@ -695,6 +697,41 @@ internal object IslandLinearGradientBackgroundApplier {
             windowRect.right - location[0],
             windowRect.bottom - location[1],
         )
+    }
+
+    /**
+     * 查找「真正可见的」展开态大卡片背景视图（media_bg_view / MusicBgView）。
+     *
+     * 折叠态下该视图可能仍保留测量尺寸（实测恒为 1001x462）但不可见，必须用 isShown +
+     * getGlobalVisibleRect 过滤，否则会把折叠态误判成展开而恢复原生背景（封面渐变不显示）。
+     * 遍历所有同名视图：只要有一个真正可见才视为展开；全部不可见则返回 null（按折叠态绘制）。
+     */
+    private fun findShownExpandedCard(scope: View): View? {
+        val queue = ArrayDeque<View>()
+        queue.addLast(scope)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < MAX_SEARCH_NODES) {
+            val current = queue.removeFirst()
+            visited += 1
+            if (resourceName(current) == "media_bg_view" && isCardVisibleOnScreen(current)) {
+                return current
+            }
+            if (current is ViewGroup) {
+                for (index in 0 until current.childCount) {
+                    queue.addLast(current.getChildAt(index))
+                }
+            }
+        }
+        return null
+    }
+
+    /** 展开态大卡片是否真正可见：视图处于 shown 状态，且屏幕上露出高度不低于自身一半。 */
+    private fun isCardVisibleOnScreen(view: View): Boolean {
+        if (!view.isShown) return false
+        if (view.width <= 0 || view.height <= 0) return false
+        val visible = Rect()
+        if (!view.getGlobalVisibleRect(visible)) return false
+        return visible.height() >= view.height * 0.5f
     }
 
     /** 按资源名在子树内查找视图（广度优先，命中即返回）。 */
