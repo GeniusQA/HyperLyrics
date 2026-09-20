@@ -52,7 +52,13 @@ internal object IslandHostFacade {
         IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.LEFT_PARENT_NAME, IslandProbeUtils.TEXT_CONTAINER_NAME, true)
         IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.RIGHT_PARENT_NAME, IslandProbeUtils.TEXT_CONTAINER_NAME, true)
 
-        if (!showAlbum || leftEmpty) {
+        if (showAlbum) {
+            // 专辑 logo 可见：必须保留系统给文本容器留的原生边距，否则文本容器会与图标同一起点、
+            // 注入的歌词直接压在专辑 logo 上（本机实测：图标 61x55@437 与文本容器 207x90@437 同 x）。
+            // 旧逻辑因为会把图标一并隐藏，所以顺手清掉了边距；图标恢复后必须改回原生边距。
+            IslandViewHelper.restoreTextContainerMargins(rootView, IslandProbeUtils.LEFT_PARENT_NAME)
+        } else {
+            // 图标隐藏：清掉文本容器两侧边距，让歌词尽量占满左侧。
             IslandViewHelper.clearTextContainerMargin(rootView, IslandProbeUtils.LEFT_PARENT_NAME, clearStart = true, clearEnd = leftEmpty)
         }
         if (!showRhythm) {

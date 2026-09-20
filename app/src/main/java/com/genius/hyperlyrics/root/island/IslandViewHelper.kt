@@ -249,7 +249,12 @@ object IslandViewHelper {
         return null
     }
 
-    private fun restoreTextContainerMargins(rootView: ViewGroup, parentName: String) {
+    /**
+     * 把文本容器边距恢复为系统原生值（仅当本进程内曾用 [clearTextContainerMargin] 记录过快照时生效）。
+     *
+     * 左侧图标可见时必须恢复，否则文本容器会与图标同起点、注入内容压在图标上。
+     */
+    fun restoreTextContainerMargins(rootView: ViewGroup, parentName: String) {
         val parent = findViewByName(rootView, parentName) as? ViewGroup ?: return
         val container = findViewByName(parent, "island_container_module_text") ?: return
         val snapshot = originalMargins[container] ?: return
