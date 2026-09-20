@@ -83,7 +83,7 @@ internal object IslandHostFacade {
             val areaCutout = IslandViewHelper.findViewByName(rootView, "area_cutout")
             val areaRight = IslandViewHelper.findViewByName(rootView, "area_right")
             val rightModule = IslandViewHelper.findViewByName(rootView, IslandProbeUtils.RIGHT_PARENT_NAME)
-            val textContainer = rightModule?.let {
+            val textContainer = (rightModule as? ViewGroup)?.let {
                 IslandViewHelper.findViewByName(it, "island_container_module_text")
             }
             val wrapper = rootView.findViewWithTag<View>(IslandProbeUtils.RIGHT_TEST_WRAPPER_TAG)
