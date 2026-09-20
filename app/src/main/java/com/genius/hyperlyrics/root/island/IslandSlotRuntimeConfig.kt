@@ -302,11 +302,27 @@ internal data class IslandSlotRuntimeConfig(
         }
 
         fun from(prefs: SharedPreferences): IslandSlotRuntimeConfig {
-            val activeMode = runtimeInt(
+            val storedActiveMode = runtimeInt(
                 prefs,
                 RootConstants.KEY_HOOK_LYRIC_MODE,
                 RootConstants.DEFAULT_HOOK_LYRIC_MODE
             )
+            val storedLeftContent = runtimeInt(
+                prefs,
+                RootConstants.KEY_HOOK_ISLAND_CONTENT_LEFT,
+                RootConstants.DEFAULT_HOOK_ISLAND_CONTENT_LEFT
+            )
+            val storedRightContent = runtimeInt(
+                prefs,
+                RootConstants.KEY_HOOK_ISLAND_CONTENT_RIGHT,
+                RootConstants.DEFAULT_HOOK_ISLAND_CONTENT_RIGHT
+            )
+            // 「左侧=无内容 + 右侧=歌词」→ 按「分离歌词」逻辑处理：左右槽都注入歌词，
+            // 使用 SpaceGateRichLyricLineView 按「左右虚拟总宽」渲染一条歌词横跨整条胶囊。
+            // 这是系统自带的绕挖孔方案（纯绘制层、不改测量），避免此前 translationX
+            // 绘制位移方案的抖动与偶发不显示。
+            val activeMode =
+                if (storedLeftContent == 0 && storedRightContent == 7) 1 else storedActiveMode
             val nextSongDurationSeconds = prefs.getInt(
                 RootConstants.KEY_HOOK_ISLAND_NEXT_SONG_DURATION,
                 RootConstants.DEFAULT_HOOK_ISLAND_NEXT_SONG_DURATION
@@ -317,16 +333,8 @@ internal data class IslandSlotRuntimeConfig(
             )
             return IslandSlotRuntimeConfig(
                 activeMode = activeMode,
-                leftMode = if (activeMode == 1) 7 else runtimeInt(
-                    prefs,
-                    RootConstants.KEY_HOOK_ISLAND_CONTENT_LEFT,
-                    RootConstants.DEFAULT_HOOK_ISLAND_CONTENT_LEFT
-                ),
-                rightMode = if (activeMode == 1) 7 else runtimeInt(
-                    prefs,
-                    RootConstants.KEY_HOOK_ISLAND_CONTENT_RIGHT,
-                    RootConstants.DEFAULT_HOOK_ISLAND_CONTENT_RIGHT
-                ),
+                leftMode = if (activeMode == 1) 7 else storedLeftContent,
+                rightMode = if (activeMode == 1) 7 else storedRightContent,
                 showAlbum = prefs.getBoolean(RootConstants.KEY_HOOK_ISLAND_LEFT_ALBUM, RootConstants.DEFAULT_HOOK_ISLAND_LEFT_ALBUM),
                 showRhythm = prefs.getBoolean(RootConstants.KEY_HOOK_ISLAND_RIGHT_ICON, RootConstants.DEFAULT_HOOK_ISLAND_RIGHT_ICON),
                 leftPaddingLeftDp = prefs.getInt(RootConstants.KEY_HOOK_ISLAND_LEFT_PADDING_LEFT, RootConstants.DEFAULT_HOOK_ISLAND_LEFT_PADDING_LEFT),
