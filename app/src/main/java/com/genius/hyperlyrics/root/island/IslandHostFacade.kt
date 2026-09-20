@@ -56,7 +56,9 @@ internal object IslandHostFacade {
             RootConstants.KEY_HOOK_ISLAND_CONTENT_LEFT,
             RootConstants.DEFAULT_HOOK_ISLAND_CONTENT_LEFT,
         )
-        IslandViewHelper.applySingleSideFullWidth(rootView, leftContent == 0)
+        val singleSideFullWidth = leftContent == 0
+        IslandViewHelper.markSingleSideFullWidthDesired(rootView, singleSideFullWidth)
+        IslandViewHelper.applySingleSideFullWidth(rootView, singleSideFullWidth)
     }
 
     fun clearAndRefresh(rootView: ViewGroup) {
