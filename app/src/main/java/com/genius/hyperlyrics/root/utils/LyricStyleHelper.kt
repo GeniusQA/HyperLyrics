@@ -274,9 +274,32 @@ object LyricStyleHelper {
             fallbackReason = FallbackReason.SETTING_DISABLED
         }
 
+        // 封面铺满岛背景（渐变封面 / 线性渐变）时，背景取自封面、颜色不可预知：即使字体颜色选项为
+        // 「封面色」，也可能因与封面同色而看不清（实测粉字压粉底）。这里对**最终**文字色做一次
+        // 「可读性救援」，保证任意字体颜色选项（封面色/封面渐变色/莫奈/自定义/默认）都尽量清晰可读。
+        val readabilityAnchors = if (gradientCoverBackgroundActive && albumBitmap != null) {
+            CoverGradientTextContrastOptimizer.sampleBackgroundAnchors(albumBitmap)
+        } else {
+            null
+        }
+        val effectivePrimaryColors = readabilityAnchors?.let {
+            CoverGradientTextContrastOptimizer.ensureReadable(primaryColors, it)
+        } ?: primaryColors
+        val effectiveHighlightColors = readabilityAnchors?.let {
+            CoverGradientTextContrastOptimizer.ensureReadable(hlColors, it)
+        } ?: hlColors
+        val effectiveBgColors = if (readabilityAnchors != null) {
+            // 未唱到部分沿用主色的 75% 透明度，保持与主句的层次。
+            effectivePrimaryColors.map { color ->
+                Color.argb(191, Color.red(color), Color.green(color), Color.blue(color))
+            }.toIntArray()
+        } else {
+            bgColors
+        }
+
         val style = LyricViewStyle(
             primary = TextLook(
-                color = primaryColors,
+                color = effectivePrimaryColors,
                 size = primarySizePx,
                 typeface = baseTf,
                 narrowTypeface = narrowTf,
@@ -284,14 +307,14 @@ object LyricStyleHelper {
                 relativeHighlight = prefs.getBoolean(RootConstants.KEY_HOOK_SYLLABLE_HIGHLIGHT, RootConstants.DEFAULT_HOOK_SYLLABLE_HIGHLIGHT),
             ),
             secondary = TextLook(
-                color = if (showSecondary) primaryColors else intArrayOf(Color.TRANSPARENT),
+                color = if (showSecondary) effectivePrimaryColors else intArrayOf(Color.TRANSPARENT),
                 size = if (showSecondary) primarySizePx * textSizeRatio else 0f,
                 typeface = baseTf,
                 narrowTypeface = narrowTf,
             ),
             highlight = Highlight(
-                background = bgColors,
-                foreground = hlColors,
+                background = effectiveBgColors,
+                foreground = effectiveHighlightColors,
             ),
             marquee = Marquee(
                 speed = if (isMarqueeEnabled) marqueeSpeed.toFloat() else 0f,
@@ -325,9 +348,9 @@ object LyricStyleHelper {
                 artworkSignature = resolvedPalette?.artworkSignature,
                 contrastAdjustment = contrastAdjustment,
                 fallbackReason = fallbackReason,
-                primaryColors = primaryColors,
-                backgroundColors = bgColors,
-                highlightColors = hlColors
+                primaryColors = effectivePrimaryColors,
+                backgroundColors = effectiveBgColors,
+                highlightColors = effectiveHighlightColors
             )
         )
     }
