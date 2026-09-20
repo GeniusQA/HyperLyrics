@@ -446,9 +446,12 @@ object IslandExpandedMediaAmbientFlowHooker {
     internal class ExpandedVisibilityHook : Hooker {
         override fun intercept(chain: Chain): Any? {
             val result = chain.proceed()
+            val view = chain.thisObject as? View
+            // 展开与收起都同步一次摘要胶囊宽度：展开态恢复系统原生短胶囊、收起态恢复歌词长胶囊。
+            // 放在增强开关判定之前，保证只开「超级岛歌词」而未开增强时同样生效。
+            view?.let(IslandViewHelper::scheduleSummaryWidthSync)
             if (!SystemUiEnhancementGate.isEnabled()) return result
             val visibility = (chain.args.getOrNull(1) as? Number)?.toInt()
-            val view = chain.thisObject as? View
             if (visibility == View.VISIBLE && view?.isShown == true) {
                 IslandExpandedMediaBackgroundController.onExpandedViewShown(view)
             }

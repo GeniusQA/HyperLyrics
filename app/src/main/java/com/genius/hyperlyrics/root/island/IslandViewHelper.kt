@@ -1,6 +1,7 @@
 package com.genius.hyperlyrics.root.island
 
 import android.annotation.SuppressLint
+import android.graphics.Rect
 import android.view.View
 import android.view.ViewGroup
 import com.genius.hyperlyrics.common.RootConstants
@@ -16,6 +17,12 @@ import java.util.WeakHashMap
 object IslandViewHelper {
 
     private val SYSTEMUI_PKG_NAMES = arrayOf("miui.systemui.plugin", "com.android.systemui")
+
+    /** 展开态探测的视图树遍历上限。 */
+    private const val MAX_EXPANDED_SEARCH_NODES = 512
+
+    /** 摘要胶囊宽度同步的延迟点（展开/收起后布局未必立刻完成）。 */
+    private val SUMMARY_SYNC_DELAYS_MS = longArrayOf(0L, 120L, 300L, 700L)
     private val originalMargins = WeakHashMap<View, MarginSnapshot>()
     private val isRelayouting = ThreadLocal.withInitial { false }
 
@@ -183,6 +190,50 @@ object IslandViewHelper {
     }
 
     /**
+     * 超级岛当前是否处于「展开态」（媒体大卡片真正铺在屏幕上）。
+     *
+     * 依据 `media_bg_view`(MusicBgView) 的 isShown + [View.getGlobalVisibleRect] 判断：
+     * 折叠态下该视图仍保留测量尺寸（系统 onVisibilityChanged 实测 visibility 在 0/4 间切换、
+     * isShown 随之翻转），只按 width/height>0 会把折叠态误判为展开，因此必须叠加可见性判定。
+     *
+     * 用途：展开大窗时顶部摘要胶囊应恢复系统原生短胶囊长度（展开态不注入歌词），
+     * 收起后再注入歌词恢复歌词长胶囊。
+     */
+    fun isIslandExpandedOnScreen(root: View): Boolean {
+        val scope = root.rootView ?: root
+        val queue = ArrayDeque<View>()
+        queue.addLast(scope)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < MAX_EXPANDED_SEARCH_NODES) {
+            val current = queue.removeFirst()
+            visited += 1
+            if (resourceEntryName(current) == "media_bg_view" && isViewVisibleOnScreen(current)) {
+                return true
+            }
+            if (current is ViewGroup) {
+                for (index in 0 until current.childCount) {
+                    queue.addLast(current.getChildAt(index))
+                }
+            }
+        }
+        return false
+    }
+
+    /** 视图是否真正可见：处于 shown 状态，且屏幕上露出高度不低于自身一半。 */
+    private fun isViewVisibleOnScreen(view: View): Boolean {
+        if (!view.isShown || view.width <= 0 || view.height <= 0) return false
+        val visible = Rect()
+        if (!view.getGlobalVisibleRect(visible)) return false
+        return visible.height() >= view.height * 0.5f
+    }
+
+    @SuppressLint("DiscouragedApi")
+    private fun resourceEntryName(view: View): String? {
+        if (view.id == View.NO_ID) return null
+        return runCatching { view.resources.getResourceEntryName(view.id) }.getOrNull()
+    }
+
+    /**
      * 从注入的槽位视图向上查找超级岛内容视图并触发布局刷新。
      * 用于换句/预览提升动画把内容更新延迟落地后的第二次岛宽重算——
      * 否则内容应用返回时的立即测量只能量到上一行宽度。
@@ -200,6 +251,23 @@ object IslandViewHelper {
                 return
             }
             parent = parent.parent
+        }
+    }
+
+    /**
+     * 超级岛展开/收起后延迟触发若干次摘要胶囊宽度重算。
+     *
+     * 展开态下 [IslandWidthHooker.CalculateWidthHook] 会清空注入、按原生内容算出系统原生短胶囊；
+     * 收起态下会重新注入歌词、恢复歌词长胶囊。`onVisibilityChanged` 触发时布局往往尚未完成，
+     * 因此按多个延迟点重复触发（幂等，可安全重入）。
+     */
+    fun scheduleSummaryWidthSync(anchor: View) {
+        SUMMARY_SYNC_DELAYS_MS.forEach { delay ->
+            if (delay <= 0L) {
+                triggerSystemRelayoutForDescendant(anchor)
+            } else {
+                anchor.postDelayed({ triggerSystemRelayoutForDescendant(anchor) }, delay)
+            }
         }
     }
 
