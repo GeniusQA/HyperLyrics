@@ -129,6 +129,27 @@ object RichLyricLineSplitter {
             rightSecText = null
         }
 
+        // 分割 roma（罗马音/发音行）：它同样会被当作副行渲染（LyricLineAssembler 的
+        // SecondaryChoice.Roma，见 LyricLineAssembler.kt:160-191），此前切行时直接写成
+        // roma = null，导致分离歌词模式下只要整行溢出、被当作副行的「发音」就会整段消失。
+        // 这里按与 translation/secondary 相同的方式，用同一个副行 Paint 独立算出分割点。
+        val romaSplitIndex = computeRomaSplitIndex(line, secondaryPaint, maxWidthPx, centerLyric)
+        val romaText = line.roma
+        val leftRomaText: String?
+        val rightRomaText: String?
+        if (romaSplitIndex != null && !romaText.isNullOrEmpty()) {
+            val index = romaSplitIndex.coerceAtMost(romaText.length)
+            leftRomaText = romaText.substring(0, index).takeIf { it.isNotEmpty() }
+            rightRomaText = romaText.substring(index).takeIf { it.isNotEmpty() }
+        } else if (!romaText.isNullOrEmpty()) {
+            // 罗马音未超出左半句宽度：整段留在左侧。
+            leftRomaText = romaText
+            rightRomaText = null
+        } else {
+            leftRomaText = null
+            rightRomaText = null
+        }
+
         val leftLine = RichLyricLine(
             begin = line.begin,
             end = line.end,
@@ -141,7 +162,7 @@ object RichLyricLineSplitter {
             secondaryWords = leftSecWords,
             translation = leftTransText,
             translationWords = leftTransWords,
-            roma = null
+            roma = leftRomaText
         )
 
         val rightLine = RichLyricLine(
@@ -156,7 +177,7 @@ object RichLyricLineSplitter {
             secondaryWords = rightSecWords,
             translation = rightTransText,
             translationWords = rightTransWords,
-            roma = null
+            roma = rightRomaText
         )
 
         return SplitLineResult(leftLine, rightLine)
@@ -257,23 +278,32 @@ object RichLyricLineSplitter {
     /**
      * 计算 translation 的分割索引（按像素宽度，翻译字号更小所以独立计算）
      */
-    private fun computeTranslationSplitIndex(line: IRichLyricLine, paint: Paint, maxWidthPx: Float, centerLyric: Boolean): Int? {
-        val transText = line.translation ?: return null
-        if (transText.isEmpty()) return null
-        val totalWidth = paint.measureText(transText)
-        val splitLimit = if (centerLyric) (totalWidth / 2f).coerceAtMost(maxWidthPx) else maxWidthPx
-        if (totalWidth <= splitLimit) return null
-        val splitIdx = paint.breakText(transText, true, splitLimit, null).coerceIn(0, transText.length)
-        return adjustForWordBoundary(transText, splitIdx, splitLimit, paint)
-    }
+    private fun computeTranslationSplitIndex(line: IRichLyricLine, paint: Paint, maxWidthPx: Float, centerLyric: Boolean): Int? =
+        computeAuxSplitIndex(line.translation, paint, maxWidthPx, centerLyric)
 
-    private fun computeSecondarySplitIndex(line: IRichLyricLine, paint: Paint, maxWidthPx: Float, centerLyric: Boolean): Int? {
-        val secText = line.secondary ?: return null
-        if (secText.isEmpty()) return null
-        val totalWidth = paint.measureText(secText)
+    private fun computeSecondarySplitIndex(line: IRichLyricLine, paint: Paint, maxWidthPx: Float, centerLyric: Boolean): Int? =
+        computeAuxSplitIndex(line.secondary, paint, maxWidthPx, centerLyric)
+
+    /**
+     * 计算 roma（罗马音/发音）的分割索引。
+     *
+     * roma 没有词级 timing、但会被 LyricLineAssembler 当作副行渲染，因此与 translation/secondary
+     * 一样需要按副行字号独立算分割点，否则分离模式下整行溢出时发音行会整段丢失。
+     */
+    private fun computeRomaSplitIndex(line: IRichLyricLine, paint: Paint, maxWidthPx: Float, centerLyric: Boolean): Int? =
+        computeAuxSplitIndex(line.roma, paint, maxWidthPx, centerLyric)
+
+    /**
+     * 副行文本（翻译 / 次要文本 / 罗马音）的通用分割索引：按像素宽度独立计算。
+     *
+     * @return 分割字符索引；返回 null 表示该文本整体未超出左半句可用宽度，可整段放左侧。
+     */
+    private fun computeAuxSplitIndex(text: String?, paint: Paint, maxWidthPx: Float, centerLyric: Boolean): Int? {
+        if (text.isNullOrEmpty()) return null
+        val totalWidth = paint.measureText(text)
         val splitLimit = if (centerLyric) (totalWidth / 2f).coerceAtMost(maxWidthPx) else maxWidthPx
         if (totalWidth <= splitLimit) return null
-        val splitIdx = paint.breakText(secText, true, splitLimit, null).coerceIn(0, secText.length)
-        return adjustForWordBoundary(secText, splitIdx, splitLimit, paint)
+        val splitIdx = paint.breakText(text, true, splitLimit, null).coerceIn(0, text.length)
+        return adjustForWordBoundary(text, splitIdx, splitLimit, paint)
     }
 }
