@@ -80,58 +80,11 @@ object IslandViewHelper {
         }
     }
 
-    /** 收起中缝时保存的各区域原始布局（宽度 + 可见性），用于恢复。 */
-    private val collapsedAreaLayouts = WeakHashMap<View, AreaLayoutSnapshot>()
-
-    private class AreaLayoutSnapshot(val width: Int, val visibility: Int)
-
-    /**
-     * 摘要态「超级岛左侧内容 = 无内容」时，收起左区域 `area_left` 与中缝 `area_cutout`，
-     * 让右侧内容（如歌词）铺满整条胶囊；其它配置或清理时恢复原样。
-     *
-     * 左/中/右三块是系统 `big_container`(LinearLayout) 的子视图（本机实测 146/177/146px，
-     * 三者之和等于胶囊宽度），这里只调整布局参数与可见性，不改动系统原生资源。
-     */
-    fun setMiddleDividerCollapsed(root: ViewGroup, collapsed: Boolean): Boolean {
-        val targets = listOfNotNull(
-            findViewByName(root, "area_left"),
-            findViewByName(root, "area_cutout"),
-        )
-        if (targets.isEmpty()) return false
-        var changed = false
-        targets.forEach { view ->
-            val lp = view.layoutParams ?: return@forEach
-            if (collapsed) {
-                if (collapsedAreaLayouts.containsKey(view)) return@forEach
-                collapsedAreaLayouts[view] = AreaLayoutSnapshot(lp.width, view.visibility)
-                lp.width = 0
-                view.layoutParams = lp
-                view.visibility = View.GONE
-                changed = true
-            } else {
-                val snapshot = collapsedAreaLayouts.remove(view) ?: return@forEach
-                lp.width = snapshot.width
-                view.layoutParams = lp
-                view.visibility = snapshot.visibility
-                changed = true
-            }
-        }
-        if (changed) {
-            HookLogger.i(
-                "IslandViewHelper",
-                "摘要态中缝收起=$collapsed areas=" +
-                    targets.joinToString(",") { "${it.javaClass.simpleName}:${it.visibility}" },
-            )
-        }
-        return changed
-    }
-
     /**
      * 清理所有注入的视图并恢复系统原生组件
      */
     fun clearInjectedViews(rootView: ViewGroup) {
         IslandNativeSlotPlacement.restore(rootView)
-        setMiddleDividerCollapsed(rootView, false)
         hideInjectedView(rootView, IslandProbeUtils.LEFT_TEST_VIEW_TAG)
         hideInjectedView(rootView, IslandProbeUtils.LEFT_TEST_WRAPPER_TAG)
         hideInjectedView(rootView, IslandProbeUtils.RIGHT_TEST_VIEW_TAG)
@@ -149,7 +102,8 @@ object IslandViewHelper {
         showOriginalTexts(rootView, "island_container_module_image_text_2")
     }
 
-    private fun hideInjectedView(rootView: ViewGroup, tag: String) {        val view = rootView.findViewWithTag<View>(tag) ?: return
+    private fun hideInjectedView(rootView: ViewGroup, tag: String) {
+        val view = rootView.findViewWithTag<View>(tag) ?: return
         val wrapper = view as? MaxWidthFrameLayout
         if (wrapper == null && view.javaClass.name == MaxWidthFrameLayout::class.java.name) {
             (view.parent as? ViewGroup)?.removeView(view)
