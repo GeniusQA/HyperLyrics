@@ -1,7 +1,6 @@
 package com.genius.hyperlyrics.root.island
 
 import android.annotation.SuppressLint
-import android.graphics.Rect
 import android.view.View
 import android.view.ViewGroup
 import com.genius.hyperlyrics.common.RootConstants
@@ -192,9 +191,9 @@ object IslandViewHelper {
     /**
      * 超级岛当前是否处于「展开态」（媒体大卡片真正铺在屏幕上）。
      *
-     * 依据 `media_bg_view`(MusicBgView) 的 isShown + [View.getGlobalVisibleRect] 判断：
-     * 折叠态下该视图仍保留测量尺寸（系统 onVisibilityChanged 实测 visibility 在 0/4 间切换、
-     * isShown 随之翻转），只按 width/height>0 会把折叠态误判为展开，因此必须叠加可见性判定。
+     * 依据展开态大卡片背景视图 `media_bg_view`(MusicBgView) 的 visibility + 尺寸判断。
+     * 折叠态下该视图不可见（系统 onVisibilityChanged 实测 visibility 在 0/4 间切换），
+     * 展开后 visibility=VISIBLE 且尺寸为 1001x462。
      *
      * 用途：展开大窗时顶部摘要胶囊应恢复系统原生短胶囊长度（展开态不注入歌词），
      * 收起后再注入歌词恢复歌词长胶囊。
@@ -219,12 +218,16 @@ object IslandViewHelper {
         return false
     }
 
-    /** 视图是否真正可见：处于 shown 状态，且屏幕上露出高度不低于自身一半。 */
+    /**
+     * 视图是否处于可见状态。
+     *
+     * 注意：本机（HyperOS 移植包）实测 `mediaBgView.isShown` **恒为 false**（即使 visibility=VISIBLE、
+     * 已铺在屏幕上），`getGlobalVisibleRect` 同样不可靠（同样依赖 isShown）。因此这里只用
+     * visibility + 尺寸判定，不能用 isShown / getGlobalVisibleRect，否则展开态永远判不出来。
+     */
     private fun isViewVisibleOnScreen(view: View): Boolean {
-        if (!view.isShown || view.width <= 0 || view.height <= 0) return false
-        val visible = Rect()
-        if (!view.getGlobalVisibleRect(visible)) return false
-        return visible.height() >= view.height * 0.5f
+        if (view.visibility != View.VISIBLE) return false
+        return view.width > 0 && view.height > 0
     }
 
     @SuppressLint("DiscouragedApi")
@@ -239,8 +242,8 @@ object IslandViewHelper {
      * 否则内容应用返回时的立即测量只能量到上一行宽度。
      * 开关状态在触发时实时读取，找不到宿主视图时静默返回。
      */
-    fun triggerSystemRelayoutForDescendant(view: View) {
-        if (!isDynamicWidthEnabled()) return
+    fun triggerSystemRelayoutForDescendant(view: View, requireDynamicWidth: Boolean = true) {
+        if (requireDynamicWidth && !isDynamicWidthEnabled()) return
         var parent = view.parent
         while (parent is View) {
             if (parent is ViewGroup && parent.javaClass.methods.any {
@@ -262,11 +265,18 @@ object IslandViewHelper {
      * 因此按多个延迟点重复触发（幂等，可安全重入）。
      */
     fun scheduleSummaryWidthSync(anchor: View) {
+        HookLogger.i(
+            "IslandViewHelper",
+            "摘要胶囊展开/收起同步: expanded=${isIslandExpandedOnScreen(anchor)}",
+        )
         SUMMARY_SYNC_DELAYS_MS.forEach { delay ->
             if (delay <= 0L) {
-                triggerSystemRelayoutForDescendant(anchor)
+                triggerSystemRelayoutForDescendant(anchor, requireDynamicWidth = false)
             } else {
-                anchor.postDelayed({ triggerSystemRelayoutForDescendant(anchor) }, delay)
+                anchor.postDelayed(
+                    { triggerSystemRelayoutForDescendant(anchor, requireDynamicWidth = false) },
+                    delay,
+                )
             }
         }
     }

@@ -17,6 +17,10 @@ internal object IslandWidthHooker {
     @Volatile
     var lyricWidthCalculationActive: Boolean = false
 
+    /** 最近一次记录的展开态（仅用于诊断日志去重）。 */
+    @Volatile
+    private var lastExpandedState: Boolean? = null
+
     class CalculateWidthHook : Hooker {
         override fun intercept(chain: Chain): Any? {
             runCatching {
@@ -28,7 +32,15 @@ internal object IslandWidthHooker {
                 // 展开态：大窗展开后，顶部摘要胶囊应恢复为系统原生短胶囊长度（与视频小窗一致）。
                 // 展开态不注入歌词、清空注入让 proceed() 按原生内容计算宽度；收起后本方法会再次
                 // 注入歌词、恢复歌词长胶囊。若不清空，每次宽度重算都会重新注入 → 展开态仍是长胶囊。
-                if (IslandViewHelper.isIslandExpandedOnScreen(contentView)) {
+                val expanded = IslandViewHelper.isIslandExpandedOnScreen(contentView)
+                if (lastExpandedState != expanded) {
+                    lastExpandedState = expanded
+                    HookLogger.i(
+                        TAG,
+                        "摘要胶囊展开态切换: expanded=$expanded（展开态不注入歌词、恢复原生短胶囊）",
+                    )
+                }
+                if (expanded) {
                     IslandTextHookerSupport.clearInjectedIsland(contentView, suppressRelayout = true)
                     return@runCatching
                 }
