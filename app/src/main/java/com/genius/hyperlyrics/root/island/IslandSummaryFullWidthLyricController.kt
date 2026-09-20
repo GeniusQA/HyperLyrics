@@ -2,6 +2,7 @@ package com.genius.hyperlyrics.root.island
 
 import android.view.View
 import android.view.ViewGroup
+import com.genius.hyperlyrics.root.island.view.MaxWidthFrameLayout
 import com.genius.hyperlyrics.root.utils.HookLogger
 import java.util.WeakHashMap
 import kotlin.math.abs
@@ -29,6 +30,7 @@ internal object IslandSummaryFullWidthLyricController {
         val capsule: View,
         val wrapper: View,
         val clipSnapshots: List<Triple<ViewGroup, Boolean, Boolean>>,
+        val wrapperMaxWidthSnapshot: Int,
         val listener: View.OnLayoutChangeListener,
     )
 
@@ -60,7 +62,13 @@ internal object IslandSummaryFullWidthLyricController {
         }
 
         val listener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> syncOffset(capsule, wrapper) }
-        val state = AppliedState(capsule, wrapper, clipSnapshots, listener)
+        val state = AppliedState(
+            capsule = capsule,
+            wrapper = wrapper,
+            clipSnapshots = clipSnapshots,
+            wrapperMaxWidthSnapshot = (wrapper as? MaxWidthFrameLayout)?.maxWidthPx ?: -1,
+            listener = listener,
+        )
         appliedStates[rootView] = state
         capsule.addOnLayoutChangeListener(listener)
         wrapper.addOnLayoutChangeListener(listener)
@@ -82,6 +90,12 @@ internal object IslandSummaryFullWidthLyricController {
             group.clipToPadding = clipToPadding
         }
         state.wrapper.translationX = 0f
+        (state.wrapper as? MaxWidthFrameLayout)?.let { wrapper ->
+            if (state.wrapperMaxWidthSnapshot >= 0) {
+                wrapper.maxWidthPx = state.wrapperMaxWidthSnapshot
+                wrapper.requestLayout()
+            }
+        }
         HookLogger.i(TAG, "已关闭全宽歌词绘制，恢复原生裁剪与位移")
         return true
     }
@@ -94,9 +108,20 @@ internal object IslandSummaryFullWidthLyricController {
         if (capsule.width <= 0 || wrapper.width <= 0) return
         val capsuleLocation = IntArray(2)
         capsule.getLocationInWindow(capsuleLocation)
+        if (capsuleLocation[1] < -1000) return // 岛被暂存到屏幕外，位置无意义
         val wrapperLocation = IntArray(2)
         wrapper.getLocationInWindow(wrapperLocation)
-        if (capsuleLocation[1] < -1000) return // 岛被暂存到屏幕外，位置无意义
+
+        // 让歌词「可用布局宽度」正好等于胶囊宽度：长句按胶囊宽度换行/滚动，短句从左起，
+        // 右侧自然留出封面背景与律动。仅在数值变化时写入，避免测量回环。
+        (wrapper as? MaxWidthFrameLayout)?.let { maxWrapper ->
+            if (maxWrapper.maxWidthPx != capsule.width) {
+                maxWrapper.maxWidthPx = capsule.width
+                maxWrapper.requestLayout()
+            }
+        }
+
+        // 绘制起点对齐胶囊左端（translationX 只影响绘制）。
         val target = -(wrapperLocation[0] - capsuleLocation[0]).toFloat()
         if (abs(wrapper.translationX - target) > 0.5f) {
             wrapper.translationX = target
