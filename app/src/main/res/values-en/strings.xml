@@ -23,11 +23,11 @@
     <string name="toast_permission_denied">Notification permission denied</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>
-    <string name="title_one_tap_refresh">One-tap refresh</string>
+    <string name="title_one_tap_refresh">Restart scope</string>
     <string name="summary_one_tap_refresh_root_required">Root access required</string>
-    <string name="option_refresh_system_ui">Restart scope</string>
+    <string name="option_refresh_system_ui">System UI</string>
     <string name="option_refresh_all_music_apps">All players</string>
-    <string name="toast_one_tap_refresh_no_root">One-tap refresh requires root access</string>
+    <string name="toast_one_tap_refresh_no_root">Restart scope requires root access</string>
     <string name="title_basic_features">Basic Features</string>
     <string name="title_lyric_settings">Lyric Settings</string>
     <string name="title_super_island_lyrics">Super Island · Mini Lyrics</string>
@@ -224,7 +224,7 @@
     <string name="option_island_media_ambient_flow_disabled">Disabled</string>
     <string name="title_lyrics">Media Info</string>
     <string name="title_lyric_anim">Lyric Animation</string>
-    <string name="title_lyric_provider">Lyricon Configuration</string>
+    <string name="title_lyric_provider">Lyricon</string>
     <string name="title_builtin_provider">Built-in Provider</string>
     <string name="summary_builtin_apple_provider">Built into HyperLyrics and cannot be removed</string>
     <string name="summary_builtin_youtube_music_provider">Built-in provider; lyrics are filled from online sources</string>
@@ -647,10 +647,10 @@
     <string name="summary_help_supported_devices">Only supports HyperOS 3 devices with LSPosed v2.0+ installed</string>
     <string name="summary_help_prerequisites">① Enable HyperLyrics in LSPosed and select its recommended scope apps\n② Select the appropriate source under \"Lyric Settings\" on the home page, then enable \"Xiaomi System UI enhancements\" as needed\n③ Restart System UI or reboot your device as required by the lyric source</string>
     <string name="title_help_lyric_sources">Lyric Sources</string>
-    <string name="summary_help_source_lyricon">Lyricon provides lyrics for Apple Music and other supported music apps. The Apple Music provider is built in; enable the recommended scope apps in LSPosed to use it.\n\nFor other music apps, open Lyricon Configuration to add the matching official provider. HyperLyrics provides a Lyricon Central-compatible service inside System UI, so no separate lyric service is required. After adding or updating a provider, restart the related music app and System UI as instructed.</string>
+    <string name="summary_help_source_lyricon">Lyricon provides lyrics for Apple Music and other supported music apps. The Apple Music provider is built in; enable the recommended scope apps in LSPosed to use it.\n\nFor other music apps, open Lyricon to add the matching official provider. HyperLyrics provides a Lyricon Central-compatible service inside System UI, so no separate lyric service is required. After adding or updating a provider, restart the related music app and System UI as instructed.</string>
     <string name="summary_help_source_superlyric">Reboot device</string>
     <string name="summary_help_source_lyricinfo">Restart System UI</string>
-    <string name="tag_open_lyricon_configuration">Open Lyricon Configuration</string>
+    <string name="tag_open_lyricon_configuration">Open Lyricon</string>
     <string name="tag_download_superlyric">Download SuperLyric</string>
     <string name="tag_download_lyricinfo">Download LyricInfo</string>
 
@@ -760,7 +760,7 @@
     <string name="setup_completion_lyricon">Apple Music uses the built-in provider. Other music apps only need their matching LyricProvider; a separate Lyricon Central installation is not required. Restart System UI and the music app after setup.</string>
     <string name="setup_completion_superlyric">Please enable the SuperLyric module in LSPosed, then restart your phone</string>
     <string name="setup_completion_lyricinfo">Install the LyricInfo module, enable it in LSPosed and select your music app, then restart SystemUI</string>
-    <string name="setup_completion_restart_hint">After adding plugins, restart System UI and the corresponding music app processes. You can use the “One-tap refresh” button in the top-right corner of the home page to restart them.</string>
+    <string name="setup_completion_restart_hint">After adding plugins, restart System UI and the corresponding music app processes. You can use the “Restart scope” button in the top-right corner of the home page to restart them.</string>
     <string name="no_lyric_data">No lyric data</string>
     <string name="title_lyric_area_height">Lyric Lines</string>
     <string name="summary_lyric_area_height">Total line limit for the lyric block, also limits single-line wrapping and upcoming lyric lines</string>

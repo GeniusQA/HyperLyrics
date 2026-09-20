@@ -24,11 +24,11 @@
     <string name="toast_permission_denied">未获取通知权限</string>
     <string name="cancel">取消</string>
     <string name="confirm">确认</string>
-    <string name="title_one_tap_refresh">一键刷新</string>
+    <string name="title_one_tap_refresh">重启作用域</string>
     <string name="summary_one_tap_refresh_root_required">需要root权限</string>
-    <string name="option_refresh_system_ui">重启作用域</string>
+    <string name="option_refresh_system_ui">系统界面</string>
     <string name="option_refresh_all_music_apps">所有播放器</string>
-    <string name="toast_one_tap_refresh_no_root">无root权限无法一键刷新</string>
+    <string name="toast_one_tap_refresh_no_root">无root权限无法重启作用域</string>
     <string name="title_basic_features">基础功能</string>
     <string name="title_lyric_settings">歌词设置</string>
     <string name="title_super_island_lyrics">LSPosed超级岛歌词</string>
@@ -229,7 +229,7 @@
     <string name="option_island_media_ambient_flow_disabled">禁用</string>
     <string name="title_lyrics">音乐信息</string>
     <string name="title_lyric_anim">歌词切换动画</string>
-    <string name="title_lyric_provider">Lyricon配置</string>
+    <string name="title_lyric_provider">Lyricon</string>
     <string name="title_builtin_provider">内置 Provider</string>
     <string name="summary_builtin_apple_provider">HyperLyrics默认内置且不可移除</string>
     <string name="summary_builtin_lrclib_provider">HyperLyrics通用歌词源，所有播放器统一生效且不可移除</string>
@@ -707,10 +707,10 @@
     <string name="summary_help_supported_devices">仅支持已安装 LSPosed v2.0+ 的 HyperOS 3/4 设备</string>
     <string name="summary_help_prerequisites">① 在 LSPosed 中启用 HyperLyrics，并勾选推荐作用域 App\n② 在主页“歌词设置”中选择合适的歌词源，并按需打开“小米系统界面增强”\n③ 根据歌词源需要，重启系统界面或重启手机</string>
     <string name="title_help_lyric_sources">歌词源</string>
-    <string name="summary_help_source_lyricon">Lyricon 可为 Apple Music 及其他受支持的音乐 App 提供歌词。Apple Music Provider 已内置，只需在 LSPosed 中勾选推荐作用域即可使用。\n\n其他音乐 App 可前往“Lyricon配置”添加对应的官方 Provider。HyperLyrics 已在系统界面内提供 Lyricon Central 兼容服务，无需额外安装词幕服务。添加或更新 Provider 后，请按页面提示重启相关音乐 App 与系统界面。</string>
+    <string name="summary_help_source_lyricon">Lyricon 可为 Apple Music 及其他受支持的音乐 App 提供歌词。Apple Music Provider 已内置，只需在 LSPosed 中勾选推荐作用域即可使用。\n\n其他音乐 App 可前往“Lyricon”添加对应的官方 Provider。HyperLyrics 已在系统界面内提供 Lyricon Central 兼容服务，无需额外安装词幕服务。添加或更新 Provider 后，请按页面提示重启相关音乐 App 与系统界面。</string>
     <string name="summary_help_source_superlyric">重启手机</string>
     <string name="summary_help_source_lyricinfo">重启系统界面</string>
-    <string name="tag_open_lyricon_configuration">打开 Lyricon配置</string>
+    <string name="tag_open_lyricon_configuration">打开 Lyricon</string>
     <string name="tag_download_superlyric">下载 SuperLyric</string>
     <string name="tag_download_lyricinfo">下载 LyricInfo</string>
 
@@ -853,7 +853,7 @@
     <string name="setup_completion_lyricon">Apple Music 可直接使用内置 Provider；其他音乐 App 只需安装对应的 LyricProvider。无需额外安装 Lyricon Central。完成后请重启系统界面和音乐 App。</string>
     <string name="setup_completion_superlyric">请前往 LSPosed 启用 SuperLyric 模块，重启手机后即可使用</string>
     <string name="setup_completion_lyricinfo">安装歌词获取模块后，在 LSPosed 中启用并勾选音乐软件，重启系统界面即可使用</string>
-    <string name="setup_completion_restart_hint">添加完插件请重启系统界面与对应的音乐 App 进程，你可以在主页右上角点击“一键刷新”按钮进行重启。</string>
+    <string name="setup_completion_restart_hint">添加完插件请重启系统界面与对应的音乐 App 进程，你可以在主页右上角点击“重启作用域”按钮进行重启。</string>
     <string name="no_lyric_data">歌词源无数据</string>
     <string name="title_lyric_area_height">歌词行数</string>
     <string name="summary_lyric_area_height">歌词块总行数上限，同时约束单句最大折行数与后续歌词条数</string>
