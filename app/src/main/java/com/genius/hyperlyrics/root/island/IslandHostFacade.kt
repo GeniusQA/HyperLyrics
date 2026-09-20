@@ -37,14 +37,17 @@ internal object IslandHostFacade {
             RootConstants.DEFAULT_HOOK_ISLAND_RIGHT_ICON
         )
 
-        // 左侧内容为「无内容」时，左侧图标容器彻底隐藏、并清掉左文本容器两侧边距，
-        // 让系统尽量不占左侧空间（仅改可见性/边距，不碰 area_* 布局骨架，避免破坏测量）。
+        // 左侧内容为「无内容」时，只清掉左文本容器两侧边距、让系统尽量不占左侧空间
+        // （仅改可见性/边距，不碰 area_* 布局骨架，避免破坏测量）。
         val leftEmpty = prefs.getInt(
             RootConstants.KEY_HOOK_ISLAND_CONTENT_LEFT,
             RootConstants.DEFAULT_HOOK_ISLAND_CONTENT_LEFT,
         ) == 0
 
-        IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.LEFT_PARENT_NAME, "island_container_module_icon", showAlbum && !leftEmpty)
+        // 「无内容」是指左侧不放我们的文字内容，**不等于连封面也不显示**：
+        // 此时应保留系统原生专辑 logo（是否显示由「音频封面」开关决定）。
+        // 此前写成 showAlbum && !leftEmpty，会把左侧图标容器一并 GONE，导致封面 logo 消失。
+        IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.LEFT_PARENT_NAME, "island_container_module_icon", showAlbum)
         IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.RIGHT_PARENT_NAME, "island_container_module_icon", showRhythm)
         IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.LEFT_PARENT_NAME, IslandProbeUtils.TEXT_CONTAINER_NAME, true)
         IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.RIGHT_PARENT_NAME, IslandProbeUtils.TEXT_CONTAINER_NAME, true)
