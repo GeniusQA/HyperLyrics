@@ -3,7 +3,6 @@ package com.genius.hyperlyrics.root.island
 import android.annotation.SuppressLint
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.root.HookEntry
 import com.genius.hyperlyrics.root.island.view.MaxWidthFrameLayout
@@ -17,12 +16,6 @@ import java.util.WeakHashMap
 object IslandViewHelper {
 
     private val SYSTEMUI_PKG_NAMES = arrayOf("miui.systemui.plugin", "com.android.systemui")
-
-    /** 展开态探测的视图树遍历上限。 */
-    private const val MAX_EXPANDED_SEARCH_NODES = 512
-
-    /** 摘要胶囊宽度同步的延迟点（展开/收起后布局未必立刻完成）。 */
-    private val SUMMARY_SYNC_DELAYS_MS = longArrayOf(0L, 120L, 300L, 700L)
     private val originalMargins = WeakHashMap<View, MarginSnapshot>()
     private val isRelayouting = ThreadLocal.withInitial { false }
 
@@ -81,130 +74,11 @@ object IslandViewHelper {
         }
     }
 
-    /** 单侧占满时保存的区域原始布局（宽度 / LinearLayout 权重）。 */
-    private val areaLayoutSnapshots = WeakHashMap<View, AreaLayout>()
-
-    /**
-     * 每个岛内容视图「期望的单侧占满状态」，由 [IslandHostFacade.applyHostSettings] 写入。
-     * 用于让 [clearInjectedViews] 在期望收起的场景下**不要恢复**，否则注入路径里
-     * 「清理→注入」会反复收起/恢复翻转，导致高频重排（卡顿）且布局一直不稳定（歌词不显示）。
-     */
-    private val singleSideFullWidthDesired = WeakHashMap<View, Boolean>()
-
-    private class AreaLayout(val width: Int, val weight: Float)
-
-    /** 记录期望状态（由 applyHostSettings 在应用前调用）。 */
-    fun markSingleSideFullWidthDesired(root: View, enabled: Boolean) {
-        singleSideFullWidthDesired[root] = enabled
-    }
-
-    /** 布局诊断只输出一次。 */
-    private var areaLayoutLogged = false
-
-    /**
-     * 「超级岛左侧内容 = 无内容」时，把左区域 `area_left` 与中缝 `area_cutout` 收成 0 宽、
-     * 右区域 `area_right` 占满剩余空间，从而去掉中缝、让右侧歌词铺满整条胶囊。
-     *
-     * 关键：**只改 LayoutParams（宽度 + LinearLayout 权重），视图始终保持 VISIBLE**。
-     * 上一版把两个区域直接 `GONE` 会破坏系统 `big_container` 的测量骨架 —— 歌词量成 0 尺寸
-     * 而完全不显示，并引发反复重排导致卡顿。
-     *
-     * @return 是否发生了实际改动（调用方据此决定是否做后续处理）
-     */
-    fun applySingleSideFullWidth(rootView: ViewGroup, enabled: Boolean): Boolean {
-        val left = findViewByName(rootView, "area_left")
-        val cutout = findViewByName(rootView, "area_cutout")
-        val right = findViewByName(rootView, "area_right")
-        logAreaLayoutOnce(rootView, left, cutout, right)
-        if (left == null || cutout == null || right == null) return false
-        var changed = false
-        if (enabled) {
-            // 只收左区域与中缝的占位；**不动 area_right**。
-            // 若把 area_right 设成 width=0+weight=1，在 WRAP_CONTENT 容器里权重分不到空间，
-            // 右区域会被量成 0 宽 → 歌词完全不显示。
-            changed = shrinkToZero(left) || changed
-            changed = shrinkToZero(cutout) || changed
-        } else {
-            changed = restoreArea(left) || changed
-            changed = restoreArea(cutout) || changed
-            changed = restoreArea(right) || changed
-        }
-        if (changed) {
-            HookLogger.i(
-                "IslandViewHelper",
-                "单侧占满=$enabled areas(L/C/R)=${left.width}/${cutout.width}/${right.width}",
-            )
-        }
-        return changed
-    }
-
-    private fun shrinkToZero(view: View): Boolean {
-        val lp = view.layoutParams ?: return false
-        if (areaLayoutSnapshots.containsKey(view)) return false
-        val ll = lp as? LinearLayout.LayoutParams
-        areaLayoutSnapshots[view] = AreaLayout(lp.width, ll?.weight ?: -1f)
-        lp.width = 0
-        ll?.let { it.weight = 0f }
-        view.layoutParams = lp
-        return true
-    }
-
-    private fun restoreArea(view: View): Boolean {
-        val snapshot = areaLayoutSnapshots.remove(view) ?: return false
-        val lp = view.layoutParams ?: return false
-        lp.width = snapshot.width
-        if (snapshot.weight >= 0f) {
-            (lp as? LinearLayout.LayoutParams)?.weight = snapshot.weight
-        }
-        view.layoutParams = lp
-        return true
-    }
-
-    private fun logAreaLayoutOnce(
-        rootView: ViewGroup,
-        left: View?,
-        cutout: View?,
-        right: View?,
-    ) {
-        if (areaLayoutLogged) return
-        areaLayoutLogged = true
-        val container = findViewByName(rootView, "big_container")
-        if (container == null) {
-            HookLogger.i("IslandViewHelper", "布局诊断 big_container: 未找到")
-        } else {
-            val lp = container.layoutParams
-            val ll = lp as? LinearLayout.LayoutParams
-            HookLogger.i(
-                "IslandViewHelper",
-                "布局诊断 big_container: lp=${lp?.javaClass?.simpleName} w=${lp?.width} h=${lp?.height} " +
-                    "weight=${ll?.weight} size=${container.width}x${container.height}",
-            )
-        }
-        listOf("area_left" to left, "area_cutout" to cutout, "area_right" to right)
-            .forEach { (name, view) ->
-                if (view == null) {
-                    HookLogger.i("IslandViewHelper", "布局诊断 $name: 未找到")
-                    return@forEach
-                }
-                val lp = view.layoutParams
-                val ll = lp as? LinearLayout.LayoutParams
-                HookLogger.i(
-                    "IslandViewHelper",
-                    "布局诊断 $name: lp=${lp?.javaClass?.simpleName} w=${lp?.width} h=${lp?.height} " +
-                        "weight=${ll?.weight} vis=${view.visibility} size=${view.width}x${view.height}",
-                )
-            }
-    }
-
     /**
      * 清理所有注入的视图并恢复系统原生组件
      */
     fun clearInjectedViews(rootView: ViewGroup) {
         IslandNativeSlotPlacement.restore(rootView)
-        // 期望状态为「单侧占满」时不恢复：否则清理→注入会反复收放翻转（卡顿 + 布局不稳定）。
-        if (singleSideFullWidthDesired[rootView] != true) {
-            applySingleSideFullWidth(rootView, false)
-        }
         hideInjectedView(rootView, IslandProbeUtils.LEFT_TEST_VIEW_TAG)
         hideInjectedView(rootView, IslandProbeUtils.LEFT_TEST_WRAPPER_TAG)
         hideInjectedView(rootView, IslandProbeUtils.RIGHT_TEST_VIEW_TAG)
@@ -309,61 +183,13 @@ object IslandViewHelper {
     }
 
     /**
-     * 超级岛当前是否处于「展开态」（媒体大卡片真正铺在屏幕上）。
-     *
-     * 依据展开态大卡片背景视图 `media_bg_view`(MusicBgView) 的 visibility + 尺寸判断。
-     * 折叠态下该视图不可见（系统 onVisibilityChanged 实测 visibility 在 0/4 间切换），
-     * 展开后 visibility=VISIBLE 且尺寸为 1001x462。
-     *
-     * 用途：展开大窗时顶部摘要胶囊应恢复系统原生短胶囊长度（展开态不注入歌词），
-     * 收起后再注入歌词恢复歌词长胶囊。
-     */
-    fun isIslandExpandedOnScreen(root: View): Boolean {
-        val scope = root.rootView ?: root
-        val queue = ArrayDeque<View>()
-        queue.addLast(scope)
-        var visited = 0
-        while (queue.isNotEmpty() && visited < MAX_EXPANDED_SEARCH_NODES) {
-            val current = queue.removeFirst()
-            visited += 1
-            if (resourceEntryName(current) == "media_bg_view" && isViewVisibleOnScreen(current)) {
-                return true
-            }
-            if (current is ViewGroup) {
-                for (index in 0 until current.childCount) {
-                    queue.addLast(current.getChildAt(index))
-                }
-            }
-        }
-        return false
-    }
-
-    /**
-     * 视图是否处于可见状态。
-     *
-     * 注意：本机（HyperOS 移植包）实测 `mediaBgView.isShown` **恒为 false**（即使 visibility=VISIBLE、
-     * 已铺在屏幕上），`getGlobalVisibleRect` 同样不可靠（同样依赖 isShown）。因此这里只用
-     * visibility + 尺寸判定，不能用 isShown / getGlobalVisibleRect，否则展开态永远判不出来。
-     */
-    private fun isViewVisibleOnScreen(view: View): Boolean {
-        if (view.visibility != View.VISIBLE) return false
-        return view.width > 0 && view.height > 0
-    }
-
-    @SuppressLint("DiscouragedApi")
-    private fun resourceEntryName(view: View): String? {
-        if (view.id == View.NO_ID) return null
-        return runCatching { view.resources.getResourceEntryName(view.id) }.getOrNull()
-    }
-
-    /**
      * 从注入的槽位视图向上查找超级岛内容视图并触发布局刷新。
      * 用于换句/预览提升动画把内容更新延迟落地后的第二次岛宽重算——
      * 否则内容应用返回时的立即测量只能量到上一行宽度。
      * 开关状态在触发时实时读取，找不到宿主视图时静默返回。
      */
-    fun triggerSystemRelayoutForDescendant(view: View, requireDynamicWidth: Boolean = true) {
-        if (requireDynamicWidth && !isDynamicWidthEnabled()) return
+    fun triggerSystemRelayoutForDescendant(view: View) {
+        if (!isDynamicWidthEnabled()) return
         var parent = view.parent
         while (parent is View) {
             if (parent is ViewGroup && parent.javaClass.methods.any {
@@ -374,30 +200,6 @@ object IslandViewHelper {
                 return
             }
             parent = parent.parent
-        }
-    }
-
-    /**
-     * 超级岛展开/收起后延迟触发若干次摘要胶囊宽度重算。
-     *
-     * 展开态下 [IslandWidthHooker.CalculateWidthHook] 会清空注入、按原生内容算出系统原生短胶囊；
-     * 收起态下会重新注入歌词、恢复歌词长胶囊。`onVisibilityChanged` 触发时布局往往尚未完成，
-     * 因此按多个延迟点重复触发（幂等，可安全重入）。
-     */
-    fun scheduleSummaryWidthSync(anchor: View) {
-        HookLogger.i(
-            "IslandViewHelper",
-            "摘要胶囊展开/收起同步: expanded=${isIslandExpandedOnScreen(anchor)}",
-        )
-        SUMMARY_SYNC_DELAYS_MS.forEach { delay ->
-            if (delay <= 0L) {
-                triggerSystemRelayoutForDescendant(anchor, requireDynamicWidth = false)
-            } else {
-                anchor.postDelayed(
-                    { triggerSystemRelayoutForDescendant(anchor, requireDynamicWidth = false) },
-                    delay,
-                )
-            }
         }
     }
 

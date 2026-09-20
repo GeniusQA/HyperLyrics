@@ -26,7 +26,6 @@ import com.genius.hyperlyrics.root.HookEntry
 import com.genius.hyperlyrics.root.SystemUiEnhancementGate
 import com.genius.hyperlyrics.root.island.IslandAlbumCoverStyleHooker
 import com.genius.hyperlyrics.root.island.IslandProbeUtils
-import com.genius.hyperlyrics.root.island.IslandViewHelper
 import com.genius.hyperlyrics.root.mediacard.MediaAmbientFlowPalette
 import com.genius.hyperlyrics.root.mediacard.MediaAmbientFlowPaletteExtractor
 import com.genius.hyperlyrics.root.mediacard.buildMediaAmbientFlowPalette
