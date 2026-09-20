@@ -725,13 +725,15 @@ internal object IslandLinearGradientBackgroundApplier {
         return null
     }
 
-    /** 展开态大卡片是否真正可见：视图处于 shown 状态，且屏幕上露出高度不低于自身一半。 */
+    /**
+     * 展开态大卡片是否处于可见状态。
+     *
+     * 注意：本机（HyperOS 移植包）实测 `mediaBgView.isShown` **恒为 false**，用 isShown /
+     * getGlobalVisibleRect 会永远判不出展开（表现为展开态仍铺封面），因此只用 visibility + 尺寸判定。
+     */
     private fun isCardVisibleOnScreen(view: View): Boolean {
-        if (!view.isShown) return false
-        if (view.width <= 0 || view.height <= 0) return false
-        val visible = Rect()
-        if (!view.getGlobalVisibleRect(visible)) return false
-        return visible.height() >= view.height * 0.5f
+        if (view.visibility != View.VISIBLE) return false
+        return view.width > 0 && view.height > 0
     }
 
     /** 按资源名在子树内查找视图（广度优先，命中即返回）。 */
