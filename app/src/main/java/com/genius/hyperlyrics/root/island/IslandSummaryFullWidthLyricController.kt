@@ -2,7 +2,6 @@ package com.genius.hyperlyrics.root.island
 
 import android.view.View
 import android.view.ViewGroup
-import com.genius.hyperlyrics.root.island.view.MaxWidthFrameLayout
 import com.genius.hyperlyrics.root.utils.HookLogger
 import java.util.WeakHashMap
 import kotlin.math.abs
@@ -30,14 +29,18 @@ internal object IslandSummaryFullWidthLyricController {
         val capsule: View,
         val wrapper: View,
         val clipSnapshots: List<Triple<ViewGroup, Boolean, Boolean>>,
-        val wrapperMaxWidthSnapshot: Int,
         val listener: View.OnLayoutChangeListener,
     )
 
     /** 启用（幂等）。返回是否本次新启用。 */
     fun apply(rootView: ViewGroup): Boolean {
-        if (appliedStates.containsKey(rootView)) return false
         val wrapper = rootView.findViewWithTag<View>(IslandProbeUtils.RIGHT_TEST_WRAPPER_TAG) ?: return false
+        // 已启用且 wrapper 未变 → 幂等返回；若 wrapper 被注入链路重建（新实例），
+        // 必须先解绑旧的再重新绑定，否则新 wrapper 永远拿不到位移（表现为歌词跳回最右）。
+        appliedStates[rootView]?.let { state ->
+            if (state.wrapper === wrapper) return false
+            restore(rootView)
+        }
         val capsule = IslandViewHelper.findViewByName(rootView, "big_island_view")
             ?: IslandViewHelper.findViewByName(rootView, "big_container")
             ?: return false
@@ -66,7 +69,6 @@ internal object IslandSummaryFullWidthLyricController {
             capsule = capsule,
             wrapper = wrapper,
             clipSnapshots = clipSnapshots,
-            wrapperMaxWidthSnapshot = (wrapper as? MaxWidthFrameLayout)?.maxWidthPx ?: -1,
             listener = listener,
         )
         appliedStates[rootView] = state
@@ -90,12 +92,6 @@ internal object IslandSummaryFullWidthLyricController {
             group.clipToPadding = clipToPadding
         }
         state.wrapper.translationX = 0f
-        (state.wrapper as? MaxWidthFrameLayout)?.let { wrapper ->
-            if (state.wrapperMaxWidthSnapshot >= 0) {
-                wrapper.maxWidthPx = state.wrapperMaxWidthSnapshot
-                wrapper.requestLayout()
-            }
-        }
         HookLogger.i(TAG, "已关闭全宽歌词绘制，恢复原生裁剪与位移")
         return true
     }
@@ -112,16 +108,9 @@ internal object IslandSummaryFullWidthLyricController {
         val wrapperLocation = IntArray(2)
         wrapper.getLocationInWindow(wrapperLocation)
 
-        // 让歌词「可用布局宽度」正好等于胶囊宽度：长句按胶囊宽度换行/滚动，短句从左起，
-        // 右侧自然留出封面背景与律动。仅在数值变化时写入，避免测量回环。
-        (wrapper as? MaxWidthFrameLayout)?.let { maxWrapper ->
-            if (maxWrapper.maxWidthPx != capsule.width) {
-                maxWrapper.maxWidthPx = capsule.width
-                maxWrapper.requestLayout()
-            }
-        }
-
-        // 绘制起点对齐胶囊左端（translationX 只影响绘制）。
+        // 只做绘制位移：把歌词绘制起点对齐到胶囊左端。
+        // 注意：**不修改 maxWidthPx / 不 requestLayout**——胶囊宽度会随内容变化，
+        // 若在这里反向调整测量会形成"测量↔位置"回环，导致歌词位置左/中/右乱跳。
         val target = -(wrapperLocation[0] - capsuleLocation[0]).toFloat()
         if (abs(wrapper.translationX - target) > 0.5f) {
             wrapper.translationX = target
