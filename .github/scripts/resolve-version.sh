@@ -36,17 +36,17 @@ esac
 
 current_commit="$(git rev-parse HEAD)"
 
-if [[ "$channel" == "canary" ]]; then
-  # canary 始终固定为 base_version（例如 1.0.0），不自动递增、不加后缀
+if [[ "$channel" == "canary" || "$channel" == "beta" ]]; then
+  # canary / beta 始终固定为 base_version（例如 1.0.0），不自动递增、不加后缀
   full_version="$base_version"
 else
-  # stable / beta：以 base_version 为起点，按已有正式版 tag 自动递增 patch
+  # stable：以 base_version 为起点，按已有正式版 tag 自动递增 patch
   major_minor="${base_version%.*}"
   mm_regex="${major_minor//./\\.}"
   highest_patch=-1
 
   while IFS= read -r tag; do
-    # 仅统计正式版 tag（vX.Y.Z）占号，beta 预发布不占号
+    # 仅统计正式版 tag（vX.Y.Z）占号
     if [[ "$tag" =~ ^v${mm_regex}\.([0-9]+)$ ]]; then
       number="${BASH_REMATCH[1]}"
       if (( number > highest_patch )); then
@@ -61,19 +61,7 @@ else
     next_version="${major_minor}.$(( highest_patch + 1 ))"
   fi
 
-  if [[ "$channel" == "beta" ]]; then
-    candidate="${next_version}-beta"
-    if git rev-parse -q --verify "refs/tags/v${candidate}" >/dev/null 2>&1; then
-      n=1
-      while git rev-parse -q --verify "refs/tags/v${candidate}.${n}" >/dev/null 2>&1; do
-        n=$(( n + 1 ))
-      done
-      candidate="${next_version}-beta.${n}"
-    fi
-    full_version="$candidate"
-  else
-    full_version="$next_version"
-  fi
+  full_version="$next_version"
 fi
 
 previous_stable_tag=""

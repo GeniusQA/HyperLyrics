@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: '构建渠道 (canary=仅产物 / beta=预发布 / stable=正式发布)'
+        description: '构建渠道 (canary=仅产物 / beta=仅产物 Release 变体(版本恒为 1.0.0) / stable=正式发布)'
         required: true
         type: choice
         options:
