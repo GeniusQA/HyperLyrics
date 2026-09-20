@@ -28,12 +28,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import androidx.core.view.ViewCompat
 import com.genius.hyperlyrics.common.IslandProgressColorMode
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.UIConstants
 import com.genius.hyperlyrics.common.PrefsBridge
+import com.genius.hyperlyrics.common.island.IslandLayoutAdvisor
 import com.genius.hyperlyrics.ui.component.CustomFontColorPickerDialog
 import com.genius.hyperlyrics.ui.component.CustomFontColorPreview
 import com.genius.hyperlyrics.ui.navigation.LocalNavigator
@@ -110,6 +113,33 @@ fun SuperIslandSettingsPage() {
     var rightContentWidth by remember { mutableIntStateOf(prefs.getInt(RootConstants.KEY_HOOK_ISLAND_RIGHT_CONTENT_MAX_WIDTH, RootConstants.DEFAULT_HOOK_ISLAND_RIGHT_CONTENT_MAX_WIDTH).coerceIn(0, 500)) }
     var dynamicWidth by remember { mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ISLAND_DYNAMIC_WIDTH, RootConstants.DEFAULT_HOOK_ISLAND_DYNAMIC_WIDTH)) }
     var afterPauseBehavior by remember { mutableIntStateOf(prefs.getInt(RootConstants.KEY_HOOK_ISLAND_BEHAVIOR_AFTER_PAUSE, RootConstants.DEFAULT_HOOK_ISLAND_BEHAVIOR_AFTER_PAUSE)) }
+
+    // 真机自适应推荐值：内容长度取决于本机摘要胶囊宽 / 挖孔区宽 / 密度，内边距取决于左右槽是否
+    // 还显示原生图标（专辑封面、音频律动）。仅在该项「从未设置过」时作为默认值使用（含输入框预填），
+    // 用户显式设置过的值一律保留。
+    val islandRootView = LocalView.current
+    val layoutRecommendation = remember(islandRootView, audioCover, audioRhythm, islandContentLeft) {
+        val metrics = islandRootView.resources.displayMetrics
+        val cutoutWidthPx = runCatching {
+            ViewCompat.getRootWindowInsets(islandRootView)
+                ?.displayCutout
+                ?.boundingRects
+                ?.maxOfOrNull { it.width() } ?: 0
+        }.getOrDefault(0)
+        IslandLayoutAdvisor.recommend(
+            screenWidthPx = metrics.widthPixels,
+            density = metrics.density,
+            cutoutWidthPx = cutoutWidthPx,
+            leftShowsAlbumLogo = audioCover && islandContentLeft == 0,
+            rightShowsIcon = audioRhythm,
+        )
+    }
+    val leftContentWidthUnset = !prefs.contains(RootConstants.KEY_HOOK_ISLAND_LEFT_CONTENT_MAX_WIDTH)
+    val rightContentWidthUnset = !prefs.contains(RootConstants.KEY_HOOK_ISLAND_RIGHT_CONTENT_MAX_WIDTH)
+    val leftPaddingUnset = !prefs.contains(RootConstants.KEY_HOOK_ISLAND_LEFT_PADDING_LEFT) &&
+        !prefs.contains(RootConstants.KEY_HOOK_ISLAND_LEFT_PADDING_RIGHT)
+    val rightPaddingUnset = !prefs.contains(RootConstants.KEY_HOOK_ISLAND_RIGHT_PADDING_LEFT) &&
+        !prefs.contains(RootConstants.KEY_HOOK_ISLAND_RIGHT_PADDING_RIGHT)
     var forceNextSongAtEnd by remember { mutableStateOf(prefs.getBoolean(RootConstants.KEY_HOOK_ISLAND_FORCE_NEXT_SONG_AT_END, RootConstants.DEFAULT_HOOK_ISLAND_FORCE_NEXT_SONG_AT_END)) }
     val storedNextSongDuration = prefs.getInt(
         RootConstants.KEY_HOOK_ISLAND_NEXT_SONG_DURATION,
@@ -324,8 +354,8 @@ fun SuperIslandSettingsPage() {
         NumberInputDialog(
             show = showLeftContentWidthDialog, 
             title = stringResource(id = R.string.title_left_content_width), 
-            label = stringResource(id = R.string.label_content_width_range), 
-            initialValue = leftContentWidth, 
+            label = "${stringResource(id = R.string.label_content_width_range)} · ${stringResource(id = R.string.format_recommended_value, layoutRecommendation.leftContentWidthDp)}", 
+            initialValue = if (leftContentWidthUnset) layoutRecommendation.leftContentWidthDp else leftContentWidth, 
             min = 0,
             max = 500,
             onDismiss = { showLeftContentWidthDialog = false }, 
@@ -334,15 +364,15 @@ fun SuperIslandSettingsPage() {
         NumberInputDialog(
             show = showRightContentWidthDialog, 
             title = stringResource(id = R.string.title_right_content_width), 
-            label = stringResource(id = R.string.label_content_width_range), 
-            initialValue = rightContentWidth, 
+            label = "${stringResource(id = R.string.label_content_width_range)} · ${stringResource(id = R.string.format_recommended_value, layoutRecommendation.rightContentWidthDp)}", 
+            initialValue = if (rightContentWidthUnset) layoutRecommendation.rightContentWidthDp else rightContentWidth, 
             min = 0,
             max = 500,
             onDismiss = { showRightContentWidthDialog = false }, 
             onConfirm = { value -> rightContentWidth = value; saveConfig(RootConstants.KEY_HOOK_ISLAND_RIGHT_CONTENT_MAX_WIDTH, value) }
         )
-        PaddingInputDialog(show = showLeftPaddingDialog, title = stringResource(id = R.string.title_left_padding), initialLeft = leftPaddingLeft, initialRight = leftPaddingRight, onDismiss = { showLeftPaddingDialog = false }, onConfirm = { l, r -> leftPaddingLeft = l; leftPaddingRight = r; saveConfig(RootConstants.KEY_HOOK_ISLAND_LEFT_PADDING_LEFT, l); saveConfig(RootConstants.KEY_HOOK_ISLAND_LEFT_PADDING_RIGHT, r) })
-        PaddingInputDialog(show = showRightPaddingDialog, title = stringResource(id = R.string.title_right_padding), initialLeft = rightPaddingLeft, initialRight = rightPaddingRight, onDismiss = { showRightPaddingDialog = false }, onConfirm = { l, r -> rightPaddingLeft = l; rightPaddingRight = r; saveConfig(RootConstants.KEY_HOOK_ISLAND_RIGHT_PADDING_LEFT, l); saveConfig(RootConstants.KEY_HOOK_ISLAND_RIGHT_PADDING_RIGHT, r) })
+        PaddingInputDialog(show = showLeftPaddingDialog, title = stringResource(id = R.string.title_left_padding), initialLeft = if (leftPaddingUnset) layoutRecommendation.leftPaddingLeftDp else leftPaddingLeft, initialRight = if (leftPaddingUnset) layoutRecommendation.leftPaddingRightDp else leftPaddingRight, onDismiss = { showLeftPaddingDialog = false }, onConfirm = { l, r -> leftPaddingLeft = l; leftPaddingRight = r; saveConfig(RootConstants.KEY_HOOK_ISLAND_LEFT_PADDING_LEFT, l); saveConfig(RootConstants.KEY_HOOK_ISLAND_LEFT_PADDING_RIGHT, r) })
+        PaddingInputDialog(show = showRightPaddingDialog, title = stringResource(id = R.string.title_right_padding), initialLeft = if (rightPaddingUnset) layoutRecommendation.rightPaddingLeftDp else rightPaddingLeft, initialRight = if (rightPaddingUnset) layoutRecommendation.rightPaddingRightDp else rightPaddingRight, onDismiss = { showRightPaddingDialog = false }, onConfirm = { l, r -> rightPaddingLeft = l; rightPaddingRight = r; saveConfig(RootConstants.KEY_HOOK_ISLAND_RIGHT_PADDING_LEFT, l); saveConfig(RootConstants.KEY_HOOK_ISLAND_RIGHT_PADDING_RIGHT, r) })
         CustomFontColorPickerDialog(
             show = showProgressCustomColorDialog,
             initialColor = progressCustomColor,
@@ -383,22 +413,22 @@ fun SuperIslandSettingsPage() {
                             )
                             ArrowPreference(
                                 title = stringResource(id = R.string.title_left_content_width),
-                                endActions = { Text("$leftContentWidth", fontSize = MiuixTheme.textStyles.body2.fontSize, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
+                                endActions = { Text(if (leftContentWidthUnset) stringResource(id = R.string.format_auto_value, layoutRecommendation.leftContentWidthDp) else "$leftContentWidth", fontSize = MiuixTheme.textStyles.body2.fontSize, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
                                 onClick = { showLeftContentWidthDialog = true }
                             )
                             ArrowPreference(
                                 title = stringResource(id = R.string.title_right_content_width), 
-                                endActions = { Text("$rightContentWidth", fontSize = MiuixTheme.textStyles.body2.fontSize, color = MiuixTheme.colorScheme.onSurfaceVariantActions) }, 
+                                endActions = { Text(if (rightContentWidthUnset) stringResource(id = R.string.format_auto_value, layoutRecommendation.rightContentWidthDp) else "$rightContentWidth", fontSize = MiuixTheme.textStyles.body2.fontSize, color = MiuixTheme.colorScheme.onSurfaceVariantActions) }, 
                                 onClick = { showRightContentWidthDialog = true }
                             )
                             ArrowPreference(
                                 title = stringResource(id = R.string.title_left_padding), 
-                                endActions = { Text(stringResource(id = R.string.format_padding_pair, leftPaddingLeft, leftPaddingRight), fontSize = MiuixTheme.textStyles.body2.fontSize, color = MiuixTheme.colorScheme.onSurfaceVariantActions) }, 
+                                endActions = { Text(if (leftPaddingUnset) stringResource(id = R.string.format_auto_padding_pair, layoutRecommendation.leftPaddingLeftDp, layoutRecommendation.leftPaddingRightDp) else stringResource(id = R.string.format_padding_pair, leftPaddingLeft, leftPaddingRight), fontSize = MiuixTheme.textStyles.body2.fontSize, color = MiuixTheme.colorScheme.onSurfaceVariantActions) }, 
                                 onClick = { showLeftPaddingDialog = true }
                             )
                             ArrowPreference(
                                 title = stringResource(id = R.string.title_right_padding), 
-                                endActions = { Text(stringResource(id = R.string.format_padding_pair, rightPaddingLeft, rightPaddingRight), fontSize = MiuixTheme.textStyles.body2.fontSize, color = MiuixTheme.colorScheme.onSurfaceVariantActions) }, 
+                                endActions = { Text(if (rightPaddingUnset) stringResource(id = R.string.format_auto_padding_pair, layoutRecommendation.rightPaddingLeftDp, layoutRecommendation.rightPaddingRightDp) else stringResource(id = R.string.format_padding_pair, rightPaddingLeft, rightPaddingRight), fontSize = MiuixTheme.textStyles.body2.fontSize, color = MiuixTheme.colorScheme.onSurfaceVariantActions) }, 
                                 onClick = { showRightPaddingDialog = true }
                             )
                         }
