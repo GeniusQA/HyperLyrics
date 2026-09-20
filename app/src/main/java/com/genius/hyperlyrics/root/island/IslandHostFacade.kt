@@ -48,6 +48,15 @@ internal object IslandHostFacade {
         if (!showRhythm) {
             IslandViewHelper.clearTextContainerMargin(rootView, IslandProbeUtils.RIGHT_PARENT_NAME, clearStart = false, clearEnd = true)
         }
+
+        // 左侧内容为「无内容」时，收掉左区域 area_left 与中缝 area_cutout 的占位，
+        // 让右侧内容（歌词）铺满整条胶囊；其它配置恢复原生布局。
+        // 注意：这里只改 LayoutParams、不隐藏视图，也不额外触发重排，避免破坏测量/抖动。
+        val leftContent = prefs.getInt(
+            RootConstants.KEY_HOOK_ISLAND_CONTENT_LEFT,
+            RootConstants.DEFAULT_HOOK_ISLAND_CONTENT_LEFT,
+        )
+        IslandViewHelper.applySingleSideFullWidth(rootView, leftContent == 0)
     }
 
     fun clearAndRefresh(rootView: ViewGroup) {

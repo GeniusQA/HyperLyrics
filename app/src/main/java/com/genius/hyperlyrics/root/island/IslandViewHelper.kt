@@ -3,6 +3,7 @@ package com.genius.hyperlyrics.root.island
 import android.annotation.SuppressLint
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.root.HookEntry
 import com.genius.hyperlyrics.root.island.view.MaxWidthFrameLayout
@@ -80,11 +81,107 @@ object IslandViewHelper {
         }
     }
 
+    /** 单侧占满时保存的区域原始布局（宽度 / LinearLayout 权重）。 */
+    private val areaLayoutSnapshots = WeakHashMap<View, AreaLayout>()
+
+    private class AreaLayout(val width: Int, val weight: Float)
+
+    /** 布局诊断只输出一次。 */
+    private var areaLayoutLogged = false
+
+    /**
+     * 「超级岛左侧内容 = 无内容」时，把左区域 `area_left` 与中缝 `area_cutout` 收成 0 宽、
+     * 右区域 `area_right` 占满剩余空间，从而去掉中缝、让右侧歌词铺满整条胶囊。
+     *
+     * 关键：**只改 LayoutParams（宽度 + LinearLayout 权重），视图始终保持 VISIBLE**。
+     * 上一版把两个区域直接 `GONE` 会破坏系统 `big_container` 的测量骨架 —— 歌词量成 0 尺寸
+     * 而完全不显示，并引发反复重排导致卡顿。
+     *
+     * @return 是否发生了实际改动（调用方据此决定是否做后续处理）
+     */
+    fun applySingleSideFullWidth(rootView: ViewGroup, enabled: Boolean): Boolean {
+        val left = findViewByName(rootView, "area_left")
+        val cutout = findViewByName(rootView, "area_cutout")
+        val right = findViewByName(rootView, "area_right")
+        if (left == null || cutout == null || right == null) return false
+        logAreaLayoutOnce(left, cutout, right)
+        var changed = false
+        if (enabled) {
+            changed = shrinkToZero(left) || changed
+            changed = shrinkToZero(cutout) || changed
+            changed = fillRemaining(right) || changed
+        } else {
+            changed = restoreArea(left) || changed
+            changed = restoreArea(cutout) || changed
+            changed = restoreArea(right) || changed
+        }
+        if (changed) {
+            HookLogger.i(
+                "IslandViewHelper",
+                "单侧占满=$enabled areas(L/C/R)=${left.width}/${cutout.width}/${right.width}",
+            )
+        }
+        return changed
+    }
+
+    private fun shrinkToZero(view: View): Boolean {
+        val lp = view.layoutParams ?: return false
+        if (areaLayoutSnapshots.containsKey(view)) return false
+        val ll = lp as? LinearLayout.LayoutParams
+        areaLayoutSnapshots[view] = AreaLayout(lp.width, ll?.weight ?: -1f)
+        lp.width = 0
+        ll?.let { it.weight = 0f }
+        view.layoutParams = lp
+        return true
+    }
+
+    private fun fillRemaining(view: View): Boolean {
+        val lp = view.layoutParams ?: return false
+        if (areaLayoutSnapshots.containsKey(view)) return false
+        val ll = lp as? LinearLayout.LayoutParams
+        areaLayoutSnapshots[view] = AreaLayout(lp.width, ll?.weight ?: -1f)
+        if (ll != null) {
+            ll.width = 0
+            ll.weight = 1f
+        } else {
+            lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+        }
+        view.layoutParams = lp
+        return true
+    }
+
+    private fun restoreArea(view: View): Boolean {
+        val snapshot = areaLayoutSnapshots.remove(view) ?: return false
+        val lp = view.layoutParams ?: return false
+        lp.width = snapshot.width
+        if (snapshot.weight >= 0f) {
+            (lp as? LinearLayout.LayoutParams)?.weight = snapshot.weight
+        }
+        view.layoutParams = lp
+        return true
+    }
+
+    private fun logAreaLayoutOnce(left: View, cutout: View, right: View) {
+        if (areaLayoutLogged) return
+        areaLayoutLogged = true
+        listOf("area_left" to left, "area_cutout" to cutout, "area_right" to right)
+            .forEach { (name, view) ->
+                val lp = view.layoutParams
+                val ll = lp as? LinearLayout.LayoutParams
+                HookLogger.i(
+                    "IslandViewHelper",
+                    "布局诊断 $name: lp=${lp?.javaClass?.simpleName} w=${lp?.width} h=${lp?.height} " +
+                        "weight=${ll?.weight} vis=${view.visibility} size=${view.width}x${view.height}",
+                )
+            }
+    }
+
     /**
      * 清理所有注入的视图并恢复系统原生组件
      */
     fun clearInjectedViews(rootView: ViewGroup) {
         IslandNativeSlotPlacement.restore(rootView)
+        applySingleSideFullWidth(rootView, false)
         hideInjectedView(rootView, IslandProbeUtils.LEFT_TEST_VIEW_TAG)
         hideInjectedView(rootView, IslandProbeUtils.LEFT_TEST_WRAPPER_TAG)
         hideInjectedView(rootView, IslandProbeUtils.RIGHT_TEST_VIEW_TAG)
