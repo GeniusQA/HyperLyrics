@@ -84,7 +84,19 @@ object IslandViewHelper {
     /** 单侧占满时保存的区域原始布局（宽度 / LinearLayout 权重）。 */
     private val areaLayoutSnapshots = WeakHashMap<View, AreaLayout>()
 
+    /**
+     * 每个岛内容视图「期望的单侧占满状态」，由 [IslandHostFacade.applyHostSettings] 写入。
+     * 用于让 [clearInjectedViews] 在期望收起的场景下**不要恢复**，否则注入路径里
+     * 「清理→注入」会反复收起/恢复翻转，导致高频重排（卡顿）且布局一直不稳定（歌词不显示）。
+     */
+    private val singleSideFullWidthDesired = WeakHashMap<View, Boolean>()
+
     private class AreaLayout(val width: Int, val weight: Float)
+
+    /** 记录期望状态（由 applyHostSettings 在应用前调用）。 */
+    fun markSingleSideFullWidthDesired(root: View, enabled: Boolean) {
+        singleSideFullWidthDesired[root] = enabled
+    }
 
     /** 布局诊断只输出一次。 */
     private var areaLayoutLogged = false
@@ -103,13 +115,15 @@ object IslandViewHelper {
         val left = findViewByName(rootView, "area_left")
         val cutout = findViewByName(rootView, "area_cutout")
         val right = findViewByName(rootView, "area_right")
+        logAreaLayoutOnce(rootView, left, cutout, right)
         if (left == null || cutout == null || right == null) return false
-        logAreaLayoutOnce(left, cutout, right)
         var changed = false
         if (enabled) {
+            // 只收左区域与中缝的占位；**不动 area_right**。
+            // 若把 area_right 设成 width=0+weight=1，在 WRAP_CONTENT 容器里权重分不到空间，
+            // 右区域会被量成 0 宽 → 歌词完全不显示。
             changed = shrinkToZero(left) || changed
             changed = shrinkToZero(cutout) || changed
-            changed = fillRemaining(right) || changed
         } else {
             changed = restoreArea(left) || changed
             changed = restoreArea(cutout) || changed
@@ -135,21 +149,6 @@ object IslandViewHelper {
         return true
     }
 
-    private fun fillRemaining(view: View): Boolean {
-        val lp = view.layoutParams ?: return false
-        if (areaLayoutSnapshots.containsKey(view)) return false
-        val ll = lp as? LinearLayout.LayoutParams
-        areaLayoutSnapshots[view] = AreaLayout(lp.width, ll?.weight ?: -1f)
-        if (ll != null) {
-            ll.width = 0
-            ll.weight = 1f
-        } else {
-            lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-        }
-        view.layoutParams = lp
-        return true
-    }
-
     private fun restoreArea(view: View): Boolean {
         val snapshot = areaLayoutSnapshots.remove(view) ?: return false
         val lp = view.layoutParams ?: return false
@@ -161,11 +160,32 @@ object IslandViewHelper {
         return true
     }
 
-    private fun logAreaLayoutOnce(left: View, cutout: View, right: View) {
+    private fun logAreaLayoutOnce(
+        rootView: ViewGroup,
+        left: View?,
+        cutout: View?,
+        right: View?,
+    ) {
         if (areaLayoutLogged) return
         areaLayoutLogged = true
+        val container = findViewByName(rootView, "big_container")
+        if (container == null) {
+            HookLogger.i("IslandViewHelper", "布局诊断 big_container: 未找到")
+        } else {
+            val lp = container.layoutParams
+            val ll = lp as? LinearLayout.LayoutParams
+            HookLogger.i(
+                "IslandViewHelper",
+                "布局诊断 big_container: lp=${lp?.javaClass?.simpleName} w=${lp?.width} h=${lp?.height} " +
+                    "weight=${ll?.weight} size=${container.width}x${container.height}",
+            )
+        }
         listOf("area_left" to left, "area_cutout" to cutout, "area_right" to right)
             .forEach { (name, view) ->
+                if (view == null) {
+                    HookLogger.i("IslandViewHelper", "布局诊断 $name: 未找到")
+                    return@forEach
+                }
                 val lp = view.layoutParams
                 val ll = lp as? LinearLayout.LayoutParams
                 HookLogger.i(
@@ -181,7 +201,10 @@ object IslandViewHelper {
      */
     fun clearInjectedViews(rootView: ViewGroup) {
         IslandNativeSlotPlacement.restore(rootView)
-        applySingleSideFullWidth(rootView, false)
+        // 期望状态为「单侧占满」时不恢复：否则清理→注入会反复收放翻转（卡顿 + 布局不稳定）。
+        if (singleSideFullWidthDesired[rootView] != true) {
+            applySingleSideFullWidth(rootView, false)
+        }
         hideInjectedView(rootView, IslandProbeUtils.LEFT_TEST_VIEW_TAG)
         hideInjectedView(rootView, IslandProbeUtils.LEFT_TEST_WRAPPER_TAG)
         hideInjectedView(rootView, IslandProbeUtils.RIGHT_TEST_VIEW_TAG)
