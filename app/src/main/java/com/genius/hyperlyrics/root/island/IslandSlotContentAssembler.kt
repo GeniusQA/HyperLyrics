@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.text.TextPaint
 import android.view.View
+import android.view.ViewGroup
 import com.genius.hyperlyrics.BuildConfig
 import com.genius.hyperlyrics.common.RootConstants
 import com.genius.hyperlyrics.common.IslandLyricPosition
@@ -501,7 +502,15 @@ internal object IslandSlotContentAssembler {
         if (rawLine.text.isNullOrEmpty()) return rawLine
 
         val density = view.resources.displayMetrics.density
-        val leftMaxPx = config.leftMaxWidthDp * density
+        val leftMaxPx = if (config.fullWidthSplit) {
+            // 「左侧=无内容 + 右侧=歌词」强制分离：分割点取「左侧区域真实宽度」，
+            // 让左侧排不下的部分自然接到右侧继续显示，一条歌词横跨整条胶囊。
+            // 若取用户的「左侧内容长度」设置（常见为 500dp），几乎不会触发分割，
+            // 整行都会留在左侧、右侧为空，看不出续接效果。
+            resolveLeftAreaWidthPx(view) ?: (config.leftMaxWidthDp * density)
+        } else {
+            config.leftMaxWidthDp * density
+        }
         val centerCurrentLine = shouldCenterLine(config, rawLine, isLeft)
         val textPaint = TextPaint().apply {
             textSize = config.textSizeSp.toFloat() * density
@@ -520,6 +529,13 @@ internal object IslandSlotContentAssembler {
             centerCurrentLine
         )
         return if (isLeft) splitResult.left else splitResult.right
+    }
+
+    /** 左侧区域 `area_left` 的实测宽度（px）；取不到或未布局时返回 null。 */
+    private fun resolveLeftAreaWidthPx(view: View): Float? {
+        val root = view.rootView as? ViewGroup ?: return null
+        val areaLeft = IslandViewHelper.findViewByName(root, "area_left") ?: return null
+        return areaLeft.width.takeIf { it > 0 }?.toFloat()
     }
 
     fun processedRawLine(
