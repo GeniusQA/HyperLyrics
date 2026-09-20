@@ -604,6 +604,9 @@
     <string name="title_left_content_width">左侧内容长度</string>
     <string name="title_right_content_width">右侧内容长度</string>
     <string name="label_content_width_range">范围：0 ~ 500</string>
+    <string name="format_recommended_value">推荐 %1$d</string>
+    <string name="format_auto_value">自动 %1$d</string>
+    <string name="format_auto_padding_pair">自动 %1$d,%2$d</string>
     <string name="title_left_padding">左侧内容内边距</string>
     <string name="title_right_padding">右侧内容内边距</string>
     <string name="label_left_padding">左边距</string>

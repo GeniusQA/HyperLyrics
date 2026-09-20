@@ -545,6 +545,9 @@
     <string name="title_left_content_width">Left Content Width</string>
     <string name="title_right_content_width">Right Content Width</string>
     <string name="label_content_width_range">Range: 0 ~ 500</string>
+    <string name="format_recommended_value">Recommended %1$d</string>
+    <string name="format_auto_value">Auto %1$d</string>
+    <string name="format_auto_padding_pair">Auto %1$d,%2$d</string>
     <string name="title_left_padding">Left Content Padding</string>
     <string name="title_right_padding">Right Content Padding</string>
     <string name="label_left_padding">Left Padding</string>
