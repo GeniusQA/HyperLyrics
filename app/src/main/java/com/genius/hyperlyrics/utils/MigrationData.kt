@@ -31,7 +31,7 @@ object MigrationData {
             items = listOf(
                 MigrationItem(
                     text = "Lyricon歌词源已升级至插件体系",
-                    summary = "\n现在 HyperLyrics 已将 Lyricon 的词幕服务模块与主流音乐平台的 Provider 模块整合在一起，作为插件功能，实现无需额外模块，还能满足各取所需的需求。\n\n更多详情请在“歌词设置”-“Lyricon配置”查看。",
+                    summary = "\n现在 HyperLyrics 已将 Lyricon 的词幕服务模块与主流音乐平台的 Provider 模块整合在一起，作为插件功能，实现无需额外模块，还能满足各取所需的需求。\n\n更多详情请在“歌词设置”-“Lyricon”查看。",
                 ),
             ),
         ),
