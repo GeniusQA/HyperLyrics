@@ -26,6 +26,12 @@ internal object CoverGradientTextContrastOptimizer {
     private const val DARK_TAIL_LUMINANCE_MAX = 0.04
     private const val UNIFORMLY_LIGHT_BACKGROUND_MIN_LUMINANCE = 0.28
 
+    /** 可读性救援的目标对比度（低于此值认为文字「看不清」，需把文字推到对端）。 */
+    private const val READABLE_TARGET_CONTRAST = 3.0
+
+    /** 可读性救援单次搜索的最大亮度位移（1.0 = 允许一路推到纯白/纯黑）。 */
+    private const val READABLE_MAX_LIGHTNESS_DELTA = 1.0
+
     fun shouldOptimize(
         useCustomColor: Boolean,
         useMonetColor: Boolean,
@@ -143,6 +149,45 @@ internal object CoverGradientTextContrastOptimizer {
             minimumBackgroundLuminance = backgroundProfile.minimumLuminance,
             maximumBackgroundLuminance = backgroundProfile.maximumLuminance,
         )
+    }
+
+    /**
+     * 可读性救援：当文字色与背景锚点的对比度不足时，沿背景明暗的**反方向**把文字色的 OKLCH
+     * 亮度持续推向对端（最远可达纯白/纯黑），直到对比度达到 [targetContrast] 或无法再改善。
+     *
+     * 适用场景：封面铺满岛背景（渐变封面 / 线性渐变）时背景取自封面、颜色不可预知，若字体颜色
+     * 也取封面色（或莫奈/自定义恰好接近背景）就会同色而「看不清」。相比 [optimize] 仅 ±0.10 的
+     * 微调，本方法允许大跨度位移，能真正把文字推到与背景强对比的一侧，最大化可读性。
+     *
+     * @return 调整后的文字色；若原本已足够清晰则原样返回。
+     */
+    fun ensureReadable(
+        textColors: IntArray,
+        backgroundAnchors: IntArray,
+        targetContrast: Double = READABLE_TARGET_CONTRAST,
+    ): IntArray {
+        if (textColors.isEmpty() || backgroundAnchors.isEmpty()) return textColors
+        val before = evaluate(textColors, backgroundAnchors)
+        if (before.minimumContrast >= targetContrast) return textColors
+        val darken = profileBackground(backgroundAnchors).directionPolicy ==
+            DirectionPolicy.DARKEN_FOR_UNIFORMLY_LIGHT_BACKGROUND
+        var bestColors = textColors
+        var bestContrast = before.minimumContrast
+        val steps = (READABLE_MAX_LIGHTNESS_DELTA / LIGHTNESS_STEP).roundToInt()
+        for (step in 1..steps) {
+            val amount = step * LIGHTNESS_STEP
+            val delta = if (darken) -amount else amount
+            val adjusted = textColors
+                .map { PerceptualGradient.shiftLightness(it, delta) }
+                .toIntArray()
+            val contrast = evaluate(adjusted, backgroundAnchors).minimumContrast
+            if (contrast > bestContrast) {
+                bestColors = adjusted
+                bestContrast = contrast
+            }
+            if (contrast >= targetContrast) return adjusted
+        }
+        return bestColors
     }
 
     fun sampleBackgroundAnchors(bitmap: Bitmap): IntArray = runCatching {
