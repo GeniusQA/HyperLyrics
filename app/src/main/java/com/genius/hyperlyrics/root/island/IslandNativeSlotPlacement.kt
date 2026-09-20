@@ -16,10 +16,14 @@ internal object IslandNativeSlotPlacement {
     private val rhythmAnchors = WeakHashMap<ViewGroup, RhythmAnchor>()
 
     fun apply(root: ViewGroup, config: IslandSlotRuntimeConfig): Boolean {
+        // 单侧占满（左侧=无内容）时，即使未开启动态长度，也要让锚定跟随歌词位置：
+        // 系统右侧模块默认 END|CENTER_VERTICAL，固定宽度下会让歌词贴右、左侧留空，
+        // 收中缝后也看不出「铺满」。其它配置维持原行为（仅在动态长度时改锚定）。
+        val anchorFollowsContent = config.dynamicWidthEnabled || config.singleSideFullWidth
         val left = applySide(root, IslandProbeUtils.LEFT_PARENT_NAME,
-            config.dynamicWidthEnabled && config.shouldInjectLeft, config.wrapperHorizontalGravity(true))
+            anchorFollowsContent && config.shouldInjectLeft, config.wrapperHorizontalGravity(true))
         val right = applySide(root, IslandProbeUtils.RIGHT_PARENT_NAME,
-            config.dynamicWidthEnabled && config.shouldInjectRight, config.wrapperHorizontalGravity(false))
+            anchorFollowsContent && config.shouldInjectRight, config.wrapperHorizontalGravity(false))
         val rhythm = preserveRhythmAnchor(root,
             config.dynamicWidthEnabled && config.shouldInjectRight && config.showRhythm)
         return left || right || rhythm

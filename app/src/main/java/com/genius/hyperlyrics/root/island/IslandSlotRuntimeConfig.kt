@@ -74,6 +74,13 @@ internal data class IslandSlotRuntimeConfig(
     val isSplitMode: Boolean
         get() = activeMode == 1
 
+    /**
+     * 单侧占满：左侧无内容、右侧有内容。
+     * 用于「收起中缝 + 让右槽锚定跟随歌词位置」，从而让右侧歌词铺满整条胶囊。
+     */
+    val singleSideFullWidth: Boolean
+        get() = leftMode == 0 && rightMode != 0
+
     fun lyricPosition(isLeft: Boolean): Int = if (isLeft) leftLyricPosition else rightLyricPosition
 
     fun centerLyric(isLeft: Boolean): Boolean =
