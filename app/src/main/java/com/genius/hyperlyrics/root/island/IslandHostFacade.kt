@@ -37,13 +37,20 @@ internal object IslandHostFacade {
             RootConstants.DEFAULT_HOOK_ISLAND_RIGHT_ICON
         )
 
-        IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.LEFT_PARENT_NAME, "island_container_module_icon", showAlbum)
+        // 左侧内容为「无内容」时，左侧图标容器彻底隐藏、并清掉左文本容器两侧边距，
+        // 让系统尽量不占左侧空间（仅改可见性/边距，不碰 area_* 布局骨架，避免破坏测量）。
+        val leftEmpty = prefs.getInt(
+            RootConstants.KEY_HOOK_ISLAND_CONTENT_LEFT,
+            RootConstants.DEFAULT_HOOK_ISLAND_CONTENT_LEFT,
+        ) == 0
+
+        IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.LEFT_PARENT_NAME, "island_container_module_icon", showAlbum && !leftEmpty)
         IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.RIGHT_PARENT_NAME, "island_container_module_icon", showRhythm)
         IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.LEFT_PARENT_NAME, IslandProbeUtils.TEXT_CONTAINER_NAME, true)
         IslandViewHelper.toggleContainer(rootView, IslandProbeUtils.RIGHT_PARENT_NAME, IslandProbeUtils.TEXT_CONTAINER_NAME, true)
 
-        if (!showAlbum) {
-            IslandViewHelper.clearTextContainerMargin(rootView, IslandProbeUtils.LEFT_PARENT_NAME, clearStart = true, clearEnd = false)
+        if (!showAlbum || leftEmpty) {
+            IslandViewHelper.clearTextContainerMargin(rootView, IslandProbeUtils.LEFT_PARENT_NAME, clearStart = true, clearEnd = leftEmpty)
         }
         if (!showRhythm) {
             IslandViewHelper.clearTextContainerMargin(rootView, IslandProbeUtils.RIGHT_PARENT_NAME, clearStart = false, clearEnd = true)
