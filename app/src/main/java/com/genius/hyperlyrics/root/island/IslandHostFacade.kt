@@ -64,6 +64,11 @@ internal object IslandHostFacade {
 
         if (leftEmpty) {
             logFullWidthProbe(rootView)
+            // 阶段 2：让右侧歌词的「绘制」铺满整条胶囊（跨过中缝）。
+            // 只做 translationX + clipChildren 调整，不触发任何测量/重算。
+            IslandSummaryFullWidthLyricController.apply(rootView)
+        } else {
+            IslandSummaryFullWidthLyricController.restore(rootView)
         }
     }
 
