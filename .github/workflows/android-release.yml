@@ -233,16 +233,24 @@ jobs:
               debug-aligned.apk
           fi
 
-      - name: 上传构建产物 Upload Artifact
+      # 拆成两个独立 artifact：Release / Canary 各自一个。
+      # 这样本地脚本只需下载对应渠道（约 12MB），而不用整包拉 debug+release（约 74MB）。
+      - name: 上传 Release 产物 Upload Release Artifact
         if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false'
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.gate.outputs.channel }}-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
-          # 上传的是签名步骤生成的根目录产物；Gradle 原始输出（如 app-release-unsigned.apk）未签名，装不上
-          path: |
-            HyperLyrics-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
-            HyperLyrics-Release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
-          if-no-files-found: error
+          name: ${{ steps.gate.outputs.channel }}-release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
+          path: HyperLyrics-Release-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
+          if-no-files-found: ignore
+          compression-level: 0
+
+      - name: 上传 Canary 产物 Upload Canary Artifact
+        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.gate.outputs.channel }}-canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}
+          path: HyperLyrics-Canary-v${{ steps.gate.outputs.full_name }}-${{ steps.gate.outputs.code }}.apk
+          if-no-files-found: ignore
           compression-level: 0
 
       - name: 生成发布说明 Generate Release Body
