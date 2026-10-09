@@ -51,10 +51,16 @@
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
             </intent-filter>
+            <!-- LSPosed 模块详情「打开」按钮的入口：与 LAUNCHER 组件无关，
+                 隐藏桌面图标（禁用 LauncherAlias）后仍可从 LSPosed 打开 -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
+            </intent-filter>
         </activity>
 
-        <!-- 桌面入口别名（双 alias 互斥）：隐藏桌面图标 = 禁用 LauncherAlias 并启用
-             LauncherEntry（无图标但保持 LAUNCHER 组件存在，LSPosed 模块详情的打开按钮始终可用） -->
+        <!-- 桌面入口别名：隐藏桌面图标 = 直接禁用本 alias，图标与点击热区一起从桌面消失
+             （模块入口走 MainActivity 的 MODULE_SETTINGS，见上） -->
         <activity-alias
             android:name=".ui.LauncherAlias"
             android:label="@string/app_name"
@@ -87,20 +93,15 @@
             </intent-filter>
         </receiver>
 
-        <!-- 备用入口：隐藏桌面图标时启用，图标为透明占位（视觉隐藏但 LAUNCHER 组件
-             始终存在，LSPosed 模块详情右下角打开按钮始终可用） -->
-        <activity-alias
-            android:name=".ui.LauncherEntry"
-            android:label="@string/app_name"
-            android:icon="@drawable/ic_launcher_transparent"
-            android:targetActivity=".ui.MainActivity"
-            android:enabled="false"
+        <!-- 接收 hook 回传的「二次匹配」结果：成功才写缓存，成功/失败均弹 toast。
+             exported 才能接收来自 SystemUI 进程的广播。 -->
+        <receiver
+            android:name=".service.ManualMatchResultReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
+                <action android:name="com.genius.hyperlyrics.action.MANUAL_MATCH_RESULT" />
             </intent-filter>
-        </activity-alias>
+        </receiver>
 
         <service
             android:name=".service.LiveLyricService"

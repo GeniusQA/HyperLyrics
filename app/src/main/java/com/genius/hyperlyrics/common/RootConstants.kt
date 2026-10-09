@@ -485,6 +485,23 @@ object RootConstants {
     const val KEY_HOOK_ONLINE_TRANSLATION_APP_PREFIX =
         "key_hook_online_translation_app_"
     const val KEY_HOOK_MANUAL_LYRIC_MATCH_REQUEST = "key_hook_manual_lyric_match_request"
+    /** 「二次匹配」缓存（JSON 数组）：同一首歌再次播放时 hook 优先复用上次手动匹配的候选。 */
+    const val KEY_HOOK_MANUAL_MATCH_CACHE = "key_hook_manual_match_cache"
+
+    /** hook → App：二次匹配结果广播（成功才写缓存，并弹 toast）。 */
+    const val ACTION_MANUAL_MATCH_RESULT = "com.genius.hyperlyrics.action.MANUAL_MATCH_RESULT"
+    const val EXTRA_MANUAL_MATCH_SUCCESS = "extra_manual_match_success" // Boolean
+    const val EXTRA_MANUAL_MATCH_CURRENT_TITLE = "extra_manual_match_current_title"
+    const val EXTRA_MANUAL_MATCH_CURRENT_ARTIST = "extra_manual_match_current_artist"
+    const val EXTRA_MANUAL_MATCH_TITLE = "extra_manual_match_title"
+    const val EXTRA_MANUAL_MATCH_ARTIST = "extra_manual_match_artist"
+    const val EXTRA_MANUAL_MATCH_ALBUM = "extra_manual_match_album"
+    const val EXTRA_MANUAL_MATCH_SOURCE = "extra_manual_match_source"
+    const val EXTRA_MANUAL_MATCH_SONG_ID = "extra_manual_match_song_id"
+    const val EXTRA_MANUAL_MATCH_DURATION = "extra_manual_match_duration" // Long
+    const val EXTRA_MANUAL_MATCH_LINES = "extra_manual_match_lines" // Int
+    const val EXTRA_MANUAL_MATCH_TRANSLATIONS = "extra_manual_match_translations" // Int
+    const val EXTRA_MANUAL_MATCH_MESSAGE = "extra_manual_match_message" // String
     const val KEY_HOOK_ONLINE_TRANSLATION_SALT_PREFER_ONLINE =
         "key_hook_online_translation_salt_prefer_online"
     const val KEY_HOOK_APPLE_MUSIC_CONTENT_UI_LANGUAGE =

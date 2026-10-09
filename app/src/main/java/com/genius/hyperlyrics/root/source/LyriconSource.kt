@@ -37,6 +37,7 @@ import com.genius.hyperlyrics.lyric.source.LyricSink
 import com.genius.hyperlyrics.lyric.source.LyricSource
 import com.genius.hyperlyrics.online.OnlineLyricTargeter
 import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
+import com.genius.hyperlyrics.online.model.ManualLyricMatchCache
 import com.genius.hyperlyrics.online.model.ManualLyricMatchRequest
 import com.genius.hyperlyrics.online.model.SongSearchResult
 import com.genius.hyperlyrics.online.model.Source
@@ -733,50 +734,155 @@ class LyriconSource : LyricSource {
         )
         cancelThirdPartyFallback(reason = "manual_match_applied")
         fallbackScope.launch {
-            try {
-                val lines = OnlineLyricTargeter.fetchLyricsForCandidate(application, candidate)
-                if (lines == null) {
-                    diagnostic("二次匹配未取到歌词: source=${source.name}, id=${request.sourceSongId}")
-                    return@launch
-                }
-                var matched = OnlineFallbackSongMapper.map(baseSong, lines) ?: return@launch
-                val orderedSources = configuredOnlineSources()
-                if (orderedSources.isNotEmpty() && needsOnlineEnrichment(matched)) {
-                    val translationLines = fetchThirdPartyLyrics(
-                        application = application,
-                        playerPackage = playerPackage,
-                        baseSong = baseSong,
-                        album = request.album.takeIf { it.isNotBlank() },
-                        order = orderedSources,
-                        requireTranslation = true,
-                    )
-                    if (translationLines != null) {
-                        matched = OnlineTranslationMatcher.apply(matched, translationLines).song
-                    }
-                }
-                val result = matched
-                mainHandler.post {
-                    currentPublishedThirdPartySong = result
-                    // 与在线兜底命中保持一致：置 true 让 handleThirdPartySong 的
-                    // “同曲空歌词重复回调忽略”防护生效，避免酷狗重发的空歌词覆盖手动匹配。
-                    thirdPartyFallbackSongActive = true
-                    lastOnlineContentSourceName = source.name
-                    thirdPartyMatchFailedIdentity = null
-                    publishSong(result, restorePosition = true)
-                    diagnostic(
-                        "二次匹配完成: source=${source.name}, " +
-                            "lines=${result.lyrics.orEmpty().size}, " +
-                            "translations=${result.lyrics.orEmpty().count {
-                                OnlineTranslationContentPolicy.isMeaningful(it.translation)
-                            }}",
-                    )
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                diagnostic("二次匹配异常: ${e.javaClass.simpleName}:${e.message}")
-            }
+            val outcome = fetchAndPublishManualMatch(
+                application = application,
+                playerPackage = playerPackage,
+                baseSong = baseSong,
+                request = request,
+                source = source,
+                fromCache = false,
+            )
+            reportManualMatchResult(request, outcome)
         }
+    }
+
+    /**
+     * 按「二次匹配」候选抓词、必要时补翻译并发布；手动匹配请求与「二次匹配缓存」
+     * 命中两条链路复用。@return 结果（成功与否、歌词/翻译行数、提示文案）。
+     */
+    private data class ManualMatchOutcome(
+        val success: Boolean,
+        val lineCount: Int,
+        val translationCount: Int,
+        val message: String,
+    )
+
+    private suspend fun fetchAndPublishManualMatch(
+        application: Application,
+        playerPackage: String,
+        baseSong: LocalSong,
+        request: ManualLyricMatchRequest,
+        source: Source,
+        fromCache: Boolean,
+    ): ManualMatchOutcome {
+        val origin = if (fromCache) "二次匹配缓存" else "二次匹配"
+        val candidate = SongSearchResult(
+            id = request.sourceSongId,
+            title = request.title,
+            artist = request.artist,
+            album = request.album,
+            duration = request.durationMs,
+            source = source,
+        )
+        return try {
+            val lines = OnlineLyricTargeter.fetchLyricsForCandidate(application, candidate)
+            if (lines == null) {
+                val msg = "$origin 未取到歌词: source=${source.name}, id=${request.sourceSongId}"
+                diagnostic(msg)
+                return ManualMatchOutcome(false, 0, 0, msg)
+            }
+            val mapped = OnlineFallbackSongMapper.map(baseSong, lines)
+            if (mapped == null) {
+                val msg = "$origin 映射失败: 候选歌词无法对齐到当前歌曲"
+                diagnostic(msg)
+                return ManualMatchOutcome(false, 0, 0, msg)
+            }
+            var matched = mapped
+            val orderedSources = configuredOnlineSources()
+            if (orderedSources.isNotEmpty() && needsOnlineEnrichment(matched)) {
+                val translationLines = fetchThirdPartyLyrics(
+                    application = application,
+                    playerPackage = playerPackage,
+                    baseSong = baseSong,
+                    album = request.album.takeIf { it.isNotBlank() },
+                    order = orderedSources,
+                    requireTranslation = true,
+                )
+                if (translationLines != null) {
+                    matched = OnlineTranslationMatcher.apply(matched, translationLines).song
+                }
+            }
+            val result = matched
+            val lineCount = result.lyrics.orEmpty().size
+            val translationCount = result.lyrics.orEmpty().count {
+                OnlineTranslationContentPolicy.isMeaningful(it.translation)
+            }
+            mainHandler.post {
+                currentPublishedThirdPartySong = result
+                // 与在线兜底命中保持一致：置 true 让 handleThirdPartySong 的
+                // “同曲空歌词重复回调忽略”防护生效，避免酷狗重发的空歌词覆盖手动匹配。
+                thirdPartyFallbackSongActive = true
+                lastOnlineContentSourceName = source.name
+                thirdPartyMatchFailedIdentity = null
+                publishSong(result, restorePosition = true)
+                diagnostic("$origin 完成: source=${source.name}, lines=$lineCount, translations=$translationCount")
+            }
+            ManualMatchOutcome(
+                success = true,
+                lineCount = lineCount,
+                translationCount = translationCount,
+                message = if (translationCount > 0) {
+                    moduleString(
+                        R.string.manual_match_result_success,
+                        "二次匹配成功：%1\$d 行歌词，%2\$d 行翻译",
+                    ).format(lineCount, translationCount)
+                } else {
+                    moduleString(
+                        R.string.manual_match_result_no_translation,
+                        "二次匹配完成：已获取 %1\$d 行原词，但未找到翻译",
+                    ).format(lineCount)
+                },
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val msg = "$origin 异常: ${e.javaClass.simpleName}:${e.message}"
+            diagnostic(msg)
+            ManualMatchOutcome(false, 0, 0, msg)
+        }
+    }
+
+    /**
+     * 把「二次匹配」结果回传给 App：成功才写缓存（App 收到后落到本地偏好并
+     * 通过 PrefsBridge 推给 hook 读取），同时弹出结果 toast。
+     * 注意「二次匹配缓存」命中的自动取词（fromCache）不回传，避免无谓打扰。
+     */
+    private fun reportManualMatchResult(request: ManualLyricMatchRequest, outcome: ManualMatchOutcome) {
+        val application = app ?: return
+        application.sendBroadcast(
+            Intent(RootConstants.ACTION_MANUAL_MATCH_RESULT)
+                .setPackage(RootConstants.APP_PACKAGE_NAME)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_SUCCESS, outcome.success)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_CURRENT_TITLE, request.currentTitle)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_CURRENT_ARTIST, request.currentArtist)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_TITLE, request.title)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_ARTIST, request.artist)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_ALBUM, request.album)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_SOURCE, request.source)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_SONG_ID, request.sourceSongId)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_DURATION, request.durationMs)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_LINES, outcome.lineCount)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_TRANSLATIONS, outcome.translationCount)
+                .putExtra(RootConstants.EXTRA_MANUAL_MATCH_MESSAGE, outcome.message),
+        )
+    }
+
+    /**
+     * 「二次匹配」缓存查询：按归一化歌名(+歌手)取最近一次手动选中的候选。
+     * 缓存由设置 App 在每次手动匹配时写入（App→hook 单向通道，取词时读到即最新）。
+     */
+    private fun findCachedManualMatch(baseSong: LocalSong): ManualLyricMatchRequest? {
+        val title = normalizeIdentity(baseSong.name)
+        if (title.isEmpty()) return null
+        val artist = normalizeIdentity(baseSong.artist)
+        return ManualLyricMatchCache
+            .decode(prefs?.getString(RootConstants.KEY_HOOK_MANUAL_MATCH_CACHE, null))
+            .lastOrNull { entry ->
+                title == normalizeIdentity(entry.currentTitle) &&
+                    (artist.isEmpty() ||
+                        normalizeIdentity(entry.currentArtist).isEmpty() ||
+                        artist == normalizeIdentity(entry.currentArtist))
+            }
     }
 
     private fun applyLunaBeatWordLyricsPreferenceChange() {
@@ -2085,6 +2191,25 @@ class LyriconSource : LyricSource {
                             "在线兜底专辑: album=${album.ifBlank { "无" }}, " +
                                 "title=${baseSong.name}, artist=${baseSong.artist}"
                         )
+                        // 「二次匹配」缓存优先：这首歌此前手动匹配过 → 直接按缓存候选取词发布
+                        //（与手动二次匹配同链路），跳过 LRCLIB/四平台自动匹配。
+                        val cachedFallbackMatch = findCachedManualMatch(baseSong)
+                        val cachedFallbackSource = cachedFallbackMatch?.sourceEnum
+                        if (cachedFallbackMatch != null && cachedFallbackSource != null) {
+                            diagnostic(
+                                "在线兜底命中二次匹配缓存: source=${cachedFallbackSource.name}, " +
+                                    "id=${cachedFallbackMatch.sourceSongId}, title=${baseSong.name}"
+                            )
+                            fetchAndPublishManualMatch(
+                                application = application,
+                                playerPackage = playerPackage,
+                                baseSong = baseSong,
+                                request = cachedFallbackMatch,
+                                source = cachedFallbackSource,
+                                fromCache = true,
+                            )
+                            return@withLock
+                        }
                         // 在线 MetaData 平台源（LRCLIB + 四平台）是歌词/翻译的最终兜底，
                         // 无论是否有专用插件（官方/内置/独立模块）或通用兜底在场都走同一流程：
                         //   1) 先 LRCLIB 取词（requireTranslation=false）；
@@ -2488,6 +2613,30 @@ class LyriconSource : LyricSource {
                     "needsEnrichment=$enrichmentNeeded, titlePresent=$titlePresent"
             )
             return false
+        }
+        // 「二次匹配」缓存优先：有原生歌词只补翻译的场景也复用上次手动匹配的候选
+        //（与手动二次匹配同链路，整体替换原生歌词+翻译），跳过自动翻译补齐。
+        val application = app
+        val cachedTranslationMatch = application?.let { findCachedManualMatch(baseSong) }
+        val cachedTranslationSource = cachedTranslationMatch?.sourceEnum
+        if (application != null && cachedTranslationMatch != null && cachedTranslationSource != null) {
+            diagnostic(
+                "在线翻译补齐命中二次匹配缓存: source=${cachedTranslationSource.name}, " +
+                    "id=${cachedTranslationMatch.sourceSongId}, title=${baseSong.name}"
+            )
+            onlineTranslationAttemptKey = translationIdentity(baseSong)
+            cancelThirdPartyFallback(reason = "manual_match_cache_applied")
+            fallbackScope.launch {
+                fetchAndPublishManualMatch(
+                    application = application,
+                    playerPackage = effectivePlayerPackage,
+                    baseSong = baseSong,
+                    request = cachedTranslationMatch,
+                    source = cachedTranslationSource,
+                    fromCache = true,
+                )
+            }
+            return true
         }
         val attemptKey = translationIdentity(baseSong)
         if (onlineTranslationAttemptKey == attemptKey) {

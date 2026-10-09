@@ -249,6 +249,11 @@
     <string name="manual_match_search_failed">Search failed</string>
     <string name="manual_match_required_hint">Title and artist are required</string>
     <string name="manual_match_submitted">Rematch submitted, fetching lyrics/translation again</string>
+    <string name="title_clear_manual_match_cache">Clear rematch cache</string>
+    <string name="summary_clear_manual_match_cache">Clear all manually rematched songs; after clearing they fall back to automatic matching</string>
+    <string name="dialog_clear_manual_match_cache_msg">This clears the entire rematch cache; those songs will use automatic matching again. Clear anyway?</string>
+    <string name="confirm_clear_manual_match_cache">Clear</string>
+    <string name="toast_manual_match_cache_cleared">Rematch cache cleared</string>
     <string name="provider_catalog_loading">Loading the plugin catalog</string>
     <string name="provider_catalog_load_failed">Unable to load the plugin catalog</string>
     <string name="provider_status_processing">Processing…</string>

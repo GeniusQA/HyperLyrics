@@ -9,9 +9,9 @@ import com.genius.hyperlyrics.common.UIConstants
 
 /**
  * 应用更新完成后自愈桌面入口状态：
- * 「隐藏桌面图标」依赖双 alias 互斥（LauncherAlias=桌面图标 / LauncherEntry=无图标入口），
- * 升级安装会保留组件状态但新 alias 保持 manifest 默认值，可能出现双入口同时禁用导致
- * LSPosed 模块详情打开按钮失效。此处按用户持久化意图重新应用组件状态。
+ * 「隐藏桌面图标」= 禁用 LauncherAlias（唯一的 LAUNCHER 入口，图标与点击热区一起消失），
+ * 升级安装会保留组件状态，此处按用户持久化意图重新应用。
+ * 模块入口由 MainActivity 的 LSPosed MODULE_SETTINGS category 提供，不依赖 LAUNCHER 组件。
  */
 class LauncherIconStateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -33,12 +33,6 @@ class LauncherIconStateReceiver : BroadcastReceiver() {
                     component("ui.LauncherAlias"),
                     if (hidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED
                     else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-                pm.setComponentEnabledSetting(
-                    component("ui.LauncherEntry"),
-                    if (hidden) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                    else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                     PackageManager.DONT_KILL_APP
                 )
             }
