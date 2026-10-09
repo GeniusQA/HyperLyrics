@@ -256,6 +256,11 @@
     <string name="manual_match_search_failed">搜索失败</string>
     <string name="manual_match_required_hint">歌名和歌手为必填项</string>
     <string name="manual_match_submitted">已提交二次匹配，正在重新获取歌词/翻译</string>
+    <string name="title_clear_manual_match_cache">清除二次匹配缓存</string>
+    <string name="summary_clear_manual_match_cache">清空所有手动匹配的歌曲记录，清除后这些歌曲将恢复自动匹配</string>
+    <string name="dialog_clear_manual_match_cache_msg">将清除全部二次匹配缓存，之后这些歌曲会重新走自动匹配。确定清除？</string>
+    <string name="confirm_clear_manual_match_cache">确认清除</string>
+    <string name="toast_manual_match_cache_cleared">已清除二次匹配缓存</string>
     <string name="provider_catalog_loading">正在加载插件目录</string>
     <string name="provider_catalog_load_failed">插件目录加载失败</string>
     <string name="provider_status_processing">处理中…</string>

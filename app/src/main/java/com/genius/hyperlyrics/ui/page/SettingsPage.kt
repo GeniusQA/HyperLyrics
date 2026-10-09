@@ -293,8 +293,8 @@ private fun LazyListScope.settingsSections(
                     onCheckedChange = { hidden ->
                         launcherIconHidden = hidden
                         prefs.edit { putBoolean(UIConstants.KEY_HIDE_LAUNCHER_ICON, hidden) }
-                        // 双 alias 互斥：隐藏=禁用桌面 alias 启用透明图标备用 alias（LAUNCHER
-                        // 组件始终存在），保证 LSPosed 模块详情右下角的打开按钮始终有效
+                        // 隐藏 = 直接禁用桌面 alias（图标与点击热区一起消失）；模块入口由
+                        // MainActivity 的 LSPosed MODULE_SETTINGS category 兜底，不依赖 LAUNCHER 组件
                         runCatching {
                             val pm = context.packageManager
                             fun component(name: String) =
@@ -303,12 +303,6 @@ private fun LazyListScope.settingsSections(
                                 component("ui.LauncherAlias"),
                                 if (hidden) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
                                 else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                                android.content.pm.PackageManager.DONT_KILL_APP
-                            )
-                            pm.setComponentEnabledSetting(
-                                component("ui.LauncherEntry"),
-                                if (hidden) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                                else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                                 android.content.pm.PackageManager.DONT_KILL_APP
                             )
                         }

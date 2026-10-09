@@ -85,6 +85,7 @@ import com.genius.hyperlyrics.common.IslandAlbumCoverWhitelist
 import com.genius.hyperlyrics.online.OnlineTranslationSourcePreferences
 import com.genius.hyperlyrics.online.OnlineLyricTargeter
 import com.genius.hyperlyrics.online.SourceMatchDiagnostic
+import com.genius.hyperlyrics.online.model.ManualLyricMatchCache
 import com.genius.hyperlyrics.online.model.ManualLyricMatchRequest
 import com.genius.hyperlyrics.online.model.SongSearchResult
 import com.genius.hyperlyrics.online.model.Source
@@ -170,6 +171,8 @@ fun OnlineTranslationSourcesPage() {
     var showChainDialog by remember { mutableStateOf(false) }
     // 二次匹配：手动输入歌名/歌手/专辑，搜索候选后选中重新抓词。
     var showManualMatchDialog by remember { mutableStateOf(false) }
+    // 清除二次匹配缓存确认弹窗。
+    var showClearCacheDialog by remember { mutableStateOf(false) }
     var manualTitle by remember { mutableStateOf("") }
     var manualArtist by remember { mutableStateOf("") }
     var manualAlbum by remember { mutableStateOf("") }
@@ -901,6 +904,20 @@ fun OnlineTranslationSourcesPage() {
                 )
             }
         }
+        item(key = "clear_manual_match_cache_entry") {
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp)
+                    .fillMaxWidth(),
+            ) {
+                ProComponent(
+                    title = stringResource(R.string.title_clear_manual_match_cache),
+                    summary = stringResource(R.string.summary_clear_manual_match_cache),
+                    onClick = { showClearCacheDialog = true },
+                )
+            }
+        }
         }
         // “启用 App”与特殊设置不依赖“当前播放 App 是否启用”，需始终展示；
         // 否则关闭当前播放 App 的开关后，本页只剩提示语，用户将无法重新打开该开关。
@@ -1028,6 +1045,47 @@ fun OnlineTranslationSourcesPage() {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    WindowDialog(
+        title = stringResource(R.string.title_clear_manual_match_cache),
+        show = showClearCacheDialog,
+        onDismissRequest = { showClearCacheDialog = false },
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = stringResource(R.string.dialog_clear_manual_match_cache_msg),
+                fontSize = MiuixTheme.textStyles.body2.fontSize,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    text = stringResource(R.string.cancel),
+                    onClick = { showClearCacheDialog = false },
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(modifier = Modifier.width(20.dp))
+                TextButton(
+                    text = stringResource(R.string.confirm_clear_manual_match_cache),
+                    onClick = {
+                        // 写入空数组：rememberHookConfigSaver 会同时落本地偏好并推给 hook 远程偏好
+                        saveConfig(
+                            RootConstants.KEY_HOOK_MANUAL_MATCH_CACHE,
+                            ManualLyricMatchCache.encode(emptyList()),
+                        )
+                        showClearCacheDialog = false
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.toast_manual_match_cache_cleared),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
             }
         }
     }
