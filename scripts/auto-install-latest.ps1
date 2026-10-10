@@ -30,7 +30,7 @@ param(
 )
 
 # 已配对设备的无线连接地址（mDNS 不可用时用它）。可改默认值或命令行 -DeviceAddr 传入。
-if (-not $DeviceAddr) { $DeviceAddr = "192.168.1.6:37333" }
+if (-not $DeviceAddr) { $DeviceAddr = "192.168.1.13:39423" }
 
 $ErrorActionPreference = "Stop"
 
@@ -107,7 +107,8 @@ function Install-LatestRun {
     if (-not (Connect-WirelessAdb)) { throw "未连接手机，安装中止（产物保留在 $tmp，可手动装）" }
 
     Write-Host "安装 $($apk.Name) ..."
-    adb install -r $apk.FullName
+    # -r 覆盖安装；-d 允许降级（beta 渠道版本恒为 1.0.0，可能低于已装的 stable 1.0.1）
+    adb install -r -d $apk.FullName
     if ($LASTEXITCODE -ne 0) { throw "adb install 失败（退出码 $LASTEXITCODE）" }
 
     if ($RestartSystemUI) {

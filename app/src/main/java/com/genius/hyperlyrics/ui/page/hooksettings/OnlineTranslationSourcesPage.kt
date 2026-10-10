@@ -11,6 +11,7 @@ import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.provider.Settings
 import android.graphics.drawable.Drawable
@@ -212,6 +213,8 @@ fun OnlineTranslationSourcesPage() {
     var currentTranslationOrigin by remember { mutableStateOf<String?>(null) }
     // 歌词内容来自在线源时的实际命中平台（Source.name，如 QM），用于精确展示「QQ音乐歌词+翻译」。
     var currentContentSource by remember { mutableStateOf<String?>(null) }
+    // 歌词内容是否来自「二次匹配」（手动指定候选/命中二次匹配缓存），用于标明「二次匹配 · 平台」。
+    var currentContentManual by remember { mutableStateOf(false) }
     var listenerEnabled by remember { mutableStateOf<Boolean?>(null) }
     val sourceDiagnostics = remember { mutableStateMapOf<Source, SourceMatchDiagnostic?>() }
     var diagnosing by remember { mutableStateOf(false) }
@@ -247,6 +250,7 @@ fun OnlineTranslationSourcesPage() {
             currentContentOrigin = null
             currentTranslationOrigin = null
             currentContentSource = null
+            currentContentManual = false
             return false
         }
         val pkg = active.packageName
@@ -288,7 +292,29 @@ fun OnlineTranslationSourcesPage() {
         currentContentOrigin = readHookPref(RootConstants.KEY_HOOK_LYRIC_CONTENT_ORIGIN)
         currentTranslationOrigin = readHookPref(RootConstants.KEY_HOOK_TRANSLATION_ORIGIN)
         currentContentSource = readHookPref(RootConstants.KEY_HOOK_LYRIC_CONTENT_SOURCE)
+        currentContentManual = readHookPref(RootConstants.KEY_HOOK_LYRIC_CONTENT_MANUAL) == "true"
         return true
+    }
+
+    // 来源标记由 hook 广播 → LyricOriginReceiver 落盘到同一份偏好。
+    // 监听偏好变化实时刷新页面状态，避免手动二次匹配后MetaData仍显示上一次的来源信息。
+    DisposableEffect(prefs) {
+        val originListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                RootConstants.KEY_HOOK_CURRENT_LYRIC_PROVIDER ->
+                    currentProviderPackage = prefs.getString(key, null)
+                RootConstants.KEY_HOOK_LYRIC_CONTENT_ORIGIN ->
+                    currentContentOrigin = prefs.getString(key, null)
+                RootConstants.KEY_HOOK_TRANSLATION_ORIGIN ->
+                    currentTranslationOrigin = prefs.getString(key, null)
+                RootConstants.KEY_HOOK_LYRIC_CONTENT_SOURCE ->
+                    currentContentSource = prefs.getString(key, null)
+                RootConstants.KEY_HOOK_LYRIC_CONTENT_MANUAL ->
+                    currentContentManual = prefs.getString(key, null) == "true"
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(originListener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(originListener) }
     }
 
     var lastDiagnosisAtMs by remember { mutableStateOf(0L) }
@@ -514,6 +540,24 @@ fun OnlineTranslationSourcesPage() {
         base.filter { it.app.packageName in islandWhitelistPackages }
     }
 
+    // 「启用播放器」列表只展示超级岛白名单内的播放器（内置目录 + 白名单里已安装的包），
+    // 而 appEnabled 初始只按内置目录填充。白名单播放器读不到键值（null → 渲染成「关闭」），
+    // 表现为「白名单里添加了播放器、默认应为开启」却不生效，且已保存的关闭状态也会被忽略。
+    // 此处按可见列表补齐：白名单播放器默认开启，用户手动关掉的沿用已保存的 false。
+    // 当前播放包留给下方 LaunchedEffect(currentPackage) 处理（它还负责动态播放器
+    // 首次进入 appEnabled 后的歌曲补查），这里跳过以免抢先、丢失那次补查。
+    LaunchedEffect(visibleEnabledApps, currentPackage) {
+        visibleEnabledApps.forEach { installedApp ->
+            val pkg = installedApp.app.packageName
+            if (pkg != currentPackage && pkg !in appEnabled) {
+                appEnabled[pkg] = prefs.getBoolean(
+                    OnlineTranslationSourcePreferences.appPreferenceKey(pkg),
+                    true,
+                )
+            }
+        }
+    }
+
     /** 请求相邻来源互换，动画期间拒绝新的排序操作。 */
     fun requestSourceMove(source: Source, direction: Int) {
         if (pendingSwap != null || swapProgress.value != 0f) return
@@ -728,6 +772,7 @@ fun OnlineTranslationSourcesPage() {
                             contentSource = currentContentSource,
                             translationOrigin = currentTranslationOrigin,
                             translationHit = matchedDiagnostic,
+                            fromManualMatch = currentContentManual,
                         ),
                         fontSize = MiuixTheme.textStyles.body2.fontSize,
                         color = MiuixTheme.colorScheme.onBackground,
@@ -748,12 +793,28 @@ fun OnlineTranslationSourcesPage() {
                     }
                     // 匹配平台信息不再受“原生来源”限制：只要诊断有数据就展示，
                     // 便于确认当前曲目在四平台/通用源的实际匹配情况。
-                    if (matchedDiagnostic != null || nearMissDiagnostic != null ||
+                    // 二次匹配命中时，匹配平台行直接标明「二次匹配 · 实际平台」：
+                    // 自动匹配的分数诊断与手动结果无关，不应再占据该行。
+                    val manualPlatformLabel = if (currentContentManual &&
+                        currentContentOrigin == RootConstants.LYRIC_ORIGIN_ONLINE
+                    ) {
+                        currentContentSource?.takeIf { it.isNotBlank() }
+                            ?.let { name -> runCatching { Source.valueOf(name) }.getOrNull() }
+                            ?.displayName()
+                    } else {
+                        null
+                    }
+                    if (manualPlatformLabel != null ||
+                        matchedDiagnostic != null || nearMissDiagnostic != null ||
                         diagnosing || sourceDiagnostics.isNotEmpty()
                     ) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = when {
+                                manualPlatformLabel != null -> stringResource(
+                                    R.string.online_translation_matched_platform_manual,
+                                    manualPlatformLabel,
+                                )
                                 diagnosing -> stringResource(
                                     R.string.online_translation_matched_platform_diagnosing,
                                 )
@@ -1803,6 +1864,7 @@ private fun resolveLyricSourceText(
     contentSource: String?,
     translationOrigin: String?,
     translationHit: SourceMatchDiagnostic?,
+    fromManualMatch: Boolean = false,
 ): String {
     val context = LocalContext.current
     val providerName = providerDisplayName(context, currentProviderPackage)
@@ -1817,7 +1879,11 @@ private fun resolveLyricSourceText(
         return when {
             contentSourceEnum != null && contentSourceEnum != Source.LRCLIB ->
                 context.getString(
-                    R.string.lyric_origin_online_platform_format,
+                    if (fromManualMatch) {
+                        R.string.lyric_origin_manual_platform_format
+                    } else {
+                        R.string.lyric_origin_online_platform_format
+                    },
                     contentSourceEnum.displayName(),
                 )
             onlineHit != null -> context.getString(
