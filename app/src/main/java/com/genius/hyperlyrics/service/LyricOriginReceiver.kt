@@ -36,6 +36,15 @@ class LyricOriginReceiver : BroadcastReceiver() {
             RootConstants.KEY_HOOK_LYRIC_CONTENT_SOURCE,
             intent.getStringExtra(RootConstants.EXTRA_LYRIC_CONTENT_SOURCE),
         )
+        // 是否来自二次匹配（手动指定候选/命中二次匹配缓存），非手动发布时 hook 侧发 false 清掉。
+        editor.putString(
+            RootConstants.KEY_HOOK_LYRIC_CONTENT_MANUAL,
+            if (intent.getBooleanExtra(RootConstants.EXTRA_LYRIC_CONTENT_MANUAL, false)) {
+                "true"
+            } else {
+                "false"
+            },
+        )
         editor.apply()
     }
 }

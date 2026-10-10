@@ -203,6 +203,12 @@ object RootConstants {
     const val KEY_HOOK_LYRIC_CONTENT_SOURCE = "key_hook_lyric_content_source"
 
     /**
+     * 已发布歌词内容是否来自「二次匹配」（手动指定候选，或命中二次匹配缓存自动取词）。
+     * 由 hook 广播上报、App 落盘（"true"/"false"），供 MetaData 页标明「二次匹配 · 平台」。
+     */
+    const val KEY_HOOK_LYRIC_CONTENT_MANUAL = "key_hook_lyric_content_manual"
+
+    /**
      * hook → App 的来源上报通道。
      *
      * LSPosed 远程偏好只有「App 写、hook 读」单向可靠，hook 侧写入不会持久化，
@@ -214,6 +220,9 @@ object RootConstants {
     const val EXTRA_LYRIC_ORIGIN_SONG_ID = "extra_lyric_origin_song_id"
     const val EXTRA_LYRIC_PROVIDER_PACKAGE = "extra_lyric_provider_package"
     const val EXTRA_LYRIC_CONTENT_SOURCE = "extra_lyric_content_source"
+
+    /** 本次发布的歌词内容是否来自二次匹配（Boolean，默认 false）。 */
+    const val EXTRA_LYRIC_CONTENT_MANUAL = "extra_lyric_content_manual"
 
     /** 模块 App 包名（hook 侧回调 App 时使用）。 */
     const val APP_PACKAGE_NAME = "com.genius.hyperlyrics"

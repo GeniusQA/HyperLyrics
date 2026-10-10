@@ -814,7 +814,7 @@ class LyriconSource : LyricSource {
                 thirdPartyFallbackSongActive = true
                 lastOnlineContentSourceName = source.name
                 thirdPartyMatchFailedIdentity = null
-                publishSong(result, restorePosition = true)
+                publishSong(result, restorePosition = true, fromManualMatch = true)
                 diagnostic("$origin 完成: source=${source.name}, lines=$lineCount, translations=$translationCount")
             }
             ManualMatchOutcome(
@@ -1456,7 +1456,8 @@ class LyriconSource : LyricSource {
     private fun publishSong(
         song: LocalSong?,
         restorePosition: Boolean,
-        onlineTranslationMatched: Boolean = false
+        onlineTranslationMatched: Boolean = false,
+        fromManualMatch: Boolean = false,
     ) {
         // 兜底：SystemUI 重启后 onActiveProviderChanged 可能未及时登记歌词归属包名，
         // 岛上会以 reason=package_missing 直接跳过。发布歌曲时补登记一次。
@@ -1489,6 +1490,7 @@ class LyriconSource : LyricSource {
                 thirdPartyFallbackSongActive
             },
             translationFromOnline = onlineTranslationMatched || onlineMatchedTranslationActive,
+            fromManualMatch = fromManualMatch,
         )
     }
 
@@ -1501,6 +1503,7 @@ class LyriconSource : LyricSource {
         song: LocalSong?,
         contentFromOnline: Boolean,
         translationFromOnline: Boolean,
+        fromManualMatch: Boolean = false,
     ) {
         val contentOrigin = if (contentFromOnline) {
             RootConstants.LYRIC_ORIGIN_ONLINE
@@ -1540,6 +1543,7 @@ class LyriconSource : LyricSource {
                         RootConstants.EXTRA_LYRIC_PROVIDER_PACKAGE,
                         activeProviderPackageName,
                     )
+                    .putExtra(RootConstants.EXTRA_LYRIC_CONTENT_MANUAL, fromManualMatch)
             )
         }
     }
