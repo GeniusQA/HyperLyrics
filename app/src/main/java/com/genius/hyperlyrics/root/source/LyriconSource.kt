@@ -297,6 +297,9 @@ class LyriconSource : LyricSource {
     /** 已同步给 App 侧的最后来源标记，避免每次发布都重复写远程偏好。 */
     private var lastPublishedContentOrigin: String? = null
     private var lastPublishedTranslationOrigin: String? = null
+
+    /** 最近一次发布的歌词内容是否来自「二次匹配」，供缓存清除时判断是否回退自动匹配。 */
+    private var lastPublishedFromManualMatch = false
     private var onlineTranslationGeneration = 0
     private var onlineTranslationAttemptKey: String? = null
     private var originalMetadataRequestKey: String? = null
@@ -693,6 +696,9 @@ class LyriconSource : LyricSource {
         if (key == RootConstants.KEY_HOOK_MANUAL_LYRIC_MATCH_REQUEST) {
             mainHandler.post(::applyManualLyricMatchRequest)
         }
+        if (key == RootConstants.KEY_HOOK_MANUAL_MATCH_CACHE) {
+            mainHandler.post(::applyManualMatchCacheChange)
+        }
     }
 
     /**
@@ -883,6 +889,35 @@ class LyriconSource : LyricSource {
                         normalizeIdentity(entry.currentArtist).isEmpty() ||
                         artist == normalizeIdentity(entry.currentArtist))
             }
+    }
+
+    /**
+     * 「二次匹配缓存」变更（App 侧清除）：若当前岛上的歌词正来自二次匹配、
+     * 且缓存中已无当前歌曲的条目，立即取消手动结果并按原歌曲重跑自动匹配链路
+     * （在线兜底/翻译补齐），让「清除缓存→恢复自动匹配」即时生效而非等下次切歌。
+     * 同曲重新匹配写入新条目的场景不触发（缓存仍命中，且结果已由请求链路发布）。
+     */
+    private fun applyManualMatchCacheChange() {
+        val song = currentThirdPartySong ?: return
+        if (findCachedManualMatch(song) != null) return
+        val published = currentPublishedThirdPartySong
+        val manualActive = published != null &&
+            !published.lyrics.isNullOrEmpty() &&
+            lastPublishedFromManualMatch &&
+            isSameTrack(published, song)
+        if (!manualActive) return
+        diagnostic("二次匹配缓存已清除，当前歌曲回退自动匹配: title=${song.name}")
+        lastPublishedFromManualMatch = false
+        thirdPartyMatchFailedIdentity = null
+        // 先取消手动结果相关的调度与标记，再走完整的三方歌曲处理：
+        // 会把空歌词的元数据歌曲重新发布（岛上回到占位），随后调度自动匹配。
+        cancelThirdPartyFallback(reason = "manual_match_cache_cleared")
+        cancelOnlineTranslation(
+            clearAttempt = true,
+            clearMatched = true,
+            reason = "manual_match_cache_cleared",
+        )
+        handleThirdPartySong(song, universalFallback = false)
     }
 
     private fun applyLunaBeatWordLyricsPreferenceChange() {
@@ -1521,6 +1556,8 @@ class LyriconSource : LyricSource {
         // 内容确实来自在线源时带上实际命中平台；原生发布时清掉，避免旧值残留。
         val contentSourceName = if (contentFromOnline) lastOnlineContentSourceName else null
         if (!contentFromOnline) lastOnlineContentSourceName = null
+        // 记录当前发布是否来自二次匹配：非手动发布（含原生/自动兜底）自动清除标记。
+        lastPublishedFromManualMatch = fromManualMatch
         // 不要写 LSPosed 远程偏好：hook 侧 edit()/apply() 会直接抛异常，
         // 由于本方法在主线程序列里被调用，异常会让 SystemUI 崩溃重启。
         // 来源只通过下面的广播推给模块 App，由 App 落到自己的本地偏好。
