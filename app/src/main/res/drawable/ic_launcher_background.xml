@@ -1,3 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标背景层：取前景面板底色（#F8F8F8），使前景圆角外的透明区域无缝衔接，
+     避免在白色背景上露出内层面板边缘（旧版 16dp inset 造成的"卡片套卡片"观感）。 -->
 <color xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="#FFFFFF" />
+    android:color="#F8F8F8" />
