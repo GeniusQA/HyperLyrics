@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 前景层直接使用 108dp 满幅素材：图标内容（logo）比原先 inset 16dp 时放大约 1.5 倍，
+     与参考实现（HyperIsland：满幅背景 + 内容整体缩放到约 0.86）的视觉占比保持一致。 -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background"/>
-    <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
 </adaptive-icon>
