@@ -1428,10 +1428,11 @@ class LyriconSource : LyricSource {
         // 单行「歌名 - 歌手」占位歌词（无歌词曲目下发或本地生成）不算真实歌词，
         // 否则会被误判为「已有本地歌词」而跳过整首兜底取词（酷狗概念版即为此类）。
         val hasLocalLyrics = !song.lyrics.isNullOrEmpty() && !isPlaceholderLyrics(song)
-        if (playerPackage == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE &&
+        if (OnlineTranslationSourcePreferences.isSpotifyFamily(playerPackage) &&
             !hasLocalLyrics
         ) {
-            // Spotify 原生无歌词：直接用歌名 + 歌手去已启用平台整首取词（歌词 + 翻译）。
+            // Spotify 系（官方 Spotify / Spotilol 等 Web 套壳）原生无歌词：
+            // 直接用歌名 + 歌手去已启用平台整首取词（歌词 + 翻译）。
             scheduleThirdPartyFallback(
                 baseSong = song,
                 delayMs = 0L,

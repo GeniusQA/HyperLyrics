@@ -14,8 +14,18 @@ object OnlineTranslationSourcePreferences {
     const val APPLE_MUSIC_PACKAGE = "com.apple.android.music"
     const val QISHUI_PACKAGE = "com.luna.music"
     const val SPOTIFY_PACKAGE = "com.spotify.music"
+    const val SPOTILOL_PACKAGE = "com.project.lol"
     const val SALT_PACKAGE = "com.salt.music"
     const val YOUTUBE_MUSIC_PACKAGE = "com.google.android.apps.youtube.music"
+
+    /**
+     * Spotify 系播放器：官方 Spotify 与 Spotilol（Spotify Web 播放器的 WebView 套壳）。
+     * 两者都没有可直读站内歌词的 Provider 插件可用（Spotilol 无原生类可 hook），
+     * 共享同一条「无本地歌词 → 在线平台整首取词（歌词+翻译）」兜底策略；
+     * 偏好键彼此独立（见 [appPreferenceKey]）。
+     */
+    fun isSpotifyFamily(packageName: String?): Boolean =
+        packageName == SPOTIFY_PACKAGE || packageName == SPOTILOL_PACKAGE
 
     val defaultOrder: List<Source> = listOf(
         Source.NE,

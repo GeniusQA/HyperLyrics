@@ -535,9 +535,14 @@ fun OnlineTranslationSourcesPage() {
     }
     // 启用 App 列表候选集：与超级岛「音频封面 · 应用白名单」保持一致。
     // 某播放器在白名单关闭则不在本列表出现；当前正在播放的未知包同理仅当在白名单内才显示。
+    // 当前播放包若已在 installedApps（白名单里添加的播放器会进入该列表）中则跳过，
+    // 否则 installedApps + dynamicCurrentApp 会合并出重复的开关行。
     val visibleEnabledApps = remember(installedApps, dynamicCurrentApp, islandWhitelistPackages) {
-        val base = installedApps.orEmpty() + listOfNotNull(dynamicCurrentApp)
-        base.filter { it.app.packageName in islandWhitelistPackages }
+        val base = installedApps.orEmpty()
+        val dynamic = dynamicCurrentApp?.takeIf { dynamic ->
+            base.none { it.app.packageName == dynamic.app.packageName }
+        }
+        (base + listOfNotNull(dynamic)).filter { it.app.packageName in islandWhitelistPackages }
     }
 
     // 「启用播放器」列表只展示超级岛白名单内的播放器（内置目录 + 白名单里已安装的包），
@@ -1827,7 +1832,7 @@ private fun lyricOriginRes(
     currentProviderPackage == RootConstants.UNIVERSAL_FALLBACK_LYRIC_PROVIDER_PACKAGE -> R.string.lyric_origin_online
     currentProviderPackage == RootConstants.BUILT_IN_LYRIC_PROVIDER_PACKAGE -> R.string.lyric_origin_native
     currentProviderPackage != null && isOfficialLyricProvider(currentProviderPackage) -> R.string.lyric_origin_native
-    packageName == OnlineTranslationSourcePreferences.SPOTIFY_PACKAGE -> R.string.lyric_origin_spotify
+    OnlineTranslationSourcePreferences.isSpotifyFamily(packageName) -> R.string.lyric_origin_spotify
     packageName == OnlineTranslationSourcePreferences.YOUTUBE_MUSIC_PACKAGE -> R.string.lyric_origin_ytm
     packageName == OnlineTranslationSourcePreferences.SALT_PACKAGE -> R.string.lyric_origin_salt
     packageName == OnlineTranslationSourcePreferences.APPLE_MUSIC_PACKAGE ||
