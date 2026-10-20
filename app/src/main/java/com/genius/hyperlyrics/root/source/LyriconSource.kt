@@ -1381,10 +1381,14 @@ class LyriconSource : LyricSource {
         val preferOnline = isSaltPreferOnlineEnabled()
         if (
             sameTrack && fallbackPending &&
-            (preferOnline || song.lyrics.isNullOrEmpty() || isPlaceholderLyrics(song))
+            (preferOnline || song.lyrics.isNullOrEmpty() || isPlaceholderLyrics(song) ||
+                isThinnerThanPublishedFallback(song))
         ) {
             // 在线兜底进行中：椒盐 Pack 重复发来的占位，或“优先使用在线源”下
             // 迟到的本地歌词，都不打断在线结果。
+            // 兜底结果已上岛时，还须忽略行数少于已发布结果的同曲迟到载荷
+            // （Spotify 系播放器会反复回调单行退化“歌词”）：放行会取消兜底、
+            // 把已上岛的完整歌词+翻译覆盖塌缩成单行，表现为“翻译没上岛”。
             currentThirdPartySong = song
             debug("忽略同一首歌的三方回调（在线兜底进行中）: title=${song.name}")
             return
@@ -3434,7 +3438,13 @@ class LyriconSource : LyricSource {
                         latestNativeSong
                 ) {
                     if (appleRequest) publishAppleSong(latestNativeSong, restorePosition = true)
-                    else {
+                    else if (
+                        !thirdPartyFallbackSongActive ||
+                        latestNativeSong.lyrics.orEmpty().size >=
+                            currentPublishedThirdPartySong?.lyrics.orEmpty().size
+                    ) {
+                        // 在线兜底结果已上岛时，禁止把行数更少的裸歌曲回发覆盖
+                        // （翻译未命中只代表补齐失败，不能冲掉已展示的完整歌词）。
                         currentPublishedThirdPartySong = latestNativeSong
                         publishSong(latestNativeSong, restorePosition = true)
                     }
@@ -3927,6 +3937,19 @@ class LyriconSource : LyricSource {
      * 无歌词曲目可能只有一行“歌名 - 歌手”样式的占位歌词（Spotify、酷狗概念版等会下发，
      * 也可能由展示层生成），不能据此判定本地已有歌词而跳过整首兜底取词。
      */
+    /**
+     * 在线兜底结果已上岛（thirdPartyFallbackSongActive）时，判断同曲迟到载荷
+     * 是否为「行数少于已发布结果」的退化歌词（空/占位/单行等）。
+     * 这类载荷放行会取消兜底并把完整歌词+翻译覆盖塌缩成单行，
+     * 仅当新载荷歌词行数不少于已发布结果时才允许其接管。
+     */
+    private fun isThinnerThanPublishedFallback(song: LocalSong): Boolean {
+        if (!thirdPartyFallbackSongActive) return false
+        val publishedLineCount = currentPublishedThirdPartySong?.lyrics.orEmpty().size
+        if (publishedLineCount <= 1) return false
+        return song.lyrics.orEmpty().size < publishedLineCount
+    }
+
     private fun isPlaceholderLyrics(song: LocalSong): Boolean {
         val lyrics = song.lyrics ?: return false
         if (lyrics.size != 1) return false
