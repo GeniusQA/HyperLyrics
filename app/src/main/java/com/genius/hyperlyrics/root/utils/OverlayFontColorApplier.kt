@@ -45,6 +45,9 @@ object OverlayFontColorApplier {
      * @param secondaryTargets 次级组（翻译/和声翻译/下一句等），取主色降低透明度
      * @param albumBitmap 封面 bitmap（封面色/渐变模式用；取不到时回退默认白色）
      * @param mediaColorKey 封面取色缓存键（CoverColorHelper.updateMediaSession 的返回值）
+     * @param coverDerivedBackground 调用方背景是否由封面渐变生成（如焦点通知卡片的
+     * 线性/径向渐变、模糊封面等）。为 true 时启用封面取色的可读性救援，避免浅色
+     * 封面上浅色渐变字看不清；默认 false 保持历史行为。
      */
     fun apply(
         prefs: SharedPreferences?,
@@ -54,6 +57,7 @@ object OverlayFontColorApplier {
         secondaryTargets: List<TextView>,
         albumBitmap: Bitmap?,
         mediaColorKey: String?,
+        coverDerivedBackground: Boolean = false,
     ) {
         if (prefs == null) return
         val mode = resolveMode(prefs, keys)
@@ -66,6 +70,7 @@ object OverlayFontColorApplier {
                 keys = keys,
                 albumBitmap = albumBitmap,
                 mediaColorKey = mediaColorKey,
+                gradientCoverBackgroundOverride = coverDerivedBackground,
             )
         }.getOrNull() ?: return
         val primaryColors = style.primary.color

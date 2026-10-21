@@ -1561,6 +1561,16 @@ object NotificationMediaAodLyricHooker {
         if (albumBitmap != null) {
             CoverColorHelper.shareArtwork(albumBitmap)
         }
+        // 卡片背景样式为封面衍生（封面铺满/模糊封面/径向渐变/线性渐变/柔光封面）时，
+        // 背景色取自封面、明度不可预知：告知字体颜色应用器启用可读性救援，
+        // 否则「封面渐变色」字体压在同色系浅色渐变背景上看不清（默认背景不启用）。
+        val coverDerivedBackground = runCatching {
+            val backgroundStyle = prefs?.getInt(
+                RootConstants.KEY_HOOK_NOTIFICATION_MEDIA_BACKGROUND_STYLE,
+                RootConstants.DEFAULT_HOOK_NOTIFICATION_MEDIA_BACKGROUND_STYLE,
+            ) ?: RootConstants.DEFAULT_HOOK_NOTIFICATION_MEDIA_BACKGROUND_STYLE
+            backgroundStyle != RootConstants.NOTIFICATION_MEDIA_BACKGROUND_STYLE_DEFAULT
+        }.getOrDefault(false)
         OverlayFontColorApplier.apply(
             prefs = prefs,
             res = overlay.root.resources,
@@ -1586,6 +1596,7 @@ object NotificationMediaAodLyricHooker {
                 album = "",
                 diagnosticSource = "media_card_overlay"
             ),
+            coverDerivedBackground = coverDerivedBackground,
         )
         overlay.fullAodActive = state.fullAod
         // 息屏 AOD（fullAod）走完整布局：撑高卡片、居中多行歌词、底部自绘进度条带时间；

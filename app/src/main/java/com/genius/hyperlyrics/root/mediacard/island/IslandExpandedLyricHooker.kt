@@ -471,6 +471,14 @@ object IslandExpandedLyricHooker {
         lyricState.backingTranslation.setTextColor(translationColor)
         // 字体颜色设置（莫奈取色/封面色/封面渐变色/自定义）非默认时覆盖系统跟随色。
         // 大岛卡片暂无稳定封面 bitmap 来源，封面色/渐变模式回退默认白色。
+        // 展开态卡片背景样式为封面衍生（封面铺满/模糊/径向/线性/柔光）时启用
+        // 可读性救援，避免「封面渐变色」字体压在同色系浅色渐变背景上看不清。
+        val coverDerivedBackground = runCatching {
+            prefs?.getInt(
+                RootConstants.KEY_HOOK_ISLAND_EXPANDED_MEDIA_BACKGROUND_STYLE,
+                RootConstants.DEFAULT_HOOK_ISLAND_EXPANDED_MEDIA_BACKGROUND_STYLE,
+            ) != RootConstants.ISLAND_EXPANDED_MEDIA_BACKGROUND_STYLE_DEFAULT
+        }.getOrDefault(false)
         OverlayFontColorApplier.apply(
             prefs = prefs,
             res = entry.player.resources,
@@ -479,6 +487,7 @@ object IslandExpandedLyricHooker {
             secondaryTargets = listOf(lyricState.translation, lyricState.backingTranslation),
             albumBitmap = CoverColorHelper.currentArtwork(),
             mediaColorKey = CoverColorHelper.currentMediaKey(),
+            coverDerivedBackground = coverDerivedBackground,
         )
         if (isInterlude) {
             // 字体颜色可能被上方偏好覆盖，Span 颜色取最终生效色，保证三点等亮度且跟随主题

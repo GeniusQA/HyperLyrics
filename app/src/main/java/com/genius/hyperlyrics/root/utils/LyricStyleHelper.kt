@@ -97,6 +97,7 @@ object LyricStyleHelper {
         keys: RootConstants.FontColorKeys,
         albumBitmap: Bitmap? = null,
         mediaColorKey: String? = CoverColorHelper.currentMediaKey(),
+        gradientCoverBackgroundOverride: Boolean? = null,
     ): LyricViewStyle = buildStyleWithDiagnostics(
         prefs = prefs,
         res = res,
@@ -104,6 +105,7 @@ object LyricStyleHelper {
         albumBitmap = albumBitmap,
         mediaColorKey = mediaColorKey,
         fontColorKeys = keys,
+        gradientCoverBackgroundOverride = gradientCoverBackgroundOverride,
     ).style
 
     internal fun buildStyleWithDiagnostics(
@@ -113,6 +115,7 @@ object LyricStyleHelper {
         albumBitmap: Bitmap? = null,
         mediaColorKey: String? = CoverColorHelper.currentMediaKey(),
         fontColorKeys: RootConstants.FontColorKeys = RootConstants.FONT_COLOR_KEYS_SUMMARY,
+        gradientCoverBackgroundOverride: Boolean? = null,
     ): StyleBuildResult {
         val fontSize = prefs.getInt(RootConstants.KEY_HOOK_TEXT_SIZE, RootConstants.DEFAULT_HOOK_TEXT_SIZE)
         val baseTf = FontHelper.loadBaseTypeface(prefs)
@@ -185,8 +188,10 @@ object LyricStyleHelper {
             fontColorKeys.coverGradient,
             RootConstants.DEFAULT_HOOK_EXTRACT_COVER_TEXT_GRADIENT
         )
+        // 调用方（焦点通知卡片等非岛 surfaces）显式声明「背景由封面渐变生成」时优先采用；
+        // 未声明时按超级岛摘要态的封面样式偏好判定（历史行为，保持岛侧不变）。
         val gradientCoverBackgroundActive =
-            IslandRuntimePreferenceReader.getBoolean(
+            gradientCoverBackgroundOverride ?: IslandRuntimePreferenceReader.getBoolean(
                 prefs,
                 RootConstants.KEY_HOOK_ISLAND_LEFT_ALBUM,
                 RootConstants.DEFAULT_HOOK_ISLAND_LEFT_ALBUM,
