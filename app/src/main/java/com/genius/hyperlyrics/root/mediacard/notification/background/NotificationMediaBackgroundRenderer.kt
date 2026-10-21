@@ -200,6 +200,12 @@ internal class NotificationMediaBackgroundRenderer(
                 val reverse = autoInvert && profile.brightness >= 192f
                 val text = palette.accent1[if (reverse) 8 else 2]
                 val background = palette.accent1[if (reverse) 3 else 8]
+                com.genius.hyperlyrics.root.utils.HookLogger.i(
+                    "NotificationMediaBackgroundRenderer",
+                    "线性渐变配色: brightness=${profile.brightness}, autoInvert=$autoInvert, " +
+                        "reverse=$reverse, text=#${Integer.toHexString(text)}, " +
+                        "background=#${Integer.toHexString(background)}"
+                )
                 NotificationMediaColorConfig(text, text, background, background)
             }
             5 -> {

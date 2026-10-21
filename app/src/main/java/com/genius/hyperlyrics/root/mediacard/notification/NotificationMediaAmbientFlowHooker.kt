@@ -353,6 +353,11 @@ object NotificationMediaAmbientFlowHooker {
 
     fun refreshBackgroundStyle() {
         val controllers = synchronized(activeControllers) { activeControllers.toList() }
+        HookLogger.i(
+            TAG,
+            "刷新焦点通知卡片背景: controllers=${controllers.size}, " +
+                "active=${controllers.count { NotificationMediaBackgroundController.isActive(it) }}"
+        )
         controllers.forEach { controller ->
             if (NotificationMediaBackgroundController.isActive(controller)) {
                 restoreCardTheme(controller)

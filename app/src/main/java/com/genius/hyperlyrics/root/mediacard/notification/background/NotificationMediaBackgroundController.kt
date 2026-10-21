@@ -127,6 +127,11 @@ internal object NotificationMediaBackgroundController {
         }
         state.token = token
         state.renderPending = true
+        HookLogger.i(
+            TAG,
+            "背景渲染请求: style=$style, autoInvert=$autoInvert, " +
+                "animation=${currentColorAnimation()}, artworkUpdated=$artworkUpdated, token=$token"
+        )
         val request = state.request.incrementAndGet()
         val renderer = resolveRenderer(controller.javaClass.classLoader) ?: return
 
@@ -295,14 +300,21 @@ internal object NotificationMediaBackgroundController {
         mediaBg.clipToOutline = true
         val next = BitmapDrawable(mediaBg.resources, bitmap)
         if (!currentColorAnimation() || !mediaBg.isShown || !mediaBg.isAttachedToWindow) {
+            HookLogger.i(
+                TAG,
+                "背景切换: 直接替换（animation=${currentColorAnimation()}, " +
+                    "shown=${mediaBg.isShown}, attached=${mediaBg.isAttachedToWindow}）"
+            )
             mediaBg.setImageDrawable(next)
             return
         }
         val previous = mediaBg.drawable
         if (previous == null) {
+            HookLogger.i(TAG, "背景切换: 首个背景无旧图，跳过动画")
             mediaBg.setImageDrawable(next)
             return
         }
+        HookLogger.i(TAG, "背景切换: 333ms 交叉淡入淡出")
         val transition = TransitionDrawable(arrayOf(previous, next)).apply {
             isCrossFadeEnabled = true
         }
