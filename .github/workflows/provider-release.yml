@@ -114,8 +114,8 @@ jobs:
               ;;
           esac
 
-          git config user.name "QuanTum2088"
-          git config user.email "158152582+QuanTum2088@users.noreply.github.com"
+          git config user.name "GeniusQA"
+          git config user.email "158152582+GeniusQA@users.noreply.github.com"
 
           # 多个 provider 并行发布会竞争 push main；失败时基于最新 main 重试
           for attempt in 1 2 3 4 5; do
