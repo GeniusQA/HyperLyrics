@@ -220,18 +220,21 @@ jobs:
             exit 0
           fi
 
-          # 选择签名密钥：存在发布密钥(release.jks)则用它；否则回退到 Android 默认
-          # 调试密钥，保证未配置发布密钥时也不会因签名步骤导致构建失败。
+          # 选择签名密钥：存在发布密钥(release.jks)则用它；否则临时生成一把调试密钥
+          # （keytool），保证未配置发布密钥时也不会因签名步骤导致构建失败。
           if [[ -f release.jks ]]; then
             KS=release.jks
             KS_PASS="env:STORE_PASS"
             ALIAS="$KEY_ALIAS"
             KEY_PASS="env:KEY_PASS"
           else
-            KS="$HOME/.android/debug.keystore"
+            KS="$RUNNER_TEMP/debug.keystore"
             KS_PASS="pass:android"
             ALIAS="androiddebugkey"
             KEY_PASS="pass:android"
+            keytool -genkeypair -v -keystore "$KS" -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android -dname "CN=HyperLyrics" >/dev/null 2>&1 || true
           fi
 
           # 签名 release 产物（stable / beta 会产出）
