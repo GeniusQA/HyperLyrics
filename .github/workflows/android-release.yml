@@ -186,7 +186,7 @@ jobs:
           compression-level: 0
 
       - name: 解码签名密钥 Decode Keystore
-        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false'
+        if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel != 'canary'
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: echo "$SIGNING_KEY" | base64 -d > release.jks
@@ -207,7 +207,17 @@ jobs:
           ZA="$BTDIR/zipalign"
           AS="$BTDIR/apksigner"
 
-          # 签名 release 产物（stable 会产出）
+          # canary：直接采用 Gradle 已 debug 签名的产物，跳过发布签名环节，
+          # 既免去对 SIGNING_KEY 等发布密钥的依赖，也省去 zipalign/apksigner 耗时。
+          if [[ "$CHANNEL" == "canary" ]]; then
+            DEBUG_IN=$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*-debug.apk' -print -quit || true)
+            if [[ -n "$DEBUG_IN" ]]; then
+              cp "$DEBUG_IN" "HyperLyrics-Canary-v${V_NAME}-${V_CODE}.apk"
+            fi
+            exit 0
+          fi
+
+          # 签名 release 产物（stable / beta 会产出）
           RELEASE_IN=$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit || true)
           if [[ -n "$RELEASE_IN" ]]; then
             $ZA -f -v -p 4 "$RELEASE_IN" release-aligned.apk
@@ -220,7 +230,7 @@ jobs:
               release-aligned.apk
           fi
 
-          # 签名 debug 产物（canary / stable / beta 会产出）
+          # 签名 debug 产物（stable 会产出）
           DEBUG_IN=$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*-debug.apk' -print -quit || true)
           if [[ -n "$DEBUG_IN" ]]; then
             $ZA -f -v -p 4 "$DEBUG_IN" debug-aligned.apk
