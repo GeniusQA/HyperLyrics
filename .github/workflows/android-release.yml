@@ -189,7 +189,10 @@ jobs:
         if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false' && steps.gate.outputs.channel != 'canary'
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        run: echo "$SIGNING_KEY" | base64 -d > release.jks
+        run: |
+          if [[ -n "$SIGNING_KEY" ]]; then
+            echo "$SIGNING_KEY" | base64 -d > release.jks
+          fi
 
       - name: 签名 APK Sign APK
         if: github.event_name != 'pull_request' && steps.gate.outputs.skip == 'false'
@@ -217,15 +220,29 @@ jobs:
             exit 0
           fi
 
+          # 选择签名密钥：存在发布密钥(release.jks)则用它；否则回退到 Android 默认
+          # 调试密钥，保证未配置发布密钥时也不会因签名步骤导致构建失败。
+          if [[ -f release.jks ]]; then
+            KS=release.jks
+            KS_PASS="env:STORE_PASS"
+            ALIAS="$KEY_ALIAS"
+            KEY_PASS="env:KEY_PASS"
+          else
+            KS="$HOME/.android/debug.keystore"
+            KS_PASS="pass:android"
+            ALIAS="androiddebugkey"
+            KEY_PASS="pass:android"
+          fi
+
           # 签名 release 产物（stable / beta 会产出）
           RELEASE_IN=$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit || true)
           if [[ -n "$RELEASE_IN" ]]; then
             $ZA -f -v -p 4 "$RELEASE_IN" release-aligned.apk
             $AS sign \
-              --ks release.jks \
-              --ks-pass env:STORE_PASS \
-              --ks-key-alias "$KEY_ALIAS" \
-              --key-pass env:KEY_PASS \
+              --ks "$KS" \
+              --ks-pass "$KS_PASS" \
+              --ks-key-alias "$ALIAS" \
+              --key-pass "$KEY_PASS" \
               --out "HyperLyrics-Release-v${V_NAME}-${V_CODE}.apk" \
               release-aligned.apk
           fi
@@ -235,10 +252,10 @@ jobs:
           if [[ -n "$DEBUG_IN" ]]; then
             $ZA -f -v -p 4 "$DEBUG_IN" debug-aligned.apk
             $AS sign \
-              --ks release.jks \
-              --ks-pass env:STORE_PASS \
-              --ks-key-alias "$KEY_ALIAS" \
-              --key-pass env:KEY_PASS \
+              --ks "$KS" \
+              --ks-pass "$KS_PASS" \
+              --ks-key-alias "$ALIAS" \
+              --key-pass "$KEY_PASS" \
               --out "HyperLyrics-Canary-v${V_NAME}-${V_CODE}.apk" \
               debug-aligned.apk
           fi
